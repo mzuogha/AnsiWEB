@@ -1,10 +1,12 @@
-"""AnsiWEB command line.
+"""AnsiWEB command line. After installation, run it as: sudo ansiweb <command>
 
-  python -m ansiweb.cli init                   create data folders, keys and default config
-  python -m ansiweb.cli set-password [user]    set the web admin login
-  python -m ansiweb.cli update-cache           check vendors and refresh cached installers
-  python -m ansiweb.cli deploy [target]        deploy apps (target: all, site:HQ, group:x, pc:NAME)
-  python -m ansiweb.cli plan                   rebuild inventory and deployment plan
+  init                   create data folders, keys and default configuration
+  set-password [user]    set the web admin login
+  update-cache           check vendors and refresh the cached installers
+  deploy [target]        deploy apps (target: all, site:HQ, group:finance, pc:PC-HQ-001)
+  plan                   rebuild the inventory and deployment plan
+
+Without the wrapper: python -m ansiweb.cli <command>, with ANSIWEB_DATA set.
 """
 import getpass
 import sys

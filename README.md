@@ -63,9 +63,12 @@ Microsoft Office is not deployed by AnsiWEB and is installed separately.
 
 ## Installation
 
-**Server:** Ubuntu Server 22.04 or 24.04, 2 vCPU, 4 GB RAM, about 10 GB of free disk for the cache. It needs a fixed IP address and internet access.
+**Full step-by-step guide, including WSL: [docs/INSTALL.md](docs/INSTALL.md).**
+
+**Requirements:** Ubuntu 22.04 or 24.04 (a server, a VM, or WSL2 on a Windows PC), 2 vCPU, 4 GB RAM, about 10 GB free disk for the cache, a fixed IP address, and internet access.
 
 ```bash
+sudo apt update && sudo apt install -y git
 git clone https://github.com/mzuogha/AnsiWEB.git
 cd AnsiWEB
 sudo ./install.sh
@@ -76,14 +79,19 @@ The installer creates:
 - the application in `/opt/ansiweb`
 - the data folder `/var/lib/ansiweb` (configuration, secrets, cache, logs), which is never part of the Git repository
 - a `systemd` service called `ansiweb`, with nginx in front of it on port 80
+- the `ansiweb` command for maintenance
 
-It asks you to choose the web admin password. Then open `http://<server-ip>/` and sign in as `admin`.
+It asks you to choose the web admin password, then prints the address to open. Sign in as `admin`.
+
+**Running under WSL?** Two extra steps are needed: enable systemd inside WSL, and forward port 80 from Windows into WSL so your PCs can reach the cache. The installer detects WSL and prints the commands; [docs/INSTALL.md](docs/INSTALL.md#option-b-wsl-on-a-windows-pc) has the full procedure, including keeping it working after a reboot.
 
 To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept.
 
 > Upgrading from v1.0, which deployed Office: the installer deletes the unused Office cache (about 4 GB), and the Office settings are dropped from your configuration. PCs that already have Office keep it; they simply stop being managed by AnsiWEB. Office then updates itself from Microsoft again, unless you removed that setting. To re-enable AnsiWEB's Office support, check out commit `5df483f`.
 
 ## First-time setup
+
+The short version is below; [docs/INSTALL.md](docs/INSTALL.md#first-time-configuration) covers each step in detail.
 
 1. **Settings.** Enter the server's IP address and the `ansible_svc` password. Choose that password now; you'll use the same one on every PC in step 2.
 2. **Prepare each PC once.** On the PCs page, click **Download PC prep script**; the script already contains the server IP. On each PC, open PowerShell as Administrator and run:
@@ -140,6 +148,8 @@ To upgrade later, edit the app: untick **Pin**, or change the URL and version.
 | An app reinstalls on every run | The detection pattern doesn't match the name under *Installed apps*. Check the exact name on a PC under Windows Settings → Apps → Installed apps, and adjust the pattern. |
 | Service logs | `journalctl -u ansiweb -f` |
 
+More, including backup, uninstall and WSL networking: [docs/INSTALL.md](docs/INSTALL.md#troubleshooting).
+
 ## Command line
 
 ```bash
@@ -161,6 +171,7 @@ ansible/
   playbooks/        deploy.yml
   roles/ansiweb_apps/  detection (PowerShell), install, Firefox policy
 scripts/            Prepare-AnsibleHost.ps1 (one-time PC setup)
+docs/INSTALL.md     installation guide (Ubuntu Server and WSL)
 deploy/             systemd unit and nginx site
 install.sh          Ubuntu installer
 ```

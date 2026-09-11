@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# AnsiWEB installer for Ubuntu Server 22.04 / 24.04 (run as root from the repo folder).
+# AnsiWEB installer for Ubuntu 22.04 / 24.04, on a server or under WSL2.
 #   sudo ./install.sh            install or upgrade
+# See docs/INSTALL.md for the full guide.
 set -euo pipefail
 
 APP_DIR=/opt/ansiweb
@@ -8,6 +9,28 @@ DATA_DIR=/var/lib/ansiweb
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo: sudo ./install.sh"; exit 1; fi
+
+IS_WSL=no
+grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=yes
+HAS_SYSTEMD=no
+[[ -d /run/systemd/system ]] && command -v systemctl >/dev/null && HAS_SYSTEMD=yes
+
+if [[ $IS_WSL == yes ]]; then
+  echo "==> Running under WSL"
+  if [[ $HAS_SYSTEMD == no ]]; then
+    cat <<'MSG'
+    systemd is not running in this WSL distribution, so AnsiWEB cannot be
+    installed as a background service. Enable it first:
+
+      printf '[boot]\nsystemd=true\n' | sudo tee -a /etc/wsl.conf
+      # then, in Windows PowerShell:   wsl --shutdown
+      # reopen Ubuntu and run this installer again.
+
+    Continuing anyway: AnsiWEB will be installed, but you will have to start
+    it by hand (the command is printed at the end).
+MSG
+  fi
+fi
 
 echo "==> Installing system packages"
 apt-get update -qq
@@ -35,7 +58,10 @@ echo "==> Command-line helper /usr/local/bin/ansiweb"
 cat > /usr/local/bin/ansiweb <<WRAP
 #!/bin/sh
 # AnsiWEB command line, e.g.: sudo ansiweb update-cache
-cd $APP_DIR && exec sudo -u ansiweb ANSIWEB_DATA=$DATA_DIR HOME=$DATA_DIR $APP_DIR/venv/bin/python -m ansiweb.cli "\$@"
+if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
+cd $APP_DIR || exit 1
+exec runuser -u ansiweb -- env ANSIWEB_DATA=$DATA_DIR HOME=$DATA_DIR \\
+     $APP_DIR/venv/bin/python -m ansiweb.cli "\$@"
 WRAP
 chmod 755 /usr/local/bin/ansiweb
 
@@ -44,9 +70,14 @@ mkdir -p "$DATA_DIR"
 chown -R ansiweb:ansiweb "$DATA_DIR"
 /usr/local/bin/ansiweb init
 
+NEED_PASSWORD=no
 if [[ ! -f "$DATA_DIR/admin.json" ]]; then
-  echo "==> Create the web admin login (username: admin)"
-  /usr/local/bin/ansiweb set-password admin
+  if [[ -t 0 ]]; then
+    echo "==> Create the web admin login (username: admin)"
+    /usr/local/bin/ansiweb set-password admin
+  else
+    NEED_PASSWORD=yes   # not running interactively; set it afterwards
+  fi
 fi
 
 # Office deployment was removed in v1.1; its cached files are no longer used.
@@ -55,18 +86,57 @@ if [[ -d "$DATA_DIR/cache/office" ]]; then
   rm -rf "$DATA_DIR/cache/office" "$DATA_DIR/office_staging" "$DATA_DIR/office_pull.json"
 fi
 
-echo "==> Service and web server"
-install -m 0644 "$APP_DIR/deploy/ansiweb.service" /etc/systemd/system/ansiweb.service
+echo "==> Web server"
 install -m 0644 "$APP_DIR/deploy/nginx-ansiweb.conf" /etc/nginx/sites-available/ansiweb
 ln -sf /etc/nginx/sites-available/ansiweb /etc/nginx/sites-enabled/ansiweb
 rm -f /etc/nginx/sites-enabled/default
-nginx -t -q
-systemctl daemon-reload
-systemctl enable -q --now ansiweb
-systemctl restart ansiweb
-systemctl reload nginx
+nginx -t
 
 IP=$(hostname -I | awk '{print $1}')
+
+if [[ $HAS_SYSTEMD == yes ]]; then
+  echo "==> Service"
+  install -m 0644 "$APP_DIR/deploy/ansiweb.service" /etc/systemd/system/ansiweb.service
+  systemctl daemon-reload
+  systemctl enable -q --now ansiweb
+  systemctl restart ansiweb
+  systemctl enable -q nginx
+  systemctl restart nginx
+  sleep 2
+  systemctl is-active --quiet ansiweb || { echo "AnsiWEB failed to start. Check: journalctl -u ansiweb -n 40"; exit 1; }
+  STARTED="AnsiWEB is running:  http://$IP/"
+else
+  service nginx restart >/dev/null 2>&1 || nginx -s reload || nginx
+  STARTED=$(cat <<MSG
+AnsiWEB is installed but not started (no systemd on this system).
+Start it with:
+  sudo runuser -u ansiweb -- env ANSIWEB_DATA=$DATA_DIR HOME=$DATA_DIR \\
+       $APP_DIR/venv/bin/gunicorn --chdir $APP_DIR --workers 1 --threads 16 \\
+       --timeout 7200 --bind 127.0.0.1:8081 "ansiweb.web:create_app()"
+Then open:  http://$IP/
+MSG
+)
+fi
+
 echo
-echo "AnsiWEB is running:  http://$IP/"
-echo "Sign in as 'admin', then follow the setup notes on the dashboard."
+echo "$STARTED"
+if [[ $NEED_PASSWORD == yes ]]; then
+  echo "Set the web admin password before signing in:"
+  echo "  sudo ansiweb set-password admin"
+else
+  echo "Sign in as 'admin', then follow the setup notes on the dashboard."
+fi
+
+if [[ $IS_WSL == yes ]]; then
+  cat <<MSG
+
+WSL note: $IP is an internal WSL address that your PCs cannot reach.
+Forward port 80 from Windows to WSL, in an *Administrator* PowerShell:
+
+  netsh interface portproxy add v4tov4 listenport=80 listenaddress=0.0.0.0 connectport=80 connectaddress=$IP
+  New-NetFirewallRule -DisplayName "AnsiWEB 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+
+Then use the *Windows* machine's IP as the server IP in AnsiWEB Settings.
+This has to be redone whenever the WSL address changes - see docs/INSTALL.md.
+MSG
+fi
