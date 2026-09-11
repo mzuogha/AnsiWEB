@@ -1,0 +1,26 @@
+---
+- name: "Download {{ app.name }} {{ app.version }} from AnsiWEB"
+  ansible.windows.win_get_url:
+    url: "{{ app.url }}"
+    dest: "{{ aw_pc_cache }}\\{{ app.file }}"
+    checksum: "{{ app.sha256 | lower }}"
+    checksum_algorithm: sha256
+    force: false
+
+- name: "Install {{ app.name }} {{ app.version }}"
+  ansible.windows.win_package:
+    path: "{{ aw_pc_cache }}\\{{ app.file }}"
+    arguments: "{{ app.arguments if app.arguments | length > 0 else omit }}"
+    expected_return_code: "{{ app.success_codes }}"
+    state: present
+  register: aw_install
+
+- name: "Note that {{ app.name }} needs a reboot"
+  ansible.builtin.set_fact:
+    aw_reboot_needed: true
+  when: aw_install.reboot_required | default(false)
+
+- name: "Remove the {{ app.name }} installer from the PC"
+  ansible.windows.win_file:
+    path: "{{ aw_pc_cache }}\\{{ app.file }}"
+    state: absent

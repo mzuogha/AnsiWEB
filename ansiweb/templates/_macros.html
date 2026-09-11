@@ -1,0 +1,18 @@
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro job_button(kind, label, target='', cls='btn', confirm='') %}
+<form method="post" action="{{ url_for('job_start') }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  {{ csrf() }}<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="target" value="{{ target }}">
+  <button class="{{ cls }}">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% macro status_pill(status) %}<span class="pill {{ status }}">{{ status }}</span>{% endmacro %}
+
+{% macro state_pill(state) %}
+{% set labels = {'ok': 'cached', 'pinned': 'pinned', 'error': 'error', 'stale': 'update failed',
+                 'missing': 'not cached', 'disabled': 'disabled'} %}
+<span class="pill st-{{ state }}">{{ labels.get(state, state) }}</span>
+{% endmacro %}
+
+{% macro target_label(t) %}{{ 'All PCs' if t == 'all' else t.replace('site:', 'Site: ').replace('group:', 'Group: ').replace('pc:', 'PC: ') }}{% endmacro %}

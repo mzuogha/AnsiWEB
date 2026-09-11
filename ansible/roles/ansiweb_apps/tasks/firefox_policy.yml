@@ -1,0 +1,22 @@
+---
+- name: Check for Firefox
+  ansible.windows.win_stat:
+    path: C:\Program Files\Mozilla Firefox\firefox.exe
+  register: aw_ff
+
+- name: Create the Firefox distribution folder
+  ansible.windows.win_file:
+    path: C:\Program Files\Mozilla Firefox\distribution
+    state: directory
+  when: aw_ff.stat.exists
+
+- name: Disable Firefox automatic updates
+  ansible.windows.win_copy:
+    dest: C:\Program Files\Mozilla Firefox\distribution\policies.json
+    content: |
+      {
+        "policies": {
+          "DisableAppUpdate": true
+        }
+      }
+  when: aw_ff.stat.exists

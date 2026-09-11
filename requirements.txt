@@ -1,0 +1,5 @@
+flask>=3.0
+gunicorn>=22.0
+pyyaml>=6.0
+ansible-core>=2.17
+pywinrm>=0.4.3

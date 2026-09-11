@@ -1,0 +1,135 @@
+---
+# Downloads the newest Office build on the helper PC with Microsoft's Office
+# Deployment Tool, then copies it into the AnsiWEB cache over SMB.
+- name: Download the newest Office build on the helper PC
+  hosts: office_helper
+  gather_facts: false
+  vars:
+    aw_plan: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/deploy_plan.json') | from_json }}"
+    office: "{{ aw_plan.office }}"
+    src_dir: 'C:\AnsiWEB\OfficeSource'
+  tasks:
+    - name: Create the Office source folder
+      ansible.windows.win_file:
+        path: "{{ src_dir }}"
+        state: directory
+
+    - name: Get the Office Deployment Tool from AnsiWEB
+      ansible.windows.win_get_url:
+        url: "{{ office.setup_url }}"
+        dest: "{{ src_dir }}\\setup.exe"
+        force: true
+
+    - name: Write the download configuration
+      ansible.windows.win_template:
+        src: "{{ playbook_dir }}/../roles/ansiweb_apps/templates/office-download.xml.j2"
+        dest: "{{ src_dir }}\\download.xml"
+
+    - name: Download the newest Office build from Microsoft (only new files are fetched)
+      ansible.windows.win_command: setup.exe /download download.xml
+      args:
+        chdir: "{{ src_dir }}"
+      async: 10800
+      poll: 30
+
+    - name: Keep only the newest build on the helper
+      ansible.windows.win_powershell:
+        parameters:
+          Root: "{{ src_dir }}\\Office\\Data"
+        script: |
+          param([string]$Root)
+          $builds = Get-ChildItem -LiteralPath $Root -Directory |
+              Where-Object { $_.Name -match '^\d+(\.\d+)+$' } |
+              Sort-Object { [version]$_.Name } -Descending
+          if (-not $builds) { throw "No Office build was downloaded to $Root" }
+          $latest = $builds[0].Name
+          foreach ($old in ($builds | Select-Object -Skip 1)) {
+              Remove-Item -LiteralPath $old.FullName -Recurse -Force
+              $Ansible.Changed = $true
+          }
+          Get-ChildItem -LiteralPath $Root -Filter 'v*_*.cab' |
+              Where-Object { $_.Name -notlike "*_$latest.cab" } |
+              ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force; $Ansible.Changed = $true }
+          $Ansible.Result = $latest
+      register: aw_build
+
+    - name: Share the Office folder read-only with the AnsiWEB account
+      ansible.windows.win_share:
+        name: AnsiWEBOffice
+        path: "{{ src_dir }}"
+        description: Read-only Office source for the AnsiWEB server
+        list: false
+        read: "{{ ansible_user }}"
+        state: present
+
+    - name: Allow SMB (TCP 445) from the AnsiWEB server only
+      community.windows.win_firewall_rule:
+        name: AnsiWEB Office share
+        localport: 445
+        protocol: tcp
+        direction: in
+        action: allow
+        remoteip: "{{ aw_plan.server_ip }}"
+        profiles: [domain, private, public]
+        state: present
+        enabled: true
+
+- name: Copy the Office build into the AnsiWEB cache
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    helper: "{{ groups['office_helper'][0] }}"
+    build: "{{ hostvars[helper].aw_build.result }}"
+    manifest: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/manifest.json', errors='ignore') | default('{}', true) | from_json }}"
+    cached: "{{ (manifest['__office__'] | default({})).get('version', '') }}"
+    staging: "{{ ansiweb_data }}/office_staging"
+    auth_file: "{{ ansiweb_data }}/.smb_auth"
+  tasks:
+    - name: Report the build found on the helper
+      ansible.builtin.debug:
+        msg: "Helper has Office {{ build }}; AnsiWEB cache has {{ cached or 'nothing' }}."
+
+    - name: Pull the build over SMB
+      when: build != cached
+      block:
+        - name: Prepare an empty staging folder
+          ansible.builtin.file:
+            path: "{{ staging }}"
+            state: "{{ item }}"
+            mode: "0755"
+          loop: [absent, directory]
+
+        - name: Write temporary SMB credentials
+          ansible.builtin.copy:
+            dest: "{{ auth_file }}"
+            mode: "0600"
+            content: |
+              username = {{ hostvars[helper].ansible_user }}
+              password = {{ hostvars[helper].vault_ansible_svc_password }}
+          no_log: true
+
+        - name: Copy the Office files from the helper (several GB)
+          ansible.builtin.command:
+            argv:
+              - smbclient
+              - "//{{ hostvars[helper].ansible_host }}/AnsiWEBOffice"
+              - -A
+              - "{{ auth_file }}"
+              - -m
+              - SMB3
+              - -c
+              - prompt OFF; recurse ON; mget Office
+            chdir: "{{ staging }}"
+          changed_when: true
+      always:
+        - name: Remove temporary SMB credentials
+          ansible.builtin.file:
+            path: "{{ auth_file }}"
+            state: absent
+
+    - name: Tell AnsiWEB what happened
+      ansible.builtin.copy:
+        dest: "{{ ansiweb_data }}/office_pull.json"
+        mode: "0644"
+        content: "{{ {'version': build, 'pulled': build != cached} | to_json }}"

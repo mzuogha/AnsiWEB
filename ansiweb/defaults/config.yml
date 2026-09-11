@@ -1,0 +1,113 @@
+# Initial AnsiWEB configuration. Copied to $ANSIWEB_DATA/config.yml on first start,
+# then managed from the web interface.
+settings:
+  server_ip: ""            # control node IP address that PCs use to reach AnsiWEB
+  allow_reboot: false      # reboot PCs automatically when an installer asks for it
+  forks: 20                # how many PCs Ansible works on at the same time
+  batch_size: 20           # PCs per batch during a deployment
+
+schedules:
+  cache_check:
+    enabled: true
+    every_hours: 24        # check vendors for new versions and refresh the cache
+  deploy:
+    enabled: false
+    time: "19:00"          # push missing apps and updates to all PCs
+    days: [mon, tue, wed, thu, fri]
+  office_cache:
+    enabled: false
+    day: sun
+    time: "02:00"          # refresh the cached Office build via the helper PC
+
+sites: [HQ]
+pcs: []                    # {name, ip, site, groups: []}
+
+apps:
+  - id: vcredist-x64
+    name: Microsoft Visual C++ 2015-2022 Redistributable (x64)
+    enabled: true
+    source: winget
+    winget_id: Microsoft.VCRedist.2015+.x64
+    installer_types: [burn, exe]
+    arguments: /install /quiet /norestart
+    detect_pattern: '^Microsoft Visual C\+\+ .*Redistributable \(x64\)'
+    pinned: false
+    targets: [all]
+
+  - id: 7zip
+    name: 7-Zip
+    enabled: true
+    source: winget
+    winget_id: 7zip.7zip
+    installer_types: [exe]
+    arguments: /S
+    detect_pattern: '^7-Zip'
+    pinned: false
+    targets: [all]
+
+  - id: adobe-reader
+    name: Adobe Acrobat Reader (64-bit)
+    enabled: true
+    source: winget
+    winget_id: Adobe.Acrobat.Reader.64-bit
+    installer_types: [exe]
+    arguments: -sfx_nu /sAll /rs /msi EULA_ACCEPT=YES
+    detect_pattern: '^Adobe Acrobat'
+    pinned: false
+    targets: [all]
+
+  - id: chrome
+    name: Google Chrome
+    enabled: true
+    source: winget
+    winget_id: Google.Chrome
+    installer_types: [wix, msi]
+    arguments: ""
+    detect_pattern: '^Google Chrome$'
+    pinned: false
+    targets: [all]
+
+  - id: firefox
+    name: Mozilla Firefox 65 (pinned)
+    enabled: true
+    source: url
+    url: https://download-installer.cdn.mozilla.net/pub/firefox/releases/65.0.2/win64/en-US/Firefox%20Setup%2065.0.2.msi
+    version: 65.0.2
+    sha256: ""
+    arguments: ""
+    detect_pattern: '^Mozilla Firefox'
+    pinned: true
+    firefox_disable_updates: true
+    targets: [all]
+
+  - id: java8
+    name: Java 8 Runtime (Oracle, 64-bit)
+    enabled: true
+    source: winget
+    winget_id: Oracle.JavaRuntimeEnvironment
+    installer_types: [exe]
+    arguments: /s REBOOT=0 SPONSORS=0 AUTO_UPDATE=0 REMOVEOUTOFDATEJRES=1
+    detect_pattern: '^Java 8 Update \d+ \(64-bit\)'
+    pinned: false
+    targets: [all]
+
+  - id: vlc
+    name: VLC media player
+    enabled: true
+    source: winget
+    winget_id: VideoLAN.VLC
+    installer_types: [nullsoft, exe]
+    arguments: /L=1033 /S
+    detect_pattern: '^VLC media player'
+    pinned: false
+    targets: [all]
+
+office:
+  enabled: true
+  product_id: Standard2024Volume
+  channel: PerpetualVL2024
+  edition: "64"
+  language: en-us
+  exclude_apps: []         # e.g. [Groove, Lync]  (Groove = OneDrive)
+  helper_pc: ""            # inventory name of the Windows PC that downloads Office updates
+  targets: [all]

@@ -1,0 +1,10 @@
+---
+# Installs missing apps and upgrades outdated ones from the AnsiWEB cache.
+# Run from the web interface, or: python -m ansiweb.cli deploy [target]
+- name: Deploy standard apps from the AnsiWEB cache
+  hosts: windows
+  gather_facts: false
+  serial: "{{ aw_batch | default(20) | int }}"
+  max_fail_percentage: 50
+  roles:
+    - ansiweb_apps

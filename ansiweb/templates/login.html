@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="login-box">
+  <div class="brand big">Ansi<span>WEB</span></div>
+  <p class="muted">Standard app deployment for Windows PCs</p>
+  {% if no_admin %}
+    <div class="flash error">No admin account yet. On the server run:<br>
+      <code>sudo ansiweb set-password admin</code></div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Username<input name="username" autocomplete="username" required autofocus></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary wide">Sign in</button>
+  </form>
+</div>
+{% endblock %}

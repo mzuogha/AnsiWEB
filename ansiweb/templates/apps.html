@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import job_button, state_pill, csrf, target_label with context %}
+{% block title %}Apps{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Apps &amp; cache</h1>
+  <div class="actions">
+    {{ job_button('cache_update', 'Check for updates now') }}
+    <a class="btn primary" href="{{ url_for('app_new') }}">Add app</a>
+  </div>
+</div>
+<p class="muted">Every enabled app is downloaded once to this server and installed on PCs from here, so PCs need no
+internet access. <b>Auto-update</b> apps are re-checked on the schedule in Settings; when a newer version is cached,
+PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version you set and are only installed where missing.</p>
+
+<table class="list">
+  <tr><th>App</th><th>Source</th><th>Policy</th><th>Cached</th><th>Newest seen</th><th>Installs on</th><th>Status</th><th></th></tr>
+  {% for r in apps %}
+  {% set a = r.app %}
+  <tr class="{{ 'dim' if not a.enabled }}">
+    <td><a href="{{ url_for('app_edit', app_id=a.id) }}"><b>{{ a.name }}</b></a><br><span class="muted small">{{ a.id }}</span></td>
+    <td>{{ a.source }}{% if a.source == 'winget' %}<br><span class="muted small">{{ a.winget_id }}</span>{% endif %}</td>
+    <td>{% if a.pinned %}Pinned {{ a.version }}{% else %}Auto-update{% endif %}</td>
+    <td>{{ r.entry.version or '—' }}{% if r.entry.updated %}<br><span class="muted small">{{ r.entry.updated }}</span>{% endif %}</td>
+    <td>{{ r.entry.latest_seen or '—' }}</td>
+    <td class="small">{% for t in a.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{{ state_pill(r.state) }}{% if r.entry.error %}<div class="err small">{{ r.entry.error }}</div>{% endif %}</td>
+    <td class="nowrap">
+      {% if a.source != 'upload' %}
+      <form method="post" action="{{ url_for('app_refresh', app_id=a.id) }}" class="inline">{{ csrf() }}
+        <button class="btn small" title="Download again now">Re-download</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

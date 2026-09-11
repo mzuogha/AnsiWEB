@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import job_button, status_pill, state_pill with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Dashboard</h1>
+  <div class="actions">
+    {{ job_button('cache_update', 'Check for updates now') }}
+    {{ job_button('deploy', 'Deploy to all PCs', 'all', 'btn primary', 'Install missing apps and updates on every PC now?') }}
+  </div>
+</div>
+
+{% for text, ep in warnings %}
+<div class="flash warn"><a href="{{ url_for(ep) }}">{{ text }}</a></div>
+{% endfor %}
+
+<div class="cards">
+  <div class="card"><div class="num">{{ stats.pcs }}</div><div class="lbl">PCs managed</div></div>
+  <div class="card"><div class="num">{{ stats.cached }}/{{ stats.apps }}</div><div class="lbl">apps cached and ready</div></div>
+  <div class="card {{ 'bad' if stats.problems }}"><div class="num">{{ stats.problems }}</div><div class="lbl">cache problems</div></div>
+  <div class="card {{ 'warnc' if stats.pcs_needing }}"><div class="num">{{ stats.pcs_needing }}</div><div class="lbl">PCs missing apps or updates<br><span class="muted small">of {{ stats.pcs_reported }} that have reported</span></div></div>
+</div>
+
+<div class="grid2">
+  <section class="panel">
+    <h2>Local app cache</h2>
+    <table>
+      <tr><th>App</th><th>Cached version</th><th>Status</th></tr>
+      {% for r in apps %}
+      <tr>
+        <td><a href="{{ url_for('app_edit', app_id=r.app.id) }}">{{ r.app.name }}</a></td>
+        <td>{{ r.entry.version or '—' }}</td>
+        <td>{{ state_pill(r.state) }}</td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td><a href="{{ url_for('office_page') }}">Microsoft Office ({{ cfg.office.product_id }})</a></td>
+        <td>{{ office.version or '—' }}</td>
+        <td>{% if not cfg.office.enabled %}{{ state_pill('disabled') }}{% elif office.status == 'ok' %}{{ state_pill('ok') }}{% else %}{{ state_pill('missing') }}{% endif %}</td>
+      </tr>
+    </table>
+    <p class="muted small">Last update check:
+      {% if last_cache %}<a href="{{ url_for('job_view', job_id=last_cache.id) }}">{{ last_cache.started }}</a> {{ status_pill(last_cache.status) }}{% else %}never{% endif %}</p>
+  </section>
+
+  <section class="panel">
+    <h2>Recent jobs</h2>
+    <table>
+      <tr><th>#</th><th>Job</th><th>Started</th><th>Status</th></tr>
+      {% for j in recent %}
+      <tr>
+        <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ j.id }}</a></td>
+        <td>{{ job_kinds[j.kind] }}{% if j.target %} <span class="muted">({{ j.target }})</span>{% endif %}</td>
+        <td class="small">{{ j.started }}</td>
+        <td>{{ status_pill(j.status) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No jobs yet.</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+</div>
+{% endblock %}

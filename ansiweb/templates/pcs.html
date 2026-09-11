@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, job_button with context %}
+{% block title %}PCs{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>PCs</h1>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('prepare_script') }}">Download PC prep script</a>
+    {{ job_button('ping', 'Test all connections', 'all') }}
+  </div>
+</div>
+<p class="muted">Run the prep script once on each PC (PowerShell as Administrator), then add the PC here.
+It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once you set it in Settings</b>{% endif %}.</p>
+
+<table class="list">
+  <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Apps</th><th>Last report</th><th></th></tr>
+  {% for pc in cfg.pcs %}
+  {% set rep = reports.get(pc.name) %}
+  {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
+  <tr>
+    <td><a href="{{ url_for('pc_edit', name=pc.name) }}"><b>{{ pc.name }}</b></a>
+      {% if cfg.office.helper_pc == pc.name %}<span class="pill">Office helper</span>{% endif %}</td>
+    <td>{{ pc.ip }}</td>
+    <td>{{ pc.site }}</td>
+    <td class="small">{{ pc.groups|join(', ') }}</td>
+    <td>
+      {% if rep %}
+        {% set needed = rep.apps|selectattr('needed')|list %}
+        {% set mism = rep.apps|selectattr('mismatch')|list %}
+        {% if needed %}<span class="pill warning">{{ needed|length }} to install/update</span>
+        {% else %}<span class="pill success">up to date</span>{% endif %}
+        {% if mism %}<span class="pill failed" title="Installed version differs from the pinned version">{{ mism|length }} version mismatch</span>{% endif %}
+      {% else %}<span class="muted small">{{ assigned|length }} assigned, not reported yet</span>{% endif %}
+    </td>
+    <td class="small">{{ rep.time if rep else '—' }}</td>
+    <td class="nowrap">
+      {{ job_button('ping', 'Test', 'pc:' ~ pc.name, 'btn small') }}
+      {{ job_button('deploy', 'Deploy', 'pc:' ~ pc.name, 'btn small primary') }}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No PCs yet. Add one below or import a list.</td></tr>
+  {% endfor %}
+</table>
+
+<div class="grid2">
+  <section class="panel">
+    <h2>Add a PC</h2>
+    <form method="post" action="{{ url_for('pc_add') }}" class="form">{{ csrf() }}
+      <div class="row">
+        <label>PC name<input name="name" required placeholder="PC-HQ-001"></label>
+        <label>IP address<input name="ip" required placeholder="192.168.1.21"></label>
+      </div>
+      <div class="row">
+        <label>Site<select name="site">{% for s in cfg.sites %}<option>{{ s }}</option>{% endfor %}</select></label>
+        <label>Groups (comma-separated, optional)<input name="groups" placeholder="finance, kiosk"></label>
+      </div>
+      <button class="btn primary">Add PC</button>
+    </form>
+    <p class="muted small">Give each PC a fixed IP (DHCP reservation). Without company DNS, AnsiWEB finds PCs by IP.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Import a list</h2>
+    <form method="post" action="{{ url_for('pc_import') }}" class="form">{{ csrf() }}
+      <label>One PC per line: <code>name,ip,site,group1;group2</code>
+        <textarea name="csv" rows="6" placeholder="PC-HQ-001,192.168.1.21,HQ&#10;PC-BR1-001,192.168.2.21,Branch1,finance"></textarea></label>
+      <button class="btn">Import</button>
+      <span class="muted small">Existing names are updated; new sites are created.</span>
+    </form>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Sites</h2>
+  <div class="chips">
+    {% for s in cfg.sites %}
+    <span class="chip">
+      {{ s }} <span class="muted small">({{ cfg.pcs|selectattr('site', 'equalto', s)|list|length }} PCs)</span>
+      {{ job_button('deploy', 'Deploy', 'site:' ~ s, 'link') }}
+      <form method="post" action="{{ url_for('sites') }}" class="inline" data-confirm="Delete site {{ s }}?">{{ csrf() }}
+        <input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{{ s }}">
+        <button class="link" title="Delete site">×</button></form>
+    </span>
+    {% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('sites') }}" class="row">{{ csrf() }}
+    <input type="hidden" name="action" value="add">
+    <label>New site<input name="site" required placeholder="Branch1"></label><div><button class="btn">Add site</button></div>
+  </form>
+</section>
+{% endblock %}

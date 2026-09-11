@@ -1,0 +1,63 @@
+---
+- name: Load the AnsiWEB deployment plan
+  ansible.builtin.set_fact:
+    aw_plan: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/deploy_plan.json') | from_json }}"
+
+- name: Work out what this PC should have
+  ansible.builtin.set_fact:
+    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {'apps': [], 'office': false}) }}"
+    aw_pc_cache: 'C:\ProgramData\AnsiWEB\cache'
+    aw_reboot_needed: false
+
+- name: Select this PC's apps
+  ansible.builtin.set_fact:
+    aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps) | list }}"
+
+- name: Check installed versions
+  ansible.builtin.include_tasks: detect.yml
+
+- name: Show what will be done
+  ansible.builtin.debug:
+    msg: "{{ aw_detect.result | map(attribute='summary') | list }}"
+
+- name: Create the installer cache folder on the PC
+  ansible.windows.win_file:
+    path: "{{ aw_pc_cache }}"
+    state: directory
+  when: aw_todo | length > 0
+
+- name: Install or upgrade apps
+  ansible.builtin.include_tasks: install_app.yml
+  loop: "{{ aw_apps | selectattr('id', 'in', aw_todo) | list }}"
+  loop_control:
+    loop_var: app
+    label: "{{ app.name }} {{ app.version }}"
+
+- name: Turn off Firefox's own updater (policies.json)
+  ansible.builtin.include_tasks: firefox_policy.yml
+  when: aw_apps | selectattr('firefox_disable_updates') | list | length > 0
+
+- name: Microsoft Office
+  ansible.builtin.include_tasks: office.yml
+  when: aw_host.office | bool
+
+- name: Reboot where an installer asked for it
+  ansible.windows.win_reboot:
+    reboot_timeout: 1200
+  when: aw_reboot_needed | bool and aw_plan.allow_reboot | bool
+
+- name: List PCs that still need a reboot
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} needs a reboot to finish installing."
+  when: aw_reboot_needed | bool and not (aw_plan.allow_reboot | bool)
+
+- name: Re-check installed versions for the report
+  ansible.builtin.include_tasks: detect.yml
+  when: aw_todo | length > 0 or aw_host.office | bool
+
+- name: Save the report for the AnsiWEB dashboard
+  ansible.builtin.copy:
+    dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
+    mode: "0644"
+    content: "{{ {'host': inventory_hostname, 'time': now(fmt='%Y-%m-%d %H:%M:%S'), 'apps': aw_detect.result} | to_nice_json }}"
+  delegate_to: localhost

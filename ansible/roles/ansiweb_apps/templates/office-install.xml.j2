@@ -1,0 +1,15 @@
+<Configuration>
+  <Add SourcePath="C:\ProgramData\AnsiWEB\Office" OfficeClientEdition="{{ office.edition }}" Channel="{{ office.channel }}" Version="{{ office.version }}">
+    <Product ID="{{ office.product_id }}"{% if (vault_office_mak_key | default('')) | length > 0 %} PIDKEY="{{ vault_office_mak_key }}"{% endif %}>
+      <Language ID="{{ office.language }}" />
+{% for app in office.exclude_apps %}
+      <ExcludeApp ID="{{ app }}" />
+{% endfor %}
+    </Product>
+  </Add>
+  <Property Name="AUTOACTIVATE" Value="1" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Updates Enabled="TRUE" UpdatePath="{{ office.update_url }}" Channel="{{ office.channel }}" />
+  <RemoveMSI />
+  <Display Level="None" AcceptEULA="TRUE" />
+</Configuration>

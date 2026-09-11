@@ -1,0 +1,10 @@
+# Runtime data (config, secrets, cache, logs) lives outside the repo in ANSIWEB_DATA.
+# These patterns stop it being committed by accident during local development.
+data/
+*.vault
+.vault_pass
+__pycache__/
+*.pyc
+venv/
+.venv/
+ansible/collections/

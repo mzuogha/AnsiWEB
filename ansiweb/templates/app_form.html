@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label with context %}
+{% block title %}{{ 'Add app' if is_new else app.name }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ 'Add app' if is_new else app.name }}</h1>
+  <div class="actions"><a class="btn" href="{{ url_for('apps_page') }}">Back to apps</a></div></div>
+
+<form method="post" class="panel form" id="appform">{{ csrf() }}
+  <div class="row">
+    <label>App ID {% if is_new %}<input name="id" value="{{ app.id }}" required pattern="[a-z0-9][a-z0-9_-]*" placeholder="e.g. notepadpp">
+      {% else %}<input value="{{ app.id }}" disabled>{% endif %}
+      <small>Short name used for file names. Lowercase letters, digits, - and _.</small></label>
+    <label>Display name<input name="name" value="{{ app.name }}" required></label>
+  </div>
+  <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if app.enabled }}> Enabled (cache it and install it on PCs)</label>
+
+  <h3>Where the installer comes from</h3>
+  <div class="row">
+    <label>Source
+      <select name="source" id="source">
+        <option value="winget" {{ 'selected' if app.source == 'winget' }}>Winget catalogue (automatic updates)</option>
+        <option value="url" {{ 'selected' if app.source == 'url' }}>Fixed download URL</option>
+        <option value="upload" {{ 'selected' if app.source == 'upload' }}>Uploaded file</option>
+      </select></label>
+    <label class="src src-winget">Winget package ID<input name="winget_id" value="{{ app.winget_id or '' }}" placeholder="e.g. Notepad++.Notepad++">
+      <small>Find IDs at winget.run or with <code>winget search</code>.</small></label>
+    <label class="src src-winget">Preferred installer types<input name="installer_types" value="{{ (app.installer_types or [])|join(', ') }}" placeholder="msi, wix, exe">
+      <small>First match wins: msi/wix, exe, nullsoft, inno, burn.</small></label>
+    <label class="src src-url">Download URL<input name="url" value="{{ app.url or '' }}" placeholder="https://…"></label>
+    <label class="src src-url">Expected SHA256 (optional)<input name="sha256" value="{{ app.sha256 or '' }}"></label>
+  </div>
+
+  <h3>Update policy</h3>
+  <label class="check"><input type="checkbox" name="pinned" id="pinned" {{ 'checked' if app.pinned }}> Pin to a specific version
+    (install only where missing, never upgrade)</label>
+  <label class="ver-field">Version<input name="version" value="{{ app.version or '' }}" placeholder="e.g. 65.0.2">
+    <small>Required for URL and uploaded apps, and for pinned winget apps.</small></label>
+
+  <h3>Installing and detecting</h3>
+  <div class="row">
+    <label>Silent install arguments<input name="arguments" value="{{ app.arguments or '' }}" placeholder="/S">
+      <small>Leave empty for MSI files (they install silently automatically).</small></label>
+    <label>Detection pattern (regex on the name in "Installed apps")<input name="detect_pattern" value="{{ app.detect_pattern or '' }}" required placeholder="^Notepad\+\+">
+      <small>Used to find the installed version and decide whether to install or upgrade.</small></label>
+  </div>
+  <div class="row">
+    <label>Extra success exit codes<input name="extra_success_codes" value="{{ (app.extra_success_codes or [])|join(', ') }}" placeholder="1638">
+      <small>0 and 3010 are always accepted.</small></label>
+    <label class="check"><input type="checkbox" name="firefox_disable_updates" {{ 'checked' if app.firefox_disable_updates }}>
+      Firefox: turn off Firefox's own updater (policies.json)</label>
+  </div>
+
+  <h3>Install on</h3>
+  <div class="checks">
+    {% for t in targets %}
+    <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t in (app.targets or []) }}> {{ target_label(t) }}</label>
+    {% endfor %}
+  </div>
+  <div class="formactions"><button class="btn primary">Save</button></div>
+</form>
+
+{% if not is_new %}
+<section class="panel">
+  <h2>Cached installer</h2>
+  {% if entry and entry.file %}
+  <table class="kv">
+    <tr><th>Version</th><td>{{ entry.version }}</td></tr>
+    <tr><th>File</th><td><code>{{ entry.file }}</code> ({{ ((entry.size or 0) / 1048576)|round(1) }} MB)</td></tr>
+    <tr><th>SHA256</th><td class="small"><code>{{ entry.sha256 }}</code></td></tr>
+    <tr><th>Downloaded from</th><td class="small">{{ entry.source_url }}</td></tr>
+    <tr><th>Cached at</th><td>{{ entry.updated }}</td></tr>
+    {% if entry.previous %}<tr><th>Previous version kept</th><td>{{ entry.previous.version }}</td></tr>{% endif %}
+  </table>
+  {% else %}<p class="muted">Nothing cached yet.</p>{% endif %}
+  {% if entry and entry.error %}<div class="flash error">{{ entry.error }}</div>{% endif %}
+
+  <h3>Upload an installer</h3>
+  <p class="muted small">Use this for software that can't be downloaded automatically. For winget or URL apps an upload
+  replaces the cached file until the next update check finds a newer version.</p>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('app_upload', app_id=app.id) }}" class="row">{{ csrf() }}
+    <label>Installer (.msi or .exe)<input type="file" name="installer" accept=".msi,.exe" required></label>
+    <label>Version of this file<input name="version" required value="{{ app.version or '' }}"></label>
+    <div><button class="btn">Upload</button></div>
+  </form>
+
+  <h3>Remove</h3>
+  <form method="post" action="{{ url_for('app_delete', app_id=app.id) }}" data-confirm="Remove {{ app.name }} from the standard apps?">{{ csrf() }}
+    <button class="btn danger">Remove this app</button></form>
+</section>
+{% endif %}
+{% endblock %}

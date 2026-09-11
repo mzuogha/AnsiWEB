@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, job_button with context %}
+{% block title %}{{ pc.name }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ pc.name }}</h1>
+  <div class="actions">
+    {{ job_button('ping', 'Test connection', 'pc:' ~ pc.name) }}
+    {{ job_button('deploy', 'Deploy now', 'pc:' ~ pc.name, 'btn primary') }}
+    <a class="btn" href="{{ url_for('pcs_page') }}">Back</a></div></div>
+
+<form method="post" class="panel form">{{ csrf() }}
+  <div class="row">
+    <label>PC name<input name="name" value="{{ pc.name }}" required></label>
+    <label>IP address<input name="ip" value="{{ pc.ip }}" required></label>
+  </div>
+  <div class="row">
+    <label>Site<select name="site">{% for s in cfg.sites %}<option {{ 'selected' if s == pc.site }}>{{ s }}</option>{% endfor %}</select></label>
+    <label>Groups (comma-separated)<input name="groups" value="{{ pc.groups|join(', ') }}"></label>
+  </div>
+  <label>Notes<input name="notes" value="{{ pc.notes or '' }}"></label>
+  <div class="formactions"><button class="btn primary">Save</button></div>
+</form>
+
+<section class="panel">
+  <h2>Installed apps (last report)</h2>
+  {% if report %}
+  <p class="muted small">Reported {{ report.time }}</p>
+  <table>
+    <tr><th>App</th><th>Installed</th><th>Cached</th><th>Status</th></tr>
+    {% for a in report.apps %}
+    <tr><td>{{ a.name }}</td><td>{{ a.installed or '—' }}</td><td>{{ a.target }}</td>
+      <td>{% if a.mismatch %}<span class="pill failed">{{ a.reason }}</span>
+          {% elif a.needed %}<span class="pill warning">{{ a.reason }}</span>
+          {% else %}<span class="pill success">{{ a.reason }}</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">This PC hasn't reported yet. It reports after each deployment.</p>{% endif %}
+</section>
+
+<form method="post" action="{{ url_for('pc_delete', name=pc.name) }}" data-confirm="Remove {{ pc.name }} from AnsiWEB?">{{ csrf() }}
+  <button class="btn danger">Remove PC</button></form>
+{% endblock %}
