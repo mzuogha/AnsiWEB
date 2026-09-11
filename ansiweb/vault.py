@@ -1,6 +1,6 @@
 """Secret storage using Ansible Vault encryption.
 
-- inventory/group_vars/windows/vault.yml : secrets Ansible needs (PC password, Office key)
+- inventory/group_vars/windows/vault.yml : secrets Ansible needs (the PC password)
 - app_secrets.vault                       : secrets only AnsiWEB needs (GitHub token)
 Both are encrypted with the key in .vault_pass (created on first start, mode 600).
 """
@@ -19,7 +19,6 @@ _lock = threading.Lock()
 
 ANSIBLE_SECRET_NAMES = {
     "vault_ansible_svc_password": "Password of the ansible_svc account on the PCs",
-    "vault_office_mak_key": "Office LTSC MAK product key",
 }
 
 

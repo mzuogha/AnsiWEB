@@ -1,9 +1,7 @@
 # AnsiWEB: compare installed apps (from the Windows "Installed apps" registry keys)
 # with the versions in the AnsiWEB cache and decide what needs installing.
 param(
-    [string]$AppsJson = '[]',
-    [string]$Office = 'no',
-    [string]$OfficeVersion = ''
+    [string]$AppsJson = '[]'
 )
 
 $apps = @($AppsJson | ConvertFrom-Json)
@@ -63,20 +61,6 @@ foreach ($app in $apps) {
         id = $app.id; name = $app.name; installed = $installed; target = $app.version
         needed = $needed; mismatch = $mismatch; reason = $reason
         summary = "$($app.name): $reason"
-    })
-}
-
-if ($Office -eq 'yes') {
-    $c2r = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue
-    $word = Test-Path -LiteralPath 'C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE'
-    $ver = if ($c2r) { [string]$c2r.VersionToReport } else { $null }
-    if (-not $word) { $reason = 'not installed'; $needed = $true }
-    elseif ($ver -and $OfficeVersion -and (Compare-AppVersion $ver $OfficeVersion) -lt 0) {
-        $reason = "installed $ver; Office updates itself to $OfficeVersion from AnsiWEB"; $needed = $false
-    } else { $reason = 'installed'; $needed = $false }
-    $results.Add([ordered]@{
-        id = '__office__'; name = 'Microsoft Office'; installed = $ver; target = $OfficeVersion
-        needed = $needed; mismatch = $false; reason = $reason; summary = "Microsoft Office: $reason"
     })
 }
 

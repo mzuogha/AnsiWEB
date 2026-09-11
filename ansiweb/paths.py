@@ -19,8 +19,6 @@ REPORT_DIR = DATA_DIR / "reports"
 # Served by nginx at http://<server>/software/
 CACHE_DIR = DATA_DIR / "cache"
 APPS_DIR = CACHE_DIR / "apps"
-OFFICE_DIR = CACHE_DIR / "office"
-OFFICE_STAGING = DATA_DIR / "office_staging"
 
 INVENTORY_DIR = DATA_DIR / "inventory"
 HOSTS_FILE = INVENTORY_DIR / "hosts.yml"
@@ -41,12 +39,12 @@ def venv_bin(name: str) -> str:
 
 
 def ensure_dirs() -> None:
-    for d in (DATA_DIR, LOG_DIR, REPORT_DIR, CACHE_DIR, APPS_DIR, OFFICE_DIR, GROUP_VARS_WINDOWS):
+    for d in (DATA_DIR, LOG_DIR, REPORT_DIR, CACHE_DIR, APPS_DIR, GROUP_VARS_WINDOWS):
         d.mkdir(parents=True, exist_ok=True)
     # nginx (www-data) must be able to traverse DATA_DIR and read the cache
     try:
         os.chmod(DATA_DIR, 0o711)
-        for d in (CACHE_DIR, APPS_DIR, OFFICE_DIR):
+        for d in (CACHE_DIR, APPS_DIR):
             os.chmod(d, 0o755)
     except PermissionError:
         pass

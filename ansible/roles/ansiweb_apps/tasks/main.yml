@@ -5,7 +5,7 @@
 
 - name: Work out what this PC should have
   ansible.builtin.set_fact:
-    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {'apps': [], 'office': false}) }}"
+    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {'apps': []}) }}"
     aw_pc_cache: 'C:\ProgramData\AnsiWEB\cache'
     aw_reboot_needed: false
 
@@ -37,10 +37,6 @@
   ansible.builtin.include_tasks: firefox_policy.yml
   when: aw_apps | selectattr('firefox_disable_updates') | list | length > 0
 
-- name: Microsoft Office
-  ansible.builtin.include_tasks: office.yml
-  when: aw_host.office | bool
-
 - name: Reboot where an installer asked for it
   ansible.windows.win_reboot:
     reboot_timeout: 1200
@@ -53,7 +49,7 @@
 
 - name: Re-check installed versions for the report
   ansible.builtin.include_tasks: detect.yml
-  when: aw_todo | length > 0 or aw_host.office | bool
+  when: aw_todo | length > 0
 
 - name: Save the report for the AnsiWEB dashboard
   ansible.builtin.copy:

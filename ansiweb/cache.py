@@ -14,7 +14,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import tempfile
 import threading
 import urllib.error
@@ -28,7 +27,6 @@ from . import paths, store, vault
 GITHUB_API = "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/"
 GITHUB_RAW = "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/"
 USER_AGENT = "AnsiWEB/1.0 (+https://github.com/mzuogha/AnsiWEB)"
-OFFICE_KEY = "__office__"
 SKIP_TYPES = {"zip", "portable", "msix", "appx", "pwa"}
 OK_RESPONSES = {"alreadyInstalled", "rebootRequiredToFinish", "rebootRequiredForInstall", "rebootInitiated"}
 
@@ -285,7 +283,7 @@ def update_all(log=print, only: list | None = None, force: bool = False) -> dict
     # drop manifest entries for apps that no longer exist
     with _manifest_lock:
         m = load_manifest()
-        known = {a["id"] for a in cfg.get("apps", [])} | {OFFICE_KEY}
+        known = {a["id"] for a in cfg.get("apps", [])}
         for key in [k for k in m if k not in known]:
             for f in (m[key].get("file"), (m[key].get("previous") or {}).get("file")):
                 if f:
@@ -317,44 +315,3 @@ def store_upload(app: dict, file_storage, version: str) -> None:
     _replace_cached(app["id"], fname, version, sha256=sha256_file(paths.APPS_DIR / fname),
                     source_url="uploaded: " + name, installer_type=ext[1:], success_codes=[0, 3010, 1641],
                     latest_seen=version)
-
-
-# ---- Office -------------------------------------------------------------------
-def office_finalize(version: str, log=print) -> None:
-    """Move a freshly pulled Office build from staging into the cache and index it."""
-    staged = paths.OFFICE_STAGING / "Office"
-    data_dir = staged / "Data" / version
-    if not data_dir.is_dir():
-        raise CacheError(f"Staged Office build {version} not found in {paths.OFFICE_STAGING}")
-    target = paths.OFFICE_DIR / "Office"
-    old = paths.OFFICE_DIR / "Office.old"
-    if old.exists():
-        shutil.rmtree(old)
-    if target.exists():
-        target.rename(old)
-    shutil.move(str(staged), str(target))
-    if old.exists():
-        shutil.rmtree(old)
-    files = []
-    for root, _dirs, names in os.walk(target):
-        for n in sorted(names):
-            full = os.path.join(root, n)
-            os.chmod(full, 0o644)
-            rel = os.path.relpath(full, paths.OFFICE_DIR).replace(os.sep, "/")
-            log(f"  hashing {rel}")
-            files.append({"path": rel, "size": os.path.getsize(full), "sha256": sha256_file(full)})
-        os.chmod(root, 0o755)
-    update_manifest_entry(OFFICE_KEY, version=version, files=files, status="ok", error="", updated=now(),
-                          checked=now(), size=sum(f["size"] for f in files))
-    store.regenerate_all()
-    log(f"Office {version} cached: {len(files)} files, {sum(f['size'] for f in files) // 1048576} MB")
-
-
-def office_setup_present() -> bool:
-    return (paths.OFFICE_DIR / "setup.exe").exists()
-
-
-def store_office_setup(file_storage) -> None:
-    dest = paths.OFFICE_DIR / "setup.exe"
-    file_storage.save(dest)
-    os.chmod(dest, 0o644)

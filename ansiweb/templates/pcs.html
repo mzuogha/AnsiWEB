@@ -18,8 +18,7 @@ It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once 
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
   <tr>
-    <td><a href="{{ url_for('pc_edit', name=pc.name) }}"><b>{{ pc.name }}</b></a>
-      {% if cfg.office.helper_pc == pc.name %}<span class="pill">Office helper</span>{% endif %}</td>
+    <td><a href="{{ url_for('pc_edit', name=pc.name) }}"><b>{{ pc.name }}</b></a></td>
     <td>{{ pc.ip }}</td>
     <td>{{ pc.site }}</td>
     <td class="small">{{ pc.groups|join(', ') }}</td>

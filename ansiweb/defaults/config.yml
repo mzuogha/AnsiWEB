@@ -14,10 +14,6 @@ schedules:
     enabled: false
     time: "19:00"          # push missing apps and updates to all PCs
     days: [mon, tue, wed, thu, fri]
-  office_cache:
-    enabled: false
-    day: sun
-    time: "02:00"          # refresh the cached Office build via the helper PC
 
 sites: [HQ]
 pcs: []                    # {name, ip, site, groups: []}
@@ -102,12 +98,3 @@ apps:
     pinned: false
     targets: [all]
 
-office:
-  enabled: true
-  product_id: Standard2024Volume
-  channel: PerpetualVL2024
-  edition: "64"
-  language: en-us
-  exclude_apps: []         # e.g. [Groove, Lync]  (Groove = OneDrive)
-  helper_pc: ""            # inventory name of the Windows PC that downloads Office updates
-  targets: [all]

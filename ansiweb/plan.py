@@ -45,34 +45,9 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "targets": app.get("targets") or ["all"],
         })
 
-    office_cfg = cfg.get("office") or {}
-    office_entry = manifest.get(cache.OFFICE_KEY, {})
-    office_ready = bool(office_cfg.get("enabled") and office_entry.get("status") == "ok"
-                        and office_entry.get("files") and cache.office_setup_present())
-    files = office_entry.get("files", []) if office_ready else []
-    office = {
-        "enabled": office_ready,
-        "configured": bool(office_cfg.get("enabled")),
-        "version": office_entry.get("version", ""),
-        "product_id": office_cfg.get("product_id", "Standard2024Volume"),
-        "channel": office_cfg.get("channel", "PerpetualVL2024"),
-        "edition": str(office_cfg.get("edition", "64")),
-        "language": office_cfg.get("language", "en-us"),
-        "exclude_apps": office_cfg.get("exclude_apps", []),
-        "setup_url": f"{base}/office/setup.exe",
-        "update_url": f"{base}/office/",
-        "files": [{"path": x["path"], "url": f"{base}/office/{x['path']}", "sha256": x["sha256"],
-                   "win_path": x["path"].replace("/", "\\")} for x in files],
-        "dirs": sorted({x["path"].rsplit("/", 1)[0].replace("/", "\\") for x in files}),
-        "targets": office_cfg.get("targets") or ["all"],
-    }
-
     hosts = {}
     for pc in cfg.get("pcs", []):
-        hosts[pc["name"]] = {
-            "apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])],
-            "office": office_ready and pc_matches(pc, office["targets"]),
-        }
+        hosts[pc["name"]] = {"apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])]}
 
     return {
         "generated": cache.now(),
@@ -81,7 +56,6 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "allow_reboot": bool((cfg.get("settings") or {}).get("allow_reboot")),
         "apps": apps,
         "skipped": skipped,
-        "office": office,
         "hosts": hosts,
     }
 

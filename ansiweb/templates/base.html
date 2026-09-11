@@ -16,7 +16,6 @@
     <a href="{{ url_for('dashboard') }}" class="{{ 'active' if ep == 'dashboard' }}">Dashboard</a>
     <a href="{{ url_for('apps_page') }}" class="{{ 'active' if ep.startswith('app') }}">Apps &amp; cache</a>
     <a href="{{ url_for('pcs_page') }}" class="{{ 'active' if ep.startswith('pc') }}">PCs</a>
-    <a href="{{ url_for('office_page') }}" class="{{ 'active' if ep.startswith('office') }}">Office</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>
     <a href="{{ url_for('settings_page') }}" class="{{ 'active' if ep.startswith('settings') }}">Settings</a>

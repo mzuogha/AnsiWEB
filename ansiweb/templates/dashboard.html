@@ -33,11 +33,6 @@
         <td>{{ state_pill(r.state) }}</td>
       </tr>
       {% endfor %}
-      <tr>
-        <td><a href="{{ url_for('office_page') }}">Microsoft Office ({{ cfg.office.product_id }})</a></td>
-        <td>{{ office.version or '—' }}</td>
-        <td>{% if not cfg.office.enabled %}{{ state_pill('disabled') }}{% elif office.status == 'ok' %}{{ state_pill('ok') }}{% else %}{{ state_pill('missing') }}{% endif %}</td>
-      </tr>
     </table>
     <p class="muted small">Last update check:
       {% if last_cache %}<a href="{{ url_for('job_view', job_id=last_cache.id) }}">{{ last_cache.started }}</a> {{ status_pill(last_cache.status) }}{% else %}never{% endif %}</p>

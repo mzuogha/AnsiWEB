@@ -27,11 +27,6 @@
     <input name="dep_time" value="{{ s.deploy.time }}" class="short" pattern="[0-2][0-9]:[0-5][0-9]"> on
     {% for d, label in days %}<label class="check inline"><input type="checkbox" name="dep_days" value="{{ d }}" {{ 'checked' if d in s.deploy.days }}> {{ label }}</label>{% endfor %}
   </div>
-  <div class="sched">
-    <label class="check"><input type="checkbox" name="oc_enabled" {{ 'checked' if s.office_cache.enabled }}> Refresh the Office cache every</label>
-    <select name="oc_day" class="short">{% for d, label in days %}<option value="{{ d }}" {{ 'selected' if d == s.office_cache.day }}>{{ label }}</option>{% endfor %}</select>
-    at <input name="oc_time" value="{{ s.office_cache.time }}" class="short" pattern="[0-2][0-9]:[0-5][0-9]">
-  </div>
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 

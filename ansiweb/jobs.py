@@ -1,5 +1,5 @@
-"""Background jobs (cache updates, deployments, connectivity tests, Office cache refresh),
-their logs, and the built-in scheduler."""
+"""Background jobs (cache updates, deployments, connectivity tests), their logs,
+and the built-in scheduler."""
 import datetime as dt
 import os
 import sqlite3
@@ -14,7 +14,6 @@ KINDS = {
     "cache_update": "Check for updates & refresh cache",
     "deploy": "Deploy apps",
     "ping": "Connection test",
-    "office_cache": "Refresh Office cache",
 }
 
 _db_lock = threading.Lock()
@@ -167,8 +166,6 @@ def _run(job_id: int, kind: str, target: str) -> None:
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),
                    "--vault-password-file", str(paths.VAULT_PASS_FILE), "-m", "ansible.windows.win_ping"]
             rc = run_command(cmd, log)
-        elif kind == "office_cache":
-            rc = _office_cache(log)
     except Exception as exc:  # keep the service alive whatever happens
         log(f"ERROR: {exc}")
         log(traceback.format_exc())
@@ -181,30 +178,6 @@ def _run(job_id: int, kind: str, target: str) -> None:
             c.execute("UPDATE jobs SET status=?, finished=?, rc=? WHERE id=?", (status, _stamp(), rc, job_id))
         with _run_lock:
             _running.pop(kind, None)
-
-
-def _office_cache(log) -> int:
-    cfg = store.load()
-    helper = (cfg.get("office") or {}).get("helper_pc")
-    if not helper:
-        log("No Office helper PC selected. Choose one on the Office page.")
-        return 1
-    if not cache.office_setup_present():
-        log("Office Deployment Tool setup.exe has not been uploaded yet (Office page).")
-        return 1
-    result_file = paths.DATA_DIR / "office_pull.json"
-    if result_file.exists():
-        result_file.unlink()
-    rc = run_command(playbook_cmd("office_cache.yml"), log)
-    if rc != 0:
-        return rc
-    result = store.read_json(result_file, {})
-    if result.get("pulled"):
-        cache.office_finalize(result["version"], log)
-    else:
-        cache.update_manifest_entry(cache.OFFICE_KEY, checked=cache.now())
-        log(f"Office build {result.get('version', '?')} is already cached; nothing to copy.")
-    return 0
 
 
 def running() -> dict:
@@ -245,15 +218,6 @@ def scheduler_tick() -> None:
             start("deploy", "all", trigger="schedule")
             hh, mm = map(int, dep["time"].split(":"))
             kv_set("sched:deploy", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
-        except JobBusy:
-            pass
-
-    oc = sch.get("office_cache", {})
-    if oc.get("enabled") and _due_daily("office_cache", oc, now, [oc.get("day", "sun")]):
-        try:
-            start("office_cache", trigger="schedule")
-            hh, mm = map(int, oc["time"].split(":"))
-            kv_set("sched:office_cache", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
         except JobBusy:
             pass
 

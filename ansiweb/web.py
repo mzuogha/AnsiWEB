@@ -26,7 +26,7 @@ def create_app(start_background: bool = True) -> Flask:
     app = Flask(__name__)
     app.secret_key = vault.flask_secret()
     app.config.update(
-        MAX_CONTENT_LENGTH=6 * 1024 ** 3,      # large installers / Office setup
+        MAX_CONTENT_LENGTH=4 * 1024 ** 3,      # large installers
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=8 * 3600,
@@ -116,8 +116,7 @@ def create_app(start_background: bool = True) -> Flask:
         warnings = setup_warnings(cfg)
         return render_template("dashboard.html", cfg=cfg, stats=stats, apps=app_rows, plan=p,
                                recent=jobs.list_jobs(8), warnings=warnings,
-                               last_cache=jobs.last_job("cache_update"), last_deploy=jobs.last_job("deploy"),
-                               office=manifest.get(cache.OFFICE_KEY, {}))
+                               last_cache=jobs.last_job("cache_update"), last_deploy=jobs.last_job("deploy"))
 
     # ---- apps --------------------------------------------------------------------
     @app.route("/apps")
@@ -272,10 +271,7 @@ def create_app(start_background: bool = True) -> Flask:
             abort(404)
         if request.method == "POST":
             new = pc_from_form()
-            old_name = cfg["pcs"][idx]["name"]
             cfg["pcs"][idx] = new
-            if cfg["office"].get("helper_pc") == old_name:
-                cfg["office"]["helper_pc"] = new["name"]
             if save_or_flash(cfg):
                 flash("Saved.", "ok")
                 return redirect(url_for("pcs_page"))
@@ -286,8 +282,6 @@ def create_app(start_background: bool = True) -> Flask:
     def pc_delete(name):
         cfg = store.load()
         cfg["pcs"] = [pc for pc in cfg["pcs"] if pc["name"] != name]
-        if cfg["office"].get("helper_pc") == name:
-            cfg["office"]["helper_pc"] = ""
         if save_or_flash(cfg):
             (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
             flash(f"Removed {name}.", "ok")
@@ -343,41 +337,6 @@ def create_app(start_background: bool = True) -> Flask:
         return Response(text.encode("utf-8-sig"), mimetype="application/octet-stream",
                         headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.ps1"})
 
-    # ---- Office ------------------------------------------------------------------------
-    @app.route("/office", methods=["GET", "POST"])
-    def office_page():
-        cfg = store.load()
-        if request.method == "POST":
-            f = request.form
-            cfg["office"].update({
-                "enabled": f.get("enabled") == "on",
-                "product_id": f.get("product_id", "Standard2024Volume").strip(),
-                "channel": f.get("channel", "PerpetualVL2024").strip(),
-                "language": f.get("language", "en-us").strip(),
-                "exclude_apps": [x.strip() for x in f.get("exclude_apps", "").split(",") if x.strip()],
-                "helper_pc": f.get("helper_pc", ""),
-                "targets": request.form.getlist("targets") or ["all"],
-            })
-            if save_or_flash(cfg):
-                flash("Office settings saved.", "ok")
-            return redirect(url_for("office_page"))
-        return render_template("office.html", cfg=cfg, office=cfg["office"],
-                               entry=cache.load_manifest().get(cache.OFFICE_KEY, {}),
-                               setup_present=cache.office_setup_present(), targets=store.target_choices(cfg),
-                               mak_set=vault.secret_status()["vault_office_mak_key"],
-                               plan=store.read_json(paths.PLAN_FILE, {}).get("office", {}))
-
-    @app.route("/office/setup", methods=["POST"])
-    def office_setup():
-        f = request.files.get("setup")
-        if not f or f.filename.lower() != "setup.exe":
-            flash("Upload the setup.exe extracted from the Office Deployment Tool.", "error")
-        else:
-            cache.store_office_setup(f)
-            store.regenerate_all()
-            flash("Office Deployment Tool setup.exe uploaded.", "ok")
-        return redirect(url_for("office_page"))
-
     # ---- jobs ----------------------------------------------------------------------------
     @app.route("/jobs")
     def jobs_page():
@@ -429,9 +388,6 @@ def create_app(start_background: bool = True) -> Flask:
                 cfg["schedules"]["deploy"] = {"enabled": f.get("dep_enabled") == "on",
                                               "time": f.get("dep_time", "19:00"),
                                               "days": request.form.getlist("dep_days")}
-                cfg["schedules"]["office_cache"] = {"enabled": f.get("oc_enabled") == "on",
-                                                    "day": f.get("oc_day", "sun"),
-                                                    "time": f.get("oc_time", "02:00")}
             except ValueError:
                 flash("Numbers expected for forks, batch size and hours.", "error")
                 return redirect(url_for("settings_page"))
@@ -514,9 +470,4 @@ def setup_warnings(cfg: dict) -> list:
         w.append(("Enter the ansible_svc password (the one used in the PC prep script) in Settings.", "settings_page"))
     if not cfg.get("pcs"):
         w.append(("Add your PCs on the PCs page.", "pcs_page"))
-    if cfg["office"].get("enabled"):
-        if not cache.office_setup_present():
-            w.append(("Office: upload the Office Deployment Tool setup.exe.", "office_page"))
-        if not cfg["office"].get("helper_pc"):
-            w.append(("Office: choose a helper PC to download Office builds.", "office_page"))
     return w

@@ -12,7 +12,7 @@ if [[ $EUID -ne 0 ]]; then echo "Run with sudo: sudo ./install.sh"; exit 1; fi
 echo "==> Installing system packages"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-dev gcc \
-    libkrb5-dev nginx smbclient rsync git >/dev/null
+    libkrb5-dev nginx rsync git >/dev/null
 
 echo "==> Creating service account"
 id ansiweb &>/dev/null || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin ansiweb
@@ -47,6 +47,12 @@ chown -R ansiweb:ansiweb "$DATA_DIR"
 if [[ ! -f "$DATA_DIR/admin.json" ]]; then
   echo "==> Create the web admin login (username: admin)"
   /usr/local/bin/ansiweb set-password admin
+fi
+
+# Office deployment was removed in v1.1; its cached files are no longer used.
+if [[ -d "$DATA_DIR/cache/office" ]]; then
+  echo "==> Removing the unused Office cache ($(du -sh "$DATA_DIR/cache/office" | cut -f1))"
+  rm -rf "$DATA_DIR/cache/office" "$DATA_DIR/office_staging" "$DATA_DIR/office_pull.json"
 fi
 
 echo "==> Service and web server"

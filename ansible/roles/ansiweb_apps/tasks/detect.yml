@@ -4,11 +4,9 @@
     script: "{{ lookup('ansible.builtin.file', 'detect.ps1') }}"
     parameters:
       AppsJson: "{{ aw_apps | to_json }}"
-      Office: "{{ 'yes' if aw_host.office | bool else 'no' }}"
-      OfficeVersion: "{{ aw_plan.office.version }}"
   register: aw_detect
   changed_when: false
 
 - name: Collect apps that need installing or upgrading
   ansible.builtin.set_fact:
-    aw_todo: "{{ aw_detect.result | selectattr('needed') | selectattr('id', 'ne', '__office__') | map(attribute='id') | list }}"
+    aw_todo: "{{ aw_detect.result | selectattr('needed') | map(attribute='id') | list }}"

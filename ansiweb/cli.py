@@ -4,7 +4,6 @@
   python -m ansiweb.cli set-password [user]    set the web admin login
   python -m ansiweb.cli update-cache           check vendors and refresh cached installers
   python -m ansiweb.cli deploy [target]        deploy apps (target: all, site:HQ, group:x, pc:NAME)
-  python -m ansiweb.cli office-finalize VER    index an Office build pulled into staging
   python -m ansiweb.cli plan                   rebuild inventory and deployment plan
 """
 import getpass
@@ -55,13 +54,6 @@ def main(argv=None) -> int:
     if cmd == "deploy":
         store.regenerate_all()
         return jobs.run_command(jobs.playbook_cmd("deploy.yml", store.limit_for(args[0] if args else "all")), print)
-
-    if cmd == "office-finalize":
-        if not args:
-            print("usage: office-finalize VERSION")
-            return 1
-        cache.office_finalize(args[0], print)
-        return 0
 
     if cmd == "plan":
         store.regenerate_all()

@@ -6,7 +6,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 
 ```
                     internet (server only)
-        winget manifests · vendor downloads · Microsoft Office CDN
+             winget manifests · vendor downloads
                               │
  ┌────────────────────────────▼─────────────────────────────┐
  │ AnsiWEB server (Ubuntu)                                   │
@@ -32,12 +32,9 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Version-aware deployment.**
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
-- **Microsoft Office LTSC.**
-  - Office is cached through a helper PC that runs Microsoft's Office Deployment Tool.
-  - PCs install Office from the server, and Office's own updater is pointed at the server.
 - **Web interface.**
-  - Pages: Dashboard, Apps & cache, PCs (including CSV import), Office, live job logs, Settings.
-  - Built-in schedules for update checks, deployments and Office cache refreshes.
+  - Pages: Dashboard, Apps & cache, PCs (including CSV import), live job logs, Settings.
+  - Built-in schedules for update checks and deployments.
 - **Per-PC reports** show installed vs. cached versions after every deployment.
 - **Security.**
   - Secrets are encrypted with Ansible Vault.
@@ -55,9 +52,10 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 | Mozilla Firefox **65.0.2** | fixed URL from Mozilla's release archive | **pinned**, Firefox's own updater disabled |
 | Java 8 Runtime (Oracle, 64-bit) | winget `Oracle.JavaRuntimeEnvironment` | auto-update |
 | VLC media player | winget `VideoLAN.VLC` | auto-update |
-| Microsoft Office LTSC Standard 2024 | Office Deployment Tool via helper PC | follows the cached build |
 
 Everything is editable in the web interface.
+
+Microsoft Office is not deployed by AnsiWEB and is installed separately.
 
 > **Licensing note:** Oracle Java 8 updates released after early 2019 require a paid Oracle Java SE subscription for commercial use. Confirm your licensing, or switch the Java app to Eclipse Temurin (`EclipseAdoptium.Temurin.8.JRE`) if your application supports OpenJDK.
 
@@ -65,7 +63,7 @@ Everything is editable in the web interface.
 
 ## Installation
 
-**Server:** Ubuntu Server 22.04 or 24.04, 2 vCPU, 4 GB RAM. Allow about 20 GB of disk (Office alone is about 4 GB). It needs a fixed IP address and internet access.
+**Server:** Ubuntu Server 22.04 or 24.04, 2 vCPU, 4 GB RAM, about 10 GB of free disk for the cache. It needs a fixed IP address and internet access.
 
 ```bash
 git clone https://github.com/mzuogha/AnsiWEB.git
@@ -82,6 +80,8 @@ The installer creates:
 It asks you to choose the web admin password. Then open `http://<server-ip>/` and sign in as `admin`.
 
 To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept.
+
+> Upgrading from v1.0, which deployed Office: the installer deletes the unused Office cache (about 4 GB), and the Office settings are dropped from your configuration. PCs that already have Office keep it; they simply stop being managed by AnsiWEB. Office then updates itself from Microsoft again, unless you removed that setting. To re-enable AnsiWEB's Office support, check out commit `5df483f`.
 
 ## First-time setup
 
@@ -122,24 +122,6 @@ To upgrade later, edit the app: untick **Pin**, or change the URL and version.
 
 > Firefox 65 dates from 2019 and no longer receives security fixes. Where possible, limit its use to the application that requires it.
 
-## Microsoft Office
-
-Microsoft only distributes Office through its Office Deployment Tool, which runs on Windows. AnsiWEB therefore uses one managed PC with internet access as a **helper**:
-
-1. Office page: tick **Deploy Office**, pick the helper PC, and upload `setup.exe`. Get it by downloading the Office Deployment Tool from the Microsoft Download Center and extracting it on any Windows PC.
-2. Settings: enter the Office LTSC **MAK key** (or leave it empty if you use KMS).
-3. Click **Refresh Office cache now**. The job:
-   - has the helper run `setup.exe /download` (only new files are fetched)
-   - shares the result read-only with the `ansible_svc` account, with SMB open to the server only
-   - copies it into the cache with `smbclient`
-4. PCs install Office from the server's cache. The install configuration points Office's updater at `http://<server>/software/office/`, a web update source that Microsoft documents as supported for Office updates. Monthly Office security updates therefore also come from the cache; schedule the Office refresh weekly.
-
-Keep in mind:
-
-- MAK activation still contacts Microsoft once per PC.
-- The install removes old MSI-based Office versions (2016 and earlier).
-- A PC with a different Office edition already installed (e.g. a preinstalled Microsoft 365) makes the install fail. Remove that edition first.
-
 ## Security
 
 - **This repository is public. Never commit anything from `/var/lib/ansiweb`.** It holds your configuration, the vault key and the encrypted secrets.
@@ -156,7 +138,6 @@ Keep in mind:
 | App shows **error: SHA256 mismatch** | The vendor published a new build before the winget catalogue caught up. It's retried at the next check; the previous version stays in use. |
 | App shows **GitHub rate limit** | Add a GitHub token in Settings, or wait an hour. |
 | An app reinstalls on every run | The detection pattern doesn't match the name under *Installed apps*. Check the exact name on a PC under Windows Settings → Apps → Installed apps, and adjust the pattern. |
-| Office refresh fails at "Copy the Office files" | The helper's firewall or share wasn't created, or the password is wrong. The job log shows the `smbclient` error. |
 | Service logs | `journalctl -u ansiweb -f` |
 
 ## Command line
@@ -177,8 +158,8 @@ ansiweb/            Flask web app, cache manager, job runner, scheduler
   defaults/         initial configuration (your standard app list)
   templates/ static/
 ansible/
-  playbooks/        deploy.yml, office_cache.yml
-  roles/ansiweb_apps/  detection (PowerShell), install, Firefox policy, Office
+  playbooks/        deploy.yml
+  roles/ansiweb_apps/  detection (PowerShell), install, Firefox policy
 scripts/            Prepare-AnsibleHost.ps1 (one-time PC setup)
 deploy/             systemd unit and nginx site
 install.sh          Ubuntu installer
