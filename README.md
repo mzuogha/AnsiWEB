@@ -196,4 +196,4 @@ Runtime data in `/var/lib/ansiweb`:
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+See [LICENSE](LICENSE).
