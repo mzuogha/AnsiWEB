@@ -4,7 +4,10 @@
 {% block content %}
 <div class="head">
   <h1>Reports</h1>
-  <div class="actions"><a class="btn" href="{{ url_for('reports_export') }}">Download CSV</a></div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('reports_export') }}">Download CSV</a>
+    {% if show_audit %}<a class="btn" href="#audit">Jump to the audit log</a>{% endif %}
+  </div>
 </div>
 {% if stale.needs_attention %}
 <div class="flash warn">{{ stale.stale }} PC(s) have not reported for {{ stale_days }}+ days and
@@ -73,4 +76,55 @@
     {% else %}<tr><td colspan="8" class="muted">No jobs yet.</td></tr>{% endfor %}
   </table>
 </section>
+{% if show_audit %}
+<section class="panel" id="audit">
+  <div class="head">
+    <h2>Audit log</h2>
+    <div class="actions">
+      <a class="btn small" href="{{ url_for('audit_export', user=audit.filters.user,
+         action=audit.filters.action, days=audit.filters.days) }}">Download CSV</a>
+    </div>
+  </div>
+  <p class="muted small">Every change made through the web interface, with the account that made it. Sign-ins,
+  refused attempts and backup downloads are included. Kept for {{ audit.retention }} days, the same as job logs.
+  Passwords, product keys and other secrets are never recorded.</p>
+
+  <form method="get" class="row" action="{{ url_for('reports_page') }}#audit">
+    <input type="hidden" name="only" value="{{ only }}">
+    <label>User<select name="user">
+      <option value="">everyone</option>
+      {% for u in audit.users_seen %}<option value="{{ u }}" {{ 'selected' if u == audit.filters.user }}>{{ u }}</option>{% endfor %}
+    </select></label>
+    <label>Action<select name="action">
+      <option value="">anything</option>
+      {% for a in audit.actions %}<option value="{{ a }}" {{ 'selected' if a == audit.filters.action }}>{{ describe(a) }}</option>{% endfor %}
+    </select></label>
+    <label>Period<select name="days">
+      {% for d, label in [(1, 'last day'), (7, 'last week'), (30, 'last month'), (0, 'everything kept')] %}
+      <option value="{{ d }}" {{ 'selected' if d == audit.filters.days }}>{{ label }}</option>{% endfor %}
+    </select></label>
+    <div><button class="btn">Show</button></div>
+  </form>
+
+  <table>
+    <tr><th>When</th><th>Who</th><th>Role</th><th>What</th><th>Details</th><th>Outcome</th></tr>
+    {% for e in audit.entries %}
+    <tr>
+      <td class="small nowrap">{{ e.time }}</td>
+      <td>{{ e.user }}</td>
+      <td class="small">{{ e.role }}</td>
+      <td>{{ describe(e.action) }}</td>
+      <td class="small muted">{{ e.detail }}</td>
+      <td>{% if e.outcome == 'ok' %}<span class="pill success">done</span>
+          {% else %}<span class="pill failed">{{ e.outcome }}</span>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Nothing recorded for this filter.</td></tr>
+    {% endfor %}
+  </table>
+  {% if audit.entries | length >= 200 %}
+  <p class="muted small">Showing the most recent 200 entries. Narrow the filter, or download the CSV for everything.</p>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}

@@ -16,7 +16,7 @@ from . import __version__, paths, store
 # Relative to DATA_DIR. Everything here is either configuration or unrecoverable.
 INCLUDE = ["config.yml", "manifest.json", "inventory", "reports", "admin.json", "users.json",
            ".vault_pass", "app_secrets.vault", "ansiweb.db", ".flask_secret"]
-PAYLOAD_DIRS = ["cache/drivers", "cache/scripts", "cache/registry"]
+PAYLOAD_DIRS = ["cache/drivers", "cache/scripts", "cache/registry", "branding"]
 MARKER = "ansiweb-backup.json"
 
 

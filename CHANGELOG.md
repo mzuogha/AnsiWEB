@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.7.0 - 2026-09-12
+
+Your own logo on the sign-in page, separate apply buttons for each kind of upload, and the audit log folded into the Reports page.
+
+
+### New
+
+- Upload your organisation's logo and a name for the sign-in page, so people can see which server they are signing in to. The logo is served without a sign-in, because the sign-in page needs it, and is included in backups.
+
+
+### Changed
+
+- The Drivers, scripts & registry page now has an Apply button per kind - drivers, scripts or registry files - as well as Apply all.
+- The audit log is a section of the Reports page rather than a page of its own; /audit redirects there. It is still visible only to administrators.
+
+
 ## 1.6.2 - 2026-09-12
 
 Drivers now share the same page as scripts and registry files, so everything you upload for the PCs is in one place.

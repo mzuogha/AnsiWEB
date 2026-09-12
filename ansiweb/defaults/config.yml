@@ -10,6 +10,8 @@ settings:
   session_timeout_minutes: 60   # sign the web session out after this much inactivity
   collect_inventory: true  # read every installed program from each PC for the inventory
   stale_after_days: 14     # treat a PC as stale if it has not reported for this long
+  site_name: ""            # shown beside the logo on the sign-in page
+  logo_file: ""            # uploaded logo, e.g. logo.png (see Settings)
 
 # Windows updates installed on the PCs.
 updates:

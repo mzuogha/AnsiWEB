@@ -4,6 +4,22 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.7.0"
+  date: "2026-09-12"
+  summary: >-
+    Your own logo on the sign-in page, separate apply buttons for each kind of
+    upload, and the audit log folded into the Reports page.
+  added:
+    - Upload your organisation's logo and a name for the sign-in page, so
+      people can see which server they are signing in to. The logo is served
+      without a sign-in, because the sign-in page needs it, and is included in
+      backups.
+  changed:
+    - "The Drivers, scripts & registry page now has an Apply button per kind -
+       drivers, scripts or registry files - as well as Apply all."
+    - The audit log is a section of the Reports page rather than a page of its
+      own; /audit redirects there. It is still visible only to administrators.
+
 - version: "1.6.2"
   date: "2026-09-12"
   summary: >-

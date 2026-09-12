@@ -282,6 +282,7 @@ These steps are the same for both options. Open `https://<server-ip>/`, accept t
 - **Server IP address:** the address PCs use to reach AnsiWEB. On a server, that's its own IP. **Under WSL, use the Windows host's LAN IP**, not the WSL address.
 - Leave forks and batch size at 20 to start with. **Keep job logs for** controls how long job logs and history are kept.
 - **Treat a PC as not reporting after** flags PCs that have gone quiet for that many days (14 by default) on the dashboard and Reports page.
+- **Sign-in page** takes your own logo and a name, shown to anyone opening the sign-in page.
 - **Sign out after inactivity** ends the web session after the minutes you set (60 by default, between 5 minutes and 24 hours). Running jobs carry on regardless; only the browser session ends.
 
 On the **PCs** page, in *Management account on the PCs*:

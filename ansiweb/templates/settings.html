@@ -49,6 +49,24 @@
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 
+<section class="panel" id="branding">
+  <h2>Sign-in page</h2>
+  <p class="muted small">Add your organisation's logo and name to the sign-in page, so people can see at a glance
+  which server they are signing in to. The logo is served without a sign-in, since the sign-in page needs it.</p>
+  <form method="post" action="{{ url_for('settings_branding') }}" enctype="multipart/form-data" class="row">{{ csrf() }}
+    <label>Logo (PNG, JPG, GIF or WEBP, under 2 MB)<input type="file" name="logo"
+      accept=".png,.jpg,.jpeg,.gif,.webp"></label>
+    <label>Name shown under it<input name="site_name" value="{{ cfg.settings.site_name }}"
+      maxlength="60" placeholder="Standard app deployment for Windows PCs"></label>
+    <div><button class="btn primary">Save</button></div>
+  </form>
+  {% if branding.logo %}
+  <p><img src="{{ url_for('logo') }}" alt="Current logo" class="loginlogo"></p>
+  <form method="post" action="{{ url_for('settings_branding_remove') }}" data-confirm="Remove the logo?">{{ csrf() }}
+    <button class="btn small danger">Remove the logo</button></form>
+  {% else %}<p class="muted small">No logo uploaded.</p>{% endif %}
+</section>
+
 <section class="panel" id="updates">
   <h2>Windows updates</h2>
   <p class="muted small">Optional. Installs Windows updates on the PCs, using whichever update service each PC is

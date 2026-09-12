@@ -261,6 +261,13 @@ for old in ("/drivers", "/scripts", "/registry"):
     ok("Intel NIC" in c.get(old, follow_redirects=True).text, f"{old} lands on the merged page")
 ok(jobs.DEPLOY_TAGS.get("deploy_files") == "drivers,scripts,registry",
    "one job covers all three kinds")
+for kind, label in [("deploy_drivers", "Apply drivers"), ("deploy_scripts", "Apply scripts"),
+                    ("deploy_registry", "Apply registry"), ("deploy_files", "Apply all")]:
+    ok(label in body, f"the page offers '{label}'")
+    ok(f'value="{kind}"' in body, f"'{label}' starts the {kind} job")
+r = c.post("/jobs/start", data={"csrf": tok, "kind": "deploy_registry", "target": "all"},
+           follow_redirects=True)
+ok(jobs.last_job("deploy_registry") is not None, "applying one kind on its own starts that job")
 ok(c.get("/nonsense").status_code == 404, "an unknown page is still 404")
 
 cfg = store.load()
@@ -617,10 +624,13 @@ refused = [e for e in entries if e["outcome"] != "ok"]
 ok(refused, "refused attempts are recorded")
 ok(any(e["action"] == "login" and e["outcome"] != "ok" for e in entries),
    "a failed sign-in is recorded")
-r = c.get("/audit")
-ok(r.status_code == 200 and "Audit log" in r.text, "the audit page renders")
+# the audit log is a section of the Reports page now
+r = c.get("/reports")
+ok(r.status_code == 200 and "Audit log" in r.text, "the audit log is part of the Reports page")
 ok("Added an app to uninstall" in r.text, "actions are shown in readable words")
-ok("?user=" in r.text or "user" in r.text, "the page offers filters")
+ok("Jump to the audit log" in r.text, "the page links straight to it")
+ok(c.get("/audit").status_code == 302, "the old audit URL redirects")
+ok("Audit log" in c.get("/audit", follow_redirects=True).text, "and lands on the merged page")
 ok(len(audit.entries(limit=1000, action="uninstall_add")) >= 1, "filtering by action works")
 ok(all(e["user"] == "admin" for e in audit.entries(limit=50, user="admin")), "filtering by user works")
 csv_audit = c.get("/audit/export.csv").text
@@ -756,6 +766,57 @@ c.post("/users/sam/delete", data={"csrf": tok}, follow_redirects=True)
 ok(jobs.DEPLOY_TAGS.get("inventory") == "inventory", "an inventory-only job exists")
 ok("Collect from all PCs" in c.get("/inventory").text, "the inventory page offers a collect button")
 
+# ---------------------------------------------------------------- login page branding
+png = bytes.fromhex("89504e470d0a1a0a") + b"fake-but-png-enough"
+ok(c.get("/logo").status_code == 404, "there is no logo to begin with")
+ok("No logo uploaded" in c.get("/settings").text, "Settings says so")
+r = c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT",
+                                       "logo": (io.BytesIO(png), "company.png")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("Logo uploaded" in r.text, "a logo can be uploaded")
+ok(store.load()["settings"]["logo_file"] == "logo.png", "it is stored under a fixed name")
+ok(os.path.exists(os.path.join(DATA, "branding/logo.png")), "the file is on disk")
+ok(c.get("/logo").status_code == 200, "the logo is served")
+ok(c.get("/logo").data == png, "and is the file that was uploaded")
+# the sign-in page shows it, without needing a session
+anon = app.test_client()
+login_page = anon.get("/login").text
+ok("/logo" in login_page and "Aava IT" in login_page,
+   "the sign-in page shows the logo and name to anyone")
+ok(anon.get("/logo").status_code == 200, "the logo needs no sign-in, since the sign-in page needs it")
+ok(anon.get("/reports").status_code == 302, "but other pages still require one")
+# only images, and not huge ones
+ok("must be a PNG" in c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT",
+                                                         "logo": (io.BytesIO(b"MZ"), "evil.exe")},
+                             content_type="multipart/form-data", follow_redirects=True).text,
+   "a non-image is refused")
+ok("must be a PNG" in c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT",
+                                                         "logo": (io.BytesIO(b"<svg/>"), "logo.svg")},
+                             content_type="multipart/form-data", follow_redirects=True).text,
+   "an SVG is refused, since it can carry scripts")
+ok("under 2 MB" in c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT",
+                                                      "logo": (io.BytesIO(b"x" * (3 * 1024 * 1024)), "big.png")},
+                          content_type="multipart/form-data", follow_redirects=True).text,
+   "an oversized logo is refused")
+ok(store.load()["settings"]["logo_file"] == "logo.png", "a refused upload leaves the old logo alone")
+# the name can be changed without touching the logo
+r = c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT - Lagos"},
+           follow_redirects=True)
+ok(store.load()["settings"]["site_name"] == "Aava IT - Lagos" and c.get("/logo").status_code == 200,
+   "the name can be changed on its own")
+# and removed again
+r = c.post("/settings/branding/remove", data={"csrf": tok}, follow_redirects=True)
+ok("Logo removed" in r.text and c.get("/logo").status_code == 404, "the logo can be removed")
+ok(not os.path.exists(os.path.join(DATA, "branding/logo.png")), "the file is deleted")
+ok("AnsiWEB" in anon.get("/login").text, "the sign-in page still works without a logo")
+# a backup carries the branding
+c.post("/settings/branding", data={"csrf": tok, "site_name": "Aava IT",
+                                   "logo": (io.BytesIO(png), "company.png")},
+       content_type="multipart/form-data", follow_redirects=True)
+import tarfile as _tar
+with _tar.open(fileobj=io.BytesIO(backup.create())) as _t:
+    ok("branding/logo.png" in _t.getnames(), "the logo is included in a backup")
+
 # ---------------------------------------------------------------- roles and permissions
 ok([u["username"] for u in users.all_users()] == ["admin"], "the old single admin was migrated")
 ok(users.get("admin")["role"] == "admin", "the migrated account is an administrator")
@@ -813,6 +874,13 @@ for role, expected in MATRIX.items():
             resp = rc.post(url, data={**data, "csrf": t})
         denied = resp.status_code == 403
         ok(denied != allowed, f"{role} {'may' if allowed else 'may not'} {perm} ({url})")
+    if role != "admin":
+        ok("Audit log" not in rc.get("/reports").text,
+           f"{role} does not see the audit log on the Reports page")
+        ok(rc.get("/audit/export.csv").status_code == 403,
+           f"{role} cannot export the audit log")
+    else:
+        ok("Audit log" in rc.get("/reports").text, "an admin sees the audit log there")
     # everyone can reach help and change their own password
     ok(rc.get("/help").status_code == 200, f"{role} can open the help page")
     ok(rc.get("/settings").status_code == 200, f"{role} can open settings")
@@ -930,8 +998,7 @@ ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/files", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
-            "/settings", "/release-notes", "/help", "/users", "/uninstalls", "/audit",
-            "/inventory"]:
+            "/settings", "/release-notes", "/help", "/users", "/uninstalls", "/inventory"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")

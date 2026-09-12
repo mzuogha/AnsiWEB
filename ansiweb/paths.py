@@ -26,6 +26,7 @@ GROUP_VARS_WINDOWS = INVENTORY_DIR / "group_vars" / "windows"
 CONNECTION_FILE = GROUP_VARS_WINDOWS / "connection.yml"
 VAULT_FILE = GROUP_VARS_WINDOWS / "vault.yml"
 
+BRANDING_DIR = DATA_DIR / "branding"
 VAULT_PASS_FILE = DATA_DIR / ".vault_pass"
 APP_SECRETS_FILE = DATA_DIR / "app_secrets.vault"
 ADMIN_FILE = DATA_DIR / "admin.json"      # single-admin file from before roles existed
@@ -40,7 +41,7 @@ def venv_bin(name: str) -> str:
 
 
 def ensure_dirs() -> None:
-    for d in (DATA_DIR, LOG_DIR, REPORT_DIR, CACHE_DIR, APPS_DIR, GROUP_VARS_WINDOWS):
+    for d in (DATA_DIR, LOG_DIR, REPORT_DIR, CACHE_DIR, APPS_DIR, GROUP_VARS_WINDOWS, BRANDING_DIR):
         d.mkdir(parents=True, exist_ok=True)
     # nginx (www-data) must be able to traverse DATA_DIR and read the cache
     try:

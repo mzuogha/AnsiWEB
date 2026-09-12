@@ -42,7 +42,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
 - **Web interface over HTTPS.**
-  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Drivers/scripts/registry, Inventory, Reports, Jobs, Settings, Users, Audit log, Help.
+  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
@@ -53,6 +53,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Roles.** Four levels of access, so you can let someone run deployments or manage apps without giving them administrator rights.
 - **Built-in help.** A Help page with the deployment commands for Ubuntu Server and WSL.
 - **Release notes.** The web interface shows what changed in each version, and says so on the dashboard after an upgrade.
+- **Your own logo** on the sign-in page.
 - **Session timeout.** The web session signs itself out after a period of inactivity, set in Settings.
 - **Backup and restore.** One click to download your configuration, secrets and uploaded files; restore them into a fresh install from the same page.
 - **Security.**
@@ -115,7 +116,7 @@ All three live on one page, **Drivers, scripts & registry**, and work the same w
 | `.ps1`, `.cmd` or `.bat` | Runs it as SYSTEM, with your arguments; exit code and output are recorded |
 | `.reg` exported from Registry Editor | Merges it with `reg import` |
 
-**Apply now** on that page covers all three in one job.
+Each kind has its own **Apply** button on that page, plus **Apply all** to do the lot in one job.
 
 "When it runs" is one of:
 
@@ -148,7 +149,7 @@ A pattern that would match every installed program is refused. When you remove a
 
 ## Audit log
 
-Admins get an **Audit log** page recording every change made through the web interface: what was done, by which account and role, what was submitted, and whether it was refused. Sign-ins, failed sign-ins and backup downloads are included. It filters by user, action and period, and exports to CSV.
+Admins get an **Audit log** section on the Reports page recording every change made through the web interface: what was done, by which account and role, what was submitted, and whether it was refused. Sign-ins, failed sign-ins and backup downloads are included. It filters by user, action and period, and exports to CSV.
 
 Passwords, product keys and stored secrets are never written to it — those fields are recorded as hidden. Entries are kept for the same number of days as job logs.
 
@@ -186,6 +187,10 @@ sudo ansiweb list-users
 sudo ansiweb add-user jane operator
 sudo ansiweb set-password jane
 ```
+
+## Branding the sign-in page
+
+**Settings → Sign-in page** takes a logo (PNG, JPG, GIF or WEBP, under 2 MB) and a short name, both shown on the sign-in page so people can tell which server they are on. The logo is served without a sign-in, since the sign-in page itself needs it, and it is included in backups. SVG is deliberately not accepted, because an SVG can carry scripts.
 
 ## Built-in help
 

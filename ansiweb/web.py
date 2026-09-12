@@ -9,7 +9,7 @@ import time
 from datetime import timedelta
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
-                   send_file, session, url_for)
+                   send_file, send_from_directory, session, url_for)
 
 from . import (__version__, audit, backup, cache, jobs, paths, payloads, plan, release,
                report_state, store, users, vault)
@@ -24,7 +24,8 @@ ENDPOINT_PERMISSIONS = {
     "reports_page": users.VIEW, "reports_export": users.VIEW,
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
-    "help_page": users.VIEW, "uninstalls_page": users.VIEW,
+    "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
+    "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
@@ -77,6 +78,12 @@ def create_app(start_background: bool = True) -> Flask:
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=1441),
     )
 
+    def branding() -> dict:
+        s = store.load()["settings"]
+        name = (s.get("logo_file") or "").strip()
+        return {"logo": name if name and (paths.BRANDING_DIR / name).exists() else "",
+                "site_name": (s.get("site_name") or "").strip()}
+
     def idle_timeout() -> int:
         """Seconds of inactivity before the web session is signed out."""
         try:
@@ -95,6 +102,7 @@ def create_app(start_background: bool = True) -> Flask:
         return {"csrf_token": csrf_token, "version": __version__, "running_jobs": jobs.running(),
                 "job_kinds": jobs.KINDS, "kinds": payloads.KINDS,
                 "idle_timeout": idle_timeout(),
+                "branding": branding(),
                 "can": lambda perm: users.can(session.get("role", ""), perm),
                 "perms": {"view": users.VIEW, "run": users.RUN_JOBS,
                           "content": users.MANAGE_CONTENT, "pcs": users.MANAGE_PCS,
@@ -104,7 +112,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.before_request
     def protect():
-        if request.endpoint == "static":
+        if request.endpoint in ("static", "logo"):
             return None
 
         # Sign out an idle session, whichever page is asked for
@@ -238,7 +246,18 @@ def create_app(start_background: bool = True) -> Flask:
                 nxt = request.args.get("next", "/")
                 return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
             flash("Wrong user name or password, or the account is disabled.", "error")
-        return render_template("login.html", no_admin=not users.any_users())
+        return render_template("login.html", no_admin=not users.any_users(), branding=branding())
+
+    @app.route("/logo")
+    def logo():
+        """The uploaded logo, served without a sign-in so the login page can show it."""
+        name = (store.load()["settings"].get("logo_file") or "").strip()
+        if not name or "/" in name or "\\" in name:
+            abort(404)
+        path = paths.BRANDING_DIR / name
+        if not path.exists():
+            abort(404)
+        return send_from_directory(paths.BRANDING_DIR, name, max_age=300)
 
     @app.route("/logout", methods=["POST"])
     def logout():
@@ -851,8 +870,22 @@ def create_app(start_background: bool = True) -> Flask:
                 "failed": [i for i in results if "exit" in str(i.get("status", ""))
                            and not str(i.get("status", "")).endswith("exit 0)")],
             })
+        # The audit log is part of this page, but only an administrator may see it
+        show_audit = users.can(session.get("role", ""), users.ADMIN)
+        audit_days = max(0, min(int(request.args.get("days", 7) or 0), 3650))
+        audit_data = {}
+        if show_audit:
+            audit_data = {
+                "entries": audit.entries(limit=200, user=request.args.get("user", ""),
+                                         action=request.args.get("action", ""), days=audit_days),
+                "users_seen": audit.known_users(), "actions": audit.known_actions(),
+                "filters": {"user": request.args.get("user", ""),
+                            "action": request.args.get("action", ""), "days": audit_days},
+                "retention": cfg["settings"].get("log_retention_days", 60),
+            }
         return render_template("reports.html", cfg=cfg, rows=rows, plan=p,
                                jobs=jobs.list_jobs(25), counts=jobs.job_counts(30),
+                               show_audit=show_audit, audit=audit_data, describe=audit.describe,
                                stale=report_state.summarise(visible_pcs(cfg), reports, threshold),
                                stale_days=threshold,
                                only=request.args.get("only", ""))
@@ -952,15 +985,8 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- audit log ---------------------------------------------------------------------
     @app.route("/audit")
     def audit_page():
-        days = max(0, min(int(request.args.get("days", 7) or 0), 3650))
-        return render_template("audit.html",
-                               entries=audit.entries(limit=500, user=request.args.get("user", ""),
-                                                     action=request.args.get("action", ""), days=days),
-                               users_seen=audit.known_users(), actions=audit.known_actions(),
-                               describe=audit.describe, filters={"user": request.args.get("user", ""),
-                                                                 "action": request.args.get("action", ""),
-                                                                 "days": days},
-                               retention=store.load()["settings"].get("log_retention_days", 60))
+        """The audit log lives on the Reports page now; keep old links working."""
+        return redirect(url_for("reports_page", **request.args.to_dict()) + "#audit")
 
     @app.route("/audit/export.csv")
     def audit_export():
@@ -1222,6 +1248,44 @@ def create_app(start_background: bool = True) -> Flask:
     def settings_activation_clear():
         vault.set_ansible_secret("vault_windows_product_key", "")
         flash("Stored product key removed.", "ok")
+        return redirect(url_for("settings_page"))
+
+    @app.route("/settings/branding", methods=["POST"])
+    def settings_branding():
+        cfg = store.load()
+        cfg["settings"]["site_name"] = request.form.get("site_name", "").strip()[:60]
+        f = request.files.get("logo")
+        try:
+            if f and f.filename:
+                name = (f.filename or "").lower()
+                if not name.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+                    raise store.ValidationError("The logo must be a PNG, JPG, GIF or WEBP image.")
+                f.stream.seek(0, os.SEEK_END)
+                if f.stream.tell() > 2 * 1024 * 1024:
+                    raise store.ValidationError("The logo must be under 2 MB.")
+                f.stream.seek(0)
+                paths.BRANDING_DIR.mkdir(parents=True, exist_ok=True)
+                for old in paths.BRANDING_DIR.glob("logo.*"):
+                    old.unlink()
+                ext = os.path.splitext(name)[1]
+                dest = paths.BRANDING_DIR / f"logo{ext}"
+                f.save(dest)
+                os.chmod(dest, 0o644)
+                cfg["settings"]["logo_file"] = dest.name
+            store.save(cfg)
+            flash("Sign-in page updated." if not (f and f.filename) else "Logo uploaded.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("settings_page"))
+
+    @app.route("/settings/branding/remove", methods=["POST"])
+    def settings_branding_remove():
+        cfg = store.load()
+        for old in paths.BRANDING_DIR.glob("logo.*"):
+            old.unlink()
+        cfg["settings"]["logo_file"] = ""
+        if save_or_flash(cfg):
+            flash("Logo removed.", "ok")
         return redirect(url_for("settings_page"))
 
     @app.route("/settings/secret", methods=["POST"])

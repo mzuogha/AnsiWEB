@@ -2,8 +2,11 @@
 {% block title %}Sign in{% endblock %}
 {% block content %}
 <div class="login-box">
+  {% if branding.logo %}
+  <img src="{{ url_for('logo') }}" alt="{{ branding.site_name or 'Logo' }}" class="loginlogo">
+  {% endif %}
   <div class="brand big">Ansi<span>WEB</span></div>
-  <p class="muted">Standard app deployment for Windows PCs</p>
+  <p class="muted">{{ branding.site_name or 'Standard app deployment for Windows PCs' }}</p>
   {% if request.args.get('expired') %}
     <div class="flash">Your session timed out. Sign in again to carry on.</div>
   {% endif %}
