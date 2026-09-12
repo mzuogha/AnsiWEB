@@ -681,7 +681,33 @@ def create_app(start_background: bool = True) -> Flask:
         return render_template("settings.html", cfg=cfg, days=DAY_LABELS, secrets=vault.secret_status(),
                                secret_names=vault.ANSIBLE_SECRET_NAMES, https=https,
                                targets=store.target_choices(cfg),
-                               timezones=store.COMMON_TIMEZONES)
+                               timezones=store.COMMON_TIMEZONES,
+                               update_categories=store.UPDATE_CATEGORIES,
+                               update_sources=store.UPDATE_SOURCES)
+
+    @app.route("/settings/updates", methods=["POST"])
+    def settings_updates():
+        cfg = store.load()
+        f = request.form
+        try:
+            cfg["updates"].update({
+                "enabled": f.get("enabled") == "on",
+                "categories": request.form.getlist("categories"),
+                "exclude": [x.strip() for x in re.split(r"[,\n]+", f.get("exclude", "")) if x.strip()],
+                "source": f.get("source", "default"),
+                "reboot": f.get("reboot") == "on",
+                "timeout_minutes": int(f.get("timeout_minutes") or 180),
+                "targets": request.form.getlist("targets") or ["all"],
+            })
+            cfg["schedules"]["updates"] = {"enabled": f.get("sched_enabled") == "on",
+                                           "time": f.get("sched_time", "22:00"),
+                                           "days": request.form.getlist("sched_days")}
+        except ValueError:
+            flash("The update timeout must be a number of minutes.", "error")
+            return redirect(url_for("settings_page"))
+        if save_or_flash(cfg):
+            flash("Update settings saved.", "ok")
+        return redirect(url_for("settings_page"))
 
     @app.route("/settings/time", methods=["POST"])
     def settings_time():

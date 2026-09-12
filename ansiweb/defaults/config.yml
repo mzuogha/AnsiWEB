@@ -8,6 +8,16 @@ settings:
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
 
+# Windows updates installed on the PCs.
+updates:
+  enabled: false
+  categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
+  exclude: []              # KB numbers or title patterns to skip, e.g. [KB5001234]
+  source: default          # default, windows_update (ignore WSUS), managed_server (WSUS only)
+  reboot: false            # let Windows reboot the PC when updates need it
+  timeout_minutes: 180
+  targets: [all]
+
 # Clock settings pushed to the PCs: time zone and where they get the time from.
 time:
   enabled: false
@@ -31,8 +41,12 @@ schedules:
     every_hours: 24        # check vendors for new versions and refresh the cache
   deploy:
     enabled: false
-    time: "19:00"          # push missing apps and updates to all PCs
+    time: "19:00"          # push missing apps and settings to all PCs
     days: [mon, tue, wed, thu, fri]
+  updates:
+    enabled: false
+    time: "22:00"          # install Windows updates
+    days: [sat]
 
 sites: [HQ]
 # {name, ip, site, groups: [], sync_hostname: false, notes: ""}

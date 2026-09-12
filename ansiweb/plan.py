@@ -104,6 +104,17 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    upd = cfg.get("updates") or {}
+    updates = {
+        "enabled": bool(upd.get("enabled")),
+        "categories": list(upd.get("categories") or []),
+        "exclude": [str(x) for x in (upd.get("exclude") or [])],
+        "source": upd.get("source", "default"),
+        "reboot": bool(upd.get("reboot")),
+        "timeout_minutes": int(upd.get("timeout_minutes") or 180),
+        "targets": upd.get("targets") or ["all"],
+    }
+
     tm = cfg.get("time") or {}
     clock = {
         "enabled": bool(tm.get("enabled")),
@@ -131,6 +142,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry["hostname"] = pc["name"] if pc.get("sync_hostname") else ""
         entry["activate"] = activation["enabled"] and pc_matches(pc, activation["targets"])
         entry["set_time"] = clock["enabled"] and pc_matches(pc, clock["targets"])
+        entry["update"] = updates["enabled"] and pc_matches(pc, updates["targets"])
         hosts[pc["name"]] = entry
 
     return {
@@ -142,6 +154,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
         "time": clock,
+        "updates": updates,
         "activation": activation,
         "apps": apps,
         "drivers": payload_sets["drivers"],

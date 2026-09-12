@@ -371,7 +371,20 @@ the target.
 > Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
 > on one PC before pointing it at a site.
 
-### 8. Set the time zone and clock (optional)
+### 8. Install Windows updates (optional)
+
+**Settings → Windows updates**:
+
+1. Tick **Install Windows updates during deployments**.
+2. Choose the categories you want — security, critical and rollups are a sensible baseline.
+3. Leave **Where updates come from** on the default unless you want to bypass or insist on a WSUS server.
+4. Decide whether Windows may reboot PCs. With it off, PCs needing a reboot are listed at the end of the job.
+5. Set a schedule, for example Saturdays at 22:00, then try it on one PC first with **Install updates now**.
+
+Updates can take hours per PC, so they run last in a deployment and have their own timeout. AnsiWEB does not change
+which update service a PC uses; if you want PCs pointed at a WSUS server, upload a `.reg` file on the Registry page.
+
+### 9. Set the time zone and clock (optional)
 
 **Settings → Time and time zone** pushes clock settings to the PCs:
 
@@ -383,7 +396,7 @@ the target.
 Each PC reports its time zone, local time and time source afterwards, and the job log flags any PC whose clock is
 more than two minutes off the server's. PCs need UDP 123 open to whatever time servers you name.
 
-### 9. Activate Windows (optional)
+### 10. Activate Windows (optional)
 
 If you want AnsiWEB to handle Windows licensing, go to **Settings → Windows activation**:
 
@@ -396,7 +409,7 @@ The key is stored encrypted and never appears in the deployment plan or job logs
 Microsoft, so those PCs need internet access at least once; KMS activation stays on your own network. The Reports
 page shows each PC's licence state afterwards.
 
-### 10. Turn on the schedules
+### 11. Turn on the schedules
 
 In **Settings**, enable:
 
@@ -405,7 +418,7 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 11. Download a backup
+### 12. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
@@ -515,6 +528,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | `credentials were rejected` | The password in Settings differs from the one used on that PC. Re-run the prep script there. |
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
+| Updates time out | Expected on PCs that are far behind. Raise the timeout in Settings and run the job again. |
 | A PC reports that the resync did not succeed | It could not reach the time servers you named. Check the names and that UDP 123 is open. |
 | Activation leaves a PC unactivated | The job log shows what Windows reported. MAK and retail keys need internet access from the PC; KMS needs the host reachable on port 1688. |
 | A script is marked failed | Its exit code isn't in the success list for that script. Add the code on the script's page, or fix the script; its output is on the Reports page. |

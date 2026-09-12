@@ -20,6 +20,7 @@ KINDS = {
     "rename": "Apply computer names",
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
+    "updates": "Install Windows updates",
     "ping": "Connection test",
 }
 
@@ -33,6 +34,7 @@ DEPLOY_TAGS = {
     "rename": "hostname",
     "activate": "activation",
     "set_time": "time",
+    "updates": "updates",
 }
 
 _db_lock = threading.Lock()
@@ -267,6 +269,8 @@ def scheduler_tick() -> None:
             except JobBusy:
                 pass
 
+    _schedule_updates(cfg, sch, now)
+
     dep = sch.get("deploy", {})
     if dep.get("enabled") and cfg.get("pcs") and _due_daily("deploy", dep, now, dep.get("days", [])):
         try:
@@ -275,6 +279,20 @@ def scheduler_tick() -> None:
             kv_set("sched:deploy", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
         except JobBusy:
             pass
+
+
+def _schedule_updates(cfg, sch, now) -> None:
+    upd = sch.get("updates", {})
+    if not (upd.get("enabled") and cfg.get("pcs")):
+        return
+    if not _due_daily("updates", upd, now, upd.get("days", [])):
+        return
+    try:
+        start("updates", "all", trigger="schedule")
+        hh, mm = map(int, upd["time"].split(":"))
+        kv_set("sched:updates", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
+    except JobBusy:
+        pass
 
 
 def start_scheduler() -> None:

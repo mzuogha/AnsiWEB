@@ -209,6 +209,55 @@ c.post("/scripts/set-power-plan/edit", data={"csrf": tok, "name": "Set power pla
 plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(plan["scripts"][0]["state_key"] != old_key, "replacing the file changes the state key")
 
+# ---------------------------------------------------------------- Windows updates
+r = c.get("/settings")
+ok("Windows updates" in r.text and "Security updates" in r.text, "Settings offers an updates panel")
+r = c.post("/settings/updates", data={"csrf": tok, "enabled": "on",
+                                      "categories": ["SecurityUpdates", "CriticalUpdates"],
+                                      "exclude": "KB5001234, Malicious Software Removal",
+                                      "source": "managed_server", "reboot": "on",
+                                      "timeout_minutes": "240", "targets": ["site:HQ"],
+                                      "sched_enabled": "on", "sched_time": "22:30",
+                                      "sched_days": ["sat", "sun"]}, follow_redirects=True)
+ok("Update settings saved" in r.text, "update settings save")
+u = store.load()["updates"]
+ok(u["categories"] == ["SecurityUpdates", "CriticalUpdates"], "categories stored")
+ok(u["exclude"] == ["KB5001234", "Malicious Software Removal"], "exclusions split into a list")
+ok(u["source"] == "managed_server" and u["reboot"] is True and u["timeout_minutes"] == 240,
+   "source, reboot and timeout stored")
+ok(store.load()["schedules"]["updates"] == {"enabled": True, "time": "22:30", "days": ["sat", "sun"]},
+   "update schedule stored")
+plan_u = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_u["updates"]["enabled"] and plan_u["updates"]["timeout_minutes"] == 240, "updates reach the plan")
+ok(plan_u["hosts"]["PC-HQ-001"]["update"] is True, "targeted PCs get updates")
+ok(plan_u["hosts"]["PC-BR1-009"]["update"] is False, "PCs outside the target do not")
+ok("is not a Windows update category" in
+   c.post("/settings/updates", data={"csrf": tok, "categories": ["Nonsense"], "source": "default",
+                                     "timeout_minutes": "180", "targets": ["all"]},
+          follow_redirects=True).text, "an unknown category is rejected")
+ok("Choose at least one update category" in
+   c.post("/settings/updates", data={"csrf": tok, "enabled": "on", "source": "default",
+                                     "timeout_minutes": "180", "targets": ["all"]},
+          follow_redirects=True).text, "turning updates on with no category is refused")
+ok("between 10 and 1440" in
+   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
+                                     "timeout_minutes": "5", "targets": ["all"]},
+          follow_redirects=True).text, "an unreasonable timeout is rejected")
+ok("not a valid pattern" in
+   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
+                                     "exclude": "(", "timeout_minutes": "180", "targets": ["all"]},
+          follow_redirects=True).text, "a broken exclusion pattern is rejected")
+ok("must be HH:MM" in
+   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
+                                     "timeout_minutes": "180", "targets": ["all"],
+                                     "sched_time": "99:99"}, follow_redirects=True).text,
+   "a bad schedule time is rejected")
+ok(jobs.DEPLOY_TAGS.get("updates") == "updates", "an updates-only job exists")
+# leave updates off for the rest of the test
+c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
+                                  "timeout_minutes": "180", "targets": ["all"], "sched_time": "22:00"},
+       follow_redirects=True)
+
 # ---------------------------------------------------------------- time and time zone
 r = c.get("/settings")
 ok("Time and time zone" in r.text and "W. Europe Standard Time" in r.text,
@@ -305,12 +354,15 @@ json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending":
            "results": [{"kind": "drivers", "id": "intel-nic", "name": "Intel NIC", "status": "installed",
                       "detail": "1 of 1 driver file(s) added"},
                      {"kind": "scripts", "id": "set-power-plan", "name": "Set power plan",
-                      "status": "ran (exit 0)", "detail": "done"}]},
+                      "status": "ran (exit 0)", "detail": "done"},
+                     {"kind": "updates", "id": "windows-updates", "name": "Windows updates",
+                      "status": "3 installed (reboot needed)", "detail": "2026-09 Cumulative Update"}]},
           open(os.path.join(DATA, "reports/PC-HQ-001.json"), "w"))
 r = c.get("/reports")
 ok("PC-HQ-001" in r.text and "Windows 11 Pro" in r.text, "report page shows the PC")
 ok("reboot pending" in r.text, "pending reboot is visible")
 ok("Intel NIC" in r.text, "driver result is visible")
+ok("3 installed" in r.text, "Windows update result is visible")
 csv_text = c.get("/reports/export.csv").text
 ok("PC-HQ-001" in csv_text and "7-Zip" in csv_text and "Dell OptiPlex" in csv_text, "CSV export")
 ok("activated" in csv_text.splitlines()[0], "CSV has an activation column")

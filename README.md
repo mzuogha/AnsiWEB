@@ -34,6 +34,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Device drivers.** Upload a .zip containing the .inf files; PCs unpack it and add it to the Windows driver store with pnputil.
 - **Scripts.** Upload .ps1, .cmd or .bat files and run them on chosen PCs, once, on change, or at every deployment, with exit codes and output captured.
 - **Registry files.** Upload .reg files and have them merged on chosen PCs.
+- **Windows updates.** Install Windows updates on the PCs by category, with exclusions, optional reboots and a weekly schedule.
 - **Time and time zone.** Push a time zone and your own time servers to the PCs, and force a clock resync.
 - **Windows activation.** Store a product key once and have AnsiWEB install and activate it on the PCs it manages, either with your own key or against a KMS host.
 - **Rename PCs.** Rename a PC in AnsiWEB, and optionally have Windows renamed to match at the next deployment.
@@ -113,6 +114,21 @@ Each of these has its own page and works the same way: upload the file once, cho
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
 
+## Windows updates
+
+Optional, and off by default. **Settings → Windows updates** takes:
+
+- **Which updates** — security, critical, rollups, Defender definitions, drivers and so on. At least one is required.
+- **Where updates come from** — whatever each PC is already set to, Microsoft Windows Update directly, or the PC's WSUS only. AnsiWEB does not change which update service a PC uses; to point PCs at a WSUS server, upload a `.reg` file on the Registry page.
+- **Give up after** — a per-PC timeout in minutes, 180 by default.
+- **Skip these updates** — KB numbers or parts of an update title, e.g. `KB5001234`.
+- **Let Windows reboot the PC** — off by default, in which case PCs needing a reboot are listed at the end of the job instead.
+- **Install on** and a **schedule** — updates run last in a deployment, or on their own with **Install updates now**, or weekly at a time you set.
+
+Each PC reports how many updates were found, installed and failed, which update titles went on, and whether a reboot is still needed. A PC where an update fails is marked failed so it stands out on the Reports page.
+
+Updates genuinely can take hours on a PC that is behind, which is why the timeout is generous and a weekly window outside working hours is the usual choice.
+
 ## Time and time zone
 
 Optional, and off by default. **Settings → Time and time zone** takes:
@@ -180,6 +196,8 @@ GitHub allows 60 unauthenticated catalogue lookups per hour, which is plenty for
 | A driver install fails | The `.zip` must contain the `.inf` files themselves, not a vendor setup program. The job log shows the `pnputil` exit code. |
 | A script is reported as failed | Its exit code isn't in the success list. Add the code on the script's page, or fix the script. Output is on the Reports page. |
 | Changing the PC account locked AnsiWEB out | The account must exist on the PCs first. Download the prep script again and run it on each PC, or set the old name back. |
+| Updates take forever or time out | Normal on a PC that is far behind; raise the timeout and run it again. The job log shows progress per PC. |
+| Updates report failures | The job log lists each update and its error. Failures are often fixed by rebooting the PC and running updates again. |
 | A PC reports "resync did not succeed" | It cannot reach the time servers. Check the names and that UDP 123 is open to them. |
 | Activation reports "still in notification mode" | Windows accepted the key but could not activate. For a MAK key the PC needs internet access; for KMS check the host name, port 1688 and that the PC has a KMS client key. |
 | Activation says no product key is stored | Add one in Settings, or switch to KMS mode. |

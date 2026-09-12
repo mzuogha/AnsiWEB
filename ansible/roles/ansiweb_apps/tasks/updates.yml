@@ -1,0 +1,48 @@
+---
+# Windows updates can take hours, so this runs last in a deployment and has its
+# own generous timeout. A PC that needs a reboot is reported when reboots are off.
+- name: "Install Windows updates ({{ aw_plan.updates.categories | join(', ') }})"
+  ansible.windows.win_updates:
+    category_names: "{{ aw_plan.updates.categories }}"
+    reject_list: "{{ aw_plan.updates.exclude if aw_plan.updates.exclude | length > 0 else omit }}"
+    server_selection: "{{ aw_plan.updates.source }}"
+    state: installed
+    reboot: "{{ aw_plan.updates.reboot | bool }}"
+    reboot_timeout: 3600
+  register: aw_updates
+  async: "{{ (aw_plan.updates.timeout_minutes | int) * 60 }}"
+  poll: 30
+
+- name: Record the update result
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "updates", "id": "windows-updates", "name": "Windows updates",
+                                   "status": (aw_updates.installed_update_count | default(0) | string) ~ " installed"
+                                             ~ (", " ~ (aw_updates.failed_update_count | string) ~ " failed"
+                                                if (aw_updates.failed_update_count | default(0)) > 0 else "")
+                                             ~ (" (rebooted)" if aw_updates.rebooted | default(false) else "")
+                                             ~ (" (reboot needed)" if aw_updates.reboot_required | default(false)
+                                                and not (aw_updates.rebooted | default(false)) else ""),
+                                   "detail": (aw_updates.updates | default({}) | dict2items
+                                              | map(attribute="value.title") | join("; "))
+                                             | truncate(600, true)}] }}'
+
+- name: Note that updates need a reboot
+  ansible.builtin.set_fact:
+    aw_reboot_needed: true
+  when:
+    - aw_updates.reboot_required | default(false)
+    - not (aw_updates.rebooted | default(false))
+
+- name: Show the update summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: {{ aw_updates.found_update_count | default(0) }} update(s) found,
+      {{ aw_updates.installed_update_count | default(0) }} installed,
+      {{ aw_updates.failed_update_count | default(0) }} failed.
+      {{ 'A reboot is still needed.' if aw_updates.reboot_required | default(false)
+         and not (aw_updates.rebooted | default(false)) else '' }}
+
+- name: Fail the PC when updates could not be installed
+  ansible.builtin.fail:
+    msg: "{{ aw_updates.failed_update_count }} update(s) failed to install on {{ inventory_hostname }}."
+  when: (aw_updates.failed_update_count | default(0)) > 0

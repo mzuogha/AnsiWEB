@@ -18,6 +18,24 @@ HOSTNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,253}$")
 PRODUCT_KEY_RE = re.compile(r"^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$")
 TIMEZONE_RE = re.compile(r"^[A-Za-z0-9 .,'()+/-]{3,80}$")
 
+UPDATE_CATEGORIES = [
+    ("SecurityUpdates", "Security updates"),
+    ("CriticalUpdates", "Critical updates"),
+    ("UpdateRollups", "Update rollups (cumulative updates)"),
+    ("Updates", "Other updates"),
+    ("DefinitionUpdates", "Defender definitions"),
+    ("ServicePacks", "Service packs"),
+    ("FeaturePacks", "Feature packs"),
+    ("Drivers", "Drivers offered by Windows Update"),
+    ("Tools", "Tools"),
+    ("Application", "Applications"),
+]
+UPDATE_SOURCES = {
+    "default": "Whatever the PC is already set to (WSUS if it has one)",
+    "windows_update": "Microsoft Windows Update, ignoring any WSUS",
+    "managed_server": "The PC's managed update server (WSUS) only",
+}
+
 # A short list for the dropdown. Any valid Windows ID can be typed in;
 # run "tzutil /l" on a PC to see them all.
 COMMON_TIMEZONES = [
@@ -162,6 +180,27 @@ def validate(cfg: dict) -> None:
             raise ValidationError(f"{pc['name']}: '{pc.get('ip')}' is not a valid IP address")
         if pc.get("site") not in cfg.get("sites", []):
             raise ValidationError(f"{pc['name']}: site '{pc.get('site')}' does not exist")
+    upd = cfg.get("updates") or {}
+    known = {c for c, _ in UPDATE_CATEGORIES}
+    for cat in upd.get("categories") or []:
+        if cat not in known:
+            raise ValidationError(f"'{cat}' is not a Windows update category AnsiWEB knows")
+    if upd.get("enabled") and not (upd.get("categories") or []):
+        raise ValidationError("Choose at least one update category before turning updates on.")
+    if upd.get("source") not in UPDATE_SOURCES:
+        raise ValidationError("Unknown update source.")
+    try:
+        minutes = int(upd.get("timeout_minutes") or 180)
+    except (TypeError, ValueError):
+        raise ValidationError("The update timeout must be a number of minutes.")
+    if not 10 <= minutes <= 1440:
+        raise ValidationError("The update timeout must be between 10 and 1440 minutes.")
+    for pattern in upd.get("exclude") or []:
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValidationError(f"Update exclusion '{pattern}' is not a valid pattern ({exc})")
+
     tm = cfg.get("time") or {}
     if tm.get("timezone") and not TIMEZONE_RE.match(tm["timezone"]):
         raise ValidationError("That does not look like a Windows time zone ID, e.g. "
@@ -186,9 +225,10 @@ def validate(cfg: dict) -> None:
     if act.get("kms_host") and not HOSTNAME_RE.match(act["kms_host"]):
         raise ValidationError("The KMS host must be a host name or IP address.")
 
-    t = cfg.get("schedules", {}).get("deploy", {}).get("time", "00:00")
-    if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t):
-        raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")
+    for key in ("deploy", "updates"):
+        t = cfg.get("schedules", {}).get(key, {}).get("time", "00:00")
+        if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t):
+            raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")
 
     for kind in payloads.KINDS:
         seen = set()
