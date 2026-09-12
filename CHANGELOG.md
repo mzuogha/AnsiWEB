@@ -5,6 +5,19 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.6.2 - 2026-09-12
+
+Drivers now share the same page as scripts and registry files, so everything you upload for the PCs is in one place.
+
+
+### Changed
+
+- One page, Drivers, scripts & registry, lists all three kinds with a type column. Upload any of them there; AnsiWEB works out which it is from the file.
+- Apply now on that page covers drivers, scripts and registry files in a single job.
+- The old /drivers, /scripts and /registry addresses all redirect to it.
+- Storage is unchanged, so everything already uploaded and everything already applied on the PCs is untouched.
+
+
 ## 1.6.1 - 2026-09-12
 
 Scripts and registry files now share one page, since both are simply things to run on a PC.

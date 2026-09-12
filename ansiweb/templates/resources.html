@@ -57,22 +57,20 @@ internet access. Each PC records what it has already applied, so repeat deployme
     AnsiWEB works out which it is from the file you choose.</p>
   <form method="post" action="{{ url_for('resource_add', group=group) }}" enctype="multipart/form-data" class="form">{{ csrf() }}
     <div class="row">
-      <label>Name<input name="name" required
-        placeholder="{{ 'Intel NIC driver' if group == 'drivers' else 'Set power plan' }}"></label>
+      <label>Name<input name="name" required placeholder="Intel NIC driver"></label>
       <label>File<input type="file" name="payload" required accept="{{ accept }}"></label>
       <label>When it runs<select name="run_mode">
         {% for k, v in run_modes.items() %}<option value="{{ k }}" {{ 'selected' if k == 'once' }}>{{ v }}</option>{% endfor %}
       </select></label>
     </div>
-    {% if group == 'scripts' %}
     <div class="row">
       <label>Arguments (scripts only)<input name="arguments" placeholder="-Mode Full"></label>
       <label>Extra success exit codes<input name="success_codes" placeholder="3010"><small>0 always counts as success.</small></label>
       <label>Timeout in seconds<input name="timeout" type="number" value="1800" min="10" max="86400"></label>
       <label class="check"><input type="checkbox" name="reboot"> Reboot the PC after it runs</label>
     </div>
-    <p class="muted small">The script settings are ignored for a registry file.</p>
-    {% endif %}
+    <p class="muted small">The settings above apply to scripts only; they are ignored for a driver package
+    or a registry file.</p>
     <label>Notes (optional)<input name="notes"></label>
     <h3>Applies to</h3>
     <div class="checks">

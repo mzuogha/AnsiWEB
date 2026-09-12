@@ -561,10 +561,12 @@ def create_app(start_background: bool = True) -> Flask:
         if group not in payloads.GROUPS:
             abort(404)
 
+    @app.route("/drivers")
+    @app.route("/scripts")
     @app.route("/registry")
     def registry_redirect():
-        """Registry files moved onto the scripts page; keep old links working."""
-        return redirect(url_for("resources_page", group="scripts"))
+        """Drivers, scripts and registry files share one page; keep old links working."""
+        return redirect(url_for("resources_page", group="files"))
 
     @app.route("/<group>")
     def resources_page(group):
@@ -581,7 +583,7 @@ def create_app(start_background: bool = True) -> Flask:
                                                for ext in payloads.KINDS[k]["extensions"]),
                                cfg=cfg, targets=store.target_choices(cfg),
                                run_modes=payloads.RUN_MODES, reports=load_reports(),
-                               job_kind=("deploy_drivers" if group == "drivers" else "deploy_automation"))
+                               job_kind="deploy_files")
 
     @app.route("/<group>/add", methods=["POST"])
     def resource_add(group):

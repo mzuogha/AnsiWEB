@@ -18,8 +18,7 @@
     <a href="{{ url_for('apps_page') }}" class="{{ 'active' if ep.startswith('app') }}">Apps &amp; cache</a>
     <a href="{{ url_for('pcs_page') }}" class="{{ 'active' if ep.startswith('pc') }}">PCs</a>
     <a href="{{ url_for('uninstalls_page') }}" class="{{ 'active' if ep.startswith('uninstall') }}">Uninstall</a>
-    <a href="{{ url_for('resources_page', group='drivers') }}" class="{{ 'active' if request.view_args and request.view_args.get('group') == 'drivers' }}">Drivers</a>
-    <a href="{{ url_for('resources_page', group='scripts') }}" class="{{ 'active' if request.view_args and request.view_args.get('group') == 'scripts' }}">Scripts &amp; registry</a>
+    <a href="{{ url_for('resources_page', group='files') }}" class="{{ 'active' if ep.startswith('resource') }}">Drivers, scripts &amp; registry</a>
     <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory</a>
     <a href="{{ url_for('reports_page') }}" class="{{ 'active' if ep.startswith('report') }}">Reports</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs

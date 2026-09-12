@@ -42,7 +42,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
 - **Web interface over HTTPS.**
-  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Drivers, Scripts & registry, Inventory, Reports, Jobs, Settings, Users, Audit log, Help.
+  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Drivers/scripts/registry, Inventory, Reports, Jobs, Settings, Users, Audit log, Help.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
@@ -107,15 +107,15 @@ The short version is below; [docs/INSTALL.md](docs/INSTALL.md#first-time-configu
 
 ## Drivers, scripts and registry files
 
-These live on two pages, Drivers and Scripts & registry, and work the same way: upload the file once, choose which PCs it applies to (all PCs, a site or a group), and choose when it should run.
+All three live on one page, **Drivers, scripts & registry**, and work the same way: upload the file once, choose which PCs it applies to (all PCs, a site or a group), and choose when it should run. AnsiWEB tells the kinds apart by the file you upload.
 
-| Page | Upload | What PCs do with it |
-|---|---|---|
-| Drivers | `.zip` containing the `.inf` (plus its `.cat`/`.sys` files) | Unpacks it and adds every `.inf` to the Windows driver store with `pnputil /add-driver /install` |
-| Scripts & registry | `.ps1`, `.cmd` or `.bat` | Runs it as SYSTEM, with your arguments; exit code and output are recorded |
-| Scripts & registry | `.reg` exported from Registry Editor | Merges it with `reg import` |
+| Upload | What PCs do with it |
+|---|---|
+| `.zip` containing the `.inf` (plus its `.cat`/`.sys` files) | Unpacks it and adds every `.inf` to the Windows driver store with `pnputil /add-driver /install` |
+| `.ps1`, `.cmd` or `.bat` | Runs it as SYSTEM, with your arguments; exit code and output are recorded |
+| `.reg` exported from Registry Editor | Merges it with `reg import` |
 
-Upload either kind on the same page; AnsiWEB tells them apart by the file, and **Apply now** there covers both.
+**Apply now** on that page covers all three in one job.
 
 "When it runs" is one of:
 
@@ -196,7 +196,7 @@ The **Help** page in the web interface has copyable commands for deploying on Ub
 Optional, and off by default. **Settings → Windows updates** takes:
 
 - **Which updates** — security, critical, rollups, Defender definitions, drivers and so on. At least one is required.
-- **Where updates come from** — whatever each PC is already set to, Microsoft Windows Update directly, or the PC's WSUS only. AnsiWEB does not change which update service a PC uses; to point PCs at a WSUS server, upload a `.reg` file on the Scripts & registry page.
+- **Where updates come from** — whatever each PC is already set to, Microsoft Windows Update directly, or the PC's WSUS only. AnsiWEB does not change which update service a PC uses; to point PCs at a WSUS server, upload a `.reg` file on the Drivers, scripts & registry page.
 - **Give up after** — a per-PC timeout in minutes, 180 by default.
 - **Skip these updates** — KB numbers or parts of an update title, e.g. `KB5001234`.
 - **Let Windows reboot the PC** — off by default, in which case PCs needing a reboot are listed at the end of the job instead.

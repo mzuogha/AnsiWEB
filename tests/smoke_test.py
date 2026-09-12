@@ -225,46 +225,42 @@ c.post("/apps/upload", data={"csrf": tok, "name": "Vendor App", "version": "5.2.
        content_type="multipart/form-data", follow_redirects=True)
 
 # ---------------------------------------------------------------- drivers / scripts / registry
-r = c.post("/drivers/add", data={"csrf": tok, "name": "Intel NIC", "run_mode": "once", "targets": ["all"],
+r = c.post("/files/add", data={"csrf": tok, "name": "Intel NIC", "run_mode": "once", "targets": ["all"],
                                  "payload": (zip_bytes(["net.inf", "net.cat"]), "intel-nic.zip")},
            content_type="multipart/form-data", follow_redirects=True)
 ok("uploaded" in r.text and "Intel NIC" in r.text, "driver upload")
-r = c.post("/scripts/add", data={"csrf": tok, "name": "Set power plan", "run_mode": "always",
+r = c.post("/files/add", data={"csrf": tok, "name": "Set power plan", "run_mode": "always",
                                  "arguments": "-Plan High", "success_codes": "3010", "timeout": "600",
                                  "reboot": "on", "targets": ["site:HQ"],
                                  "payload": (io.BytesIO(b"Write-Host hi\n"), "power.ps1")},
            content_type="multipart/form-data", follow_redirects=True)
 ok("Set power plan" in r.text, "script upload")
-r = c.post("/scripts/add", data={"csrf": tok, "name": "Disable autostart", "run_mode": "changed",
+r = c.post("/files/add", data={"csrf": tok, "name": "Disable autostart", "run_mode": "changed",
                                  "targets": ["all"],
                                  "payload": (io.BytesIO(b"Windows Registry Editor Version 5.00\n"), "no-auto.reg")},
            content_type="multipart/form-data", follow_redirects=True)
 ok("Disable autostart" in r.text, "registry upload")
-ok("not supported here" in c.post("/drivers/add", data={"csrf": tok, "name": "Bad", "run_mode": "once",
-                                                        "payload": (io.BytesIO(b"x"), "driver.exe")},
+ok("not supported here" in c.post("/files/add", data={"csrf": tok, "name": "Bad", "run_mode": "once",
+                                                      "payload": (io.BytesIO(b"x"), "installer.exe")},
                                   content_type="multipart/form-data", follow_redirects=True).text,
-   "wrong driver file type refused")
-ok("not supported here" in c.post("/scripts/add", data={"csrf": tok, "name": "Bad", "run_mode": "once",
-                                                        "payload": (io.BytesIO(b"x"), "thing.zip")},
-                                  content_type="multipart/form-data", follow_redirects=True).text,
-   "a driver package is refused on the scripts page")
-ok("Choose a file" in c.post("/scripts/add", data={"csrf": tok, "name": "Nofile", "run_mode": "once"},
+   "an unsupported file type is refused")
+ok("Choose a file" in c.post("/files/add", data={"csrf": tok, "name": "Nofile", "run_mode": "once"},
                              content_type="multipart/form-data", follow_redirects=True).text,
    "script without a file refused")
 
-# scripts and registry files share one page
-body = c.get("/scripts").text
-ok("Scripts &amp; registry" in body or "Scripts & registry" in body, "the page covers both kinds")
-ok("Set power plan" in body and "Disable autostart" in body,
-   "scripts and registry files are listed together")
-ok("Registry file" in body and "Script" in body, "each row shows which kind it is")
-ok(c.get("/registry").status_code == 302, "the old registry URL redirects")
-ok(c.get("/registry", follow_redirects=True).text.count("Disable autostart") >= 1,
-   "and lands on the merged page")
-ok("Intel NIC" not in body, "drivers stay on their own page")
-ok("Intel NIC" in c.get("/drivers").text, "the drivers page still works")
-ok(jobs.DEPLOY_TAGS.get("deploy_automation") == "scripts,registry",
-   "one job covers scripts and registry together")
+# drivers, scripts and registry files share one page
+body = c.get("/files").text
+ok("Drivers, scripts &amp; registry" in body or "Drivers, scripts & registry" in body,
+   "one page covers all three kinds")
+ok("Intel NIC" in body and "Set power plan" in body and "Disable autostart" in body,
+   "drivers, scripts and registry files are listed together")
+ok("Device driver" in body and "Registry file" in body and "Script" in body,
+   "each row shows which kind it is")
+for old in ("/drivers", "/scripts", "/registry"):
+    ok(c.get(old).status_code == 302, f"the old {old} URL redirects")
+    ok("Intel NIC" in c.get(old, follow_redirects=True).text, f"{old} lands on the merged page")
+ok(jobs.DEPLOY_TAGS.get("deploy_files") == "drivers,scripts,registry",
+   "one job covers all three kinds")
 ok(c.get("/nonsense").status_code == 404, "an unknown page is still 404")
 
 cfg = store.load()
@@ -932,7 +928,7 @@ ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 
 # ---------------------------------------------------------------- every page renders
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
-            "/pcs/PC-HQ-001/edit", "/drivers", "/scripts", "/drivers/intel-nic/edit",
+            "/pcs/PC-HQ-001/edit", "/files", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
             "/settings", "/release-notes", "/help", "/users", "/uninstalls", "/audit",
             "/inventory"]:

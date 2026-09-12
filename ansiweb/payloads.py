@@ -35,13 +35,17 @@ KINDS = {
 # Scripts and registry files are managed on one page: both are "run this on the
 # PC" items, and which one a file is can be told from its extension.
 GROUPS = {
-    "drivers": {"kinds": ["drivers"], "title": "Device drivers",
-                "hint": KINDS["drivers"]["hint"]},
-    "scripts": {"kinds": ["scripts", "registry"], "title": "Scripts & registry",
-                "hint": "PowerShell or command scripts (.ps1, .cmd, .bat) run as SYSTEM on the PC, "
-                        "and registry files (.reg) are merged with reg import. Upload either here - "
-                        "AnsiWEB works out which it is from the file."},
+    "files": {
+        "kinds": ["drivers", "scripts", "registry"],
+        "title": "Drivers, scripts & registry",
+        "hint": "Everything you upload for the PCs to apply: driver packages (.zip of .inf files) are "
+                "added to the Windows driver store, scripts (.ps1, .cmd, .bat) run as SYSTEM, and "
+                "registry files (.reg) are merged with reg import. Upload any of them here - AnsiWEB "
+                "works out which it is from the file.",
+    },
 }
+# Where the old per-kind pages now live
+OLD_PAGES = {"drivers": "files", "scripts": "files", "registry": "files"}
 # Which page a kind is managed on
 GROUP_OF = {kind: group for group, meta in GROUPS.items() for kind in meta["kinds"]}
 

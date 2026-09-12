@@ -369,12 +369,14 @@ Run it a second time against the same PC. The second run should report no change
 
 ### 8. Add drivers, scripts and registry files (optional)
 
-There are two pages in the sidebar — Drivers, and Scripts & registry — and both work the same way: upload the file, pick which PCs it applies to, and choose when it runs.
+They share one page in the sidebar, **Drivers, scripts & registry**: upload the file, pick which PCs it applies to,
+and choose when it runs. AnsiWEB tells the kinds apart by the file you upload.
 
-| Page | What to upload | What PCs do |
-|---|---|---|
-| **Drivers** | A `.zip` containing the driver's `.inf` file, plus its `.cat`/`.sys` files | Unpacks it and adds each `.inf` to the Windows driver store with `pnputil` |
-| **Scripts & registry** | `.ps1`, `.cmd` or `.bat`, or a `.reg` file | Runs the script as SYSTEM, or merges the registry file with `reg import` |
+| What to upload | What PCs do |
+|---|---|
+| A `.zip` containing the driver's `.inf` file, plus its `.cat`/`.sys` files | Unpacks it and adds each `.inf` to the Windows driver store with `pnputil` |
+| `.ps1`, `.cmd` or `.bat` | Runs it as SYSTEM with your arguments; exit code and output are recorded |
+| `.reg` exported from Registry Editor | Merges it with `reg import` |
 
 To build a driver package, take the vendor's *driver* download (not its setup program), and zip the folder that
 contains the `.inf` files:
@@ -404,7 +406,7 @@ the target.
 5. Set a schedule, for example Saturdays at 22:00, then try it on one PC first with **Install updates now**.
 
 Updates can take hours per PC, so they run last in a deployment and have their own timeout. AnsiWEB does not change
-which update service a PC uses; if you want PCs pointed at a WSUS server, upload a `.reg` file on the Scripts & registry page.
+which update service a PC uses; if you want PCs pointed at a WSUS server, upload a `.reg` file on the Drivers, scripts & registry page.
 
 ### 10. Set the time zone and clock (optional)
 
