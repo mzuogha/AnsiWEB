@@ -172,13 +172,6 @@ To upgrade later, edit the app: untick **Pin**, or change the URL and version.
 
 > Firefox 65 dates from 2019 and no longer receives security fixes. Where possible, limit its use to the application that requires it.
 
-## Security
-
-- **This repository is public. Never commit anything from `/var/lib/ansiweb`.** It holds your configuration, the vault key and the encrypted secrets.
-- The web UI uses plain HTTP on the LAN. Restrict it to your admin network by uncommenting the `allow`/`deny` lines in `/etc/nginx/sites-available/ansiweb`, or put it behind HTTPS.
-- Every PC shares the same management-account password. The WinRM firewall rule (server IP only) is the main protection; keep the server locked down.
-- PCs use self-signed WinRM certificates, so certificate validation is off. The traffic is still encrypted.
-
 ## Troubleshooting
 
 | Symptom | Fix |
