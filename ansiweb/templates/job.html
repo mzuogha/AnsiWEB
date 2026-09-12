@@ -3,7 +3,8 @@
 {% block title %}Job {{ job.id }}{% endblock %}
 {% block content %}
 <div class="head"><h1>Job #{{ job.id }}: {{ job_kinds[job.kind] }}{% if job.target %} <span class="muted">({{ job.target }})</span>{% endif %}</h1>
-  <div class="actions"><span id="jobstatus">{{ status_pill(job.status) }}</span></div></div>
+  <div class="actions"><span id="jobstatus">{{ status_pill(job.status) }}</span>
+    <a class="btn" href="{{ url_for('job_download', job_id=job.id) }}">Download log</a></div></div>
 <p class="muted small">Started {{ job.started }} · {{ job.trigger }}</p>
 <pre id="log" class="log" data-job="{{ job.id }}" data-url="{{ url_for('job_log', job_id=job.id) }}"></pre>
 {% endblock %}

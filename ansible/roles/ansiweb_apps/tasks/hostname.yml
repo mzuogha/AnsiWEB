@@ -1,0 +1,12 @@
+---
+- name: Set the Windows computer name to match AnsiWEB
+  ansible.windows.win_hostname:
+    name: "{{ aw_host.hostname }}"
+  register: aw_rename
+
+- name: Note that the rename needs a reboot
+  ansible.builtin.set_fact:
+    aw_reboot_needed: true
+    aw_results: "{{ aw_results + [{'kind': 'hostname', 'id': 'hostname', 'name': 'Computer name',
+                                   'status': 'renamed', 'detail': 'renamed to ' ~ aw_host.hostname ~ ' (reboot required)'}] }}"
+  when: aw_rename.reboot_required | default(false)

@@ -1,17 +1,31 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill with context %}
+{% from "_macros.html" import status_pill, csrf, target_label with context %}
 {% block title %}Jobs{% endblock %}
 {% block content %}
 <div class="head"><h1>Jobs</h1></div>
+<section class="panel">
+  <h2>Run a job</h2>
+  <form method="post" action="{{ url_for('job_start') }}" class="row">{{ csrf() }}
+    <label>Job<select name="kind">
+      {% for k, label in job_kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+    </select></label>
+    <label>Target<select name="target">
+      {% for t in targets %}<option value="{{ t }}">{{ target_label(t) }}</option>{% endfor %}
+    </select></label>
+    <div><button class="btn primary">Start</button></div>
+  </form>
+  <p class="muted small">"Check for updates" and "Apply computer names" ignore the target where it doesn't apply.</p>
+</section>
 <table class="list">
-  <tr><th>#</th><th>Job</th><th>Target</th><th>Started</th><th>Finished</th><th>Trigger</th><th>Status</th></tr>
+  <tr><th>#</th><th>Job</th><th>Target</th><th>Started</th><th>Finished</th><th>Trigger</th><th>Status</th><th></th></tr>
   {% for j in jobs %}
   <tr>
     <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ j.id }}</a></td>
     <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ job_kinds[j.kind] }}</a></td>
     <td>{{ j.target or '' }}</td><td class="small">{{ j.started }}</td><td class="small">{{ j.finished or '' }}</td>
     <td class="small">{{ j.trigger }}</td><td>{{ status_pill(j.status) }}</td>
+    <td><a class="small" href="{{ url_for('job_download', job_id=j.id) }}">log</a></td>
   </tr>
-  {% else %}<tr><td colspan="7" class="muted">No jobs yet.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8" class="muted">No jobs yet.</td></tr>{% endfor %}
 </table>
 {% endblock %}

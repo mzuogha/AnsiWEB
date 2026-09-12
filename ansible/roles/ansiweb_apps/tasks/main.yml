@@ -5,55 +5,143 @@
 
 - name: Work out what this PC should have
   ansible.builtin.set_fact:
-    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {'apps': []}) }}"
-    aw_pc_cache: 'C:\ProgramData\AnsiWEB\cache'
+    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {}) }}"
+    aw_pc_cache: "{{ aw_plan.pc_cache }}"
+    aw_state_dir: "{{ aw_plan.pc_state }}"
     aw_reboot_needed: false
+    aw_results: []
 
-- name: Select this PC's apps
+- name: Select this PC's items
   ansible.builtin.set_fact:
-    aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps) | list }}"
+    aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps | default([])) | list }}"
+    aw_drivers: "{{ aw_plan.drivers | selectattr('id', 'in', aw_host.drivers | default([])) | list }}"
+    aw_scripts: "{{ aw_plan.scripts | selectattr('id', 'in', aw_host.scripts | default([])) | list }}"
+    aw_registry: "{{ aw_plan.registry | selectattr('id', 'in', aw_host.registry | default([])) | list }}"
 
-- name: Check installed versions
+# aw_only is set when the web interface runs a single item ("Run now"/"Install now").
+- name: Narrow down to one item when asked
+  ansible.builtin.set_fact:
+    aw_apps: "{{ aw_apps | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_drivers: "{{ aw_drivers | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_scripts: "{{ aw_scripts | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_registry: "{{ aw_registry | selectattr('id', 'equalto', aw_only) | list }}"
+  when: (aw_only | default('')) | length > 0
+
+- name: Create the AnsiWEB working folders on the PC
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ aw_pc_cache }}"
+    - "{{ aw_state_dir }}"
+
+- name: Rename the PC to match AnsiWEB
+  ansible.builtin.include_tasks: hostname.yml
+  when: (aw_host.hostname | default('')) | length > 0
+  tags: [hostname]
+
+- name: Check installed app versions
   ansible.builtin.include_tasks: detect.yml
+  tags: [apps]
 
 - name: Show what will be done
   ansible.builtin.debug:
     msg: "{{ aw_detect.result | map(attribute='summary') | list }}"
-
-- name: Create the installer cache folder on the PC
-  ansible.windows.win_file:
-    path: "{{ aw_pc_cache }}"
-    state: directory
-  when: aw_todo | length > 0
+  tags: [apps]
 
 - name: Install or upgrade apps
-  ansible.builtin.include_tasks: install_app.yml
+  ansible.builtin.include_tasks:
+    file: install_app.yml
+    apply:
+      tags: [apps]
   loop: "{{ aw_apps | selectattr('id', 'in', aw_todo) | list }}"
   loop_control:
     loop_var: app
     label: "{{ app.name }} {{ app.version }}"
+  tags: [apps]
 
 - name: Turn off Firefox's own updater (policies.json)
-  ansible.builtin.include_tasks: firefox_policy.yml
+  ansible.builtin.include_tasks:
+    file: firefox_policy.yml
+    apply:
+      tags: [apps]
   when: aw_apps | selectattr('firefox_disable_updates') | list | length > 0
+  tags: [apps]
 
-- name: Reboot where an installer asked for it
+- name: Install device drivers
+  ansible.builtin.include_tasks:
+    file: driver.yml
+    apply:
+      tags: [drivers]
+  loop: "{{ aw_drivers }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.name }}"
+  tags: [drivers]
+
+- name: Merge registry files
+  ansible.builtin.include_tasks:
+    file: registry.yml
+    apply:
+      tags: [registry]
+  loop: "{{ aw_registry }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.name }}"
+  tags: [registry]
+
+- name: Run scripts
+  ansible.builtin.include_tasks:
+    file: script.yml
+    apply:
+      tags: [scripts]
+  loop: "{{ aw_scripts }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.name }}"
+  tags: [scripts]
+
+- name: Reboot where something asked for it
   ansible.windows.win_reboot:
     reboot_timeout: 1200
   when: aw_reboot_needed | bool and aw_plan.allow_reboot | bool
 
 - name: List PCs that still need a reboot
   ansible.builtin.debug:
-    msg: "{{ inventory_hostname }} needs a reboot to finish installing."
+    msg: "{{ inventory_hostname }} needs a reboot to finish."
   when: aw_reboot_needed | bool and not (aw_plan.allow_reboot | bool)
 
-- name: Re-check installed versions for the report
+- name: Re-check installed app versions for the report
   ansible.builtin.include_tasks: detect.yml
   when: aw_todo | length > 0
+
+- name: Collect facts for the report
+  ansible.windows.win_powershell:
+    script: |
+      $os = Get-CimInstance Win32_OperatingSystem
+      $cs = Get-CimInstance Win32_ComputerSystem
+      $Ansible.Result = [ordered]@{
+        hostname = $env:COMPUTERNAME
+        os       = $os.Caption
+        build    = $os.BuildNumber
+        model    = "$($cs.Manufacturer) $($cs.Model)".Trim()
+        ram_gb   = [math]::Round($cs.TotalPhysicalMemory / 1GB)
+        serial   = (Get-CimInstance Win32_BIOS).SerialNumber
+        boot     = $os.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
+      }
+      $Ansible.Changed = $false
+  register: aw_facts
+  changed_when: false
 
 - name: Save the report for the AnsiWEB dashboard
   ansible.builtin.copy:
     dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
     mode: "0644"
-    content: "{{ {'host': inventory_hostname, 'time': now(fmt='%Y-%m-%d %H:%M:%S'), 'apps': aw_detect.result} | to_nice_json }}"
+    content: |
+      {{ {'host': inventory_hostname,
+          'time': now(fmt='%Y-%m-%d %H:%M:%S'),
+          'facts': aw_facts.result,
+          'reboot_pending': aw_reboot_needed | bool,
+          'apps': aw_detect.result,
+          'results': aw_results} | to_nice_json }}
   delegate_to: localhost

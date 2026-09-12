@@ -7,13 +7,29 @@
   <div class="actions">
     <a class="btn" href="{{ url_for('prepare_script') }}">Download PC prep script</a>
     {{ job_button('ping', 'Test all connections', 'all') }}
+    {{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}
   </div>
 </div>
-<p class="muted">Run the prep script once on each PC (PowerShell as Administrator), then add the PC here.
-It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once you set it in Settings</b>{% endif %}.</p>
+<p class="muted">Run the prep script once on each PC (PowerShell as Administrator), then add the PC here. The script
+already contains this server's IP{% if not cfg.settings.server_ip %} <b>once you set it in Settings</b>{% endif %}
+and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
+
+<section class="panel">
+  <h2>Management account on the PCs</h2>
+  <p class="muted small">AnsiWEB signs in to every PC with this local administrator account. Changing the name here
+  only changes what AnsiWEB uses: the account must exist on the PCs, so download the prep script again and re-run it
+  on each PC afterwards. The password is stored encrypted and is never shown again.</p>
+  <form method="post" action="{{ url_for('pc_account') }}" class="row">{{ csrf() }}
+    <label>Account name<input name="pc_account" value="{{ cfg.settings.pc_account }}" required
+      pattern="[A-Za-z0-9][A-Za-z0-9._-]*" maxlength="20"></label>
+    <label>Password {% if secrets.vault_ansible_svc_password %}<span class="muted small">(set)</span>{% else %}<span class="err small">(not set)</span>{% endif %}
+      <input type="password" name="password" placeholder="leave empty to keep" autocomplete="new-password"></label>
+    <div><button class="btn primary">Save account</button></div>
+  </form>
+</section>
 
 <table class="list">
-  <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Apps</th><th>Last report</th><th></th></tr>
+  <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
   {% for pc in cfg.pcs %}
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
@@ -22,6 +38,11 @@ It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once 
     <td>{{ pc.ip }}</td>
     <td>{{ pc.site }}</td>
     <td class="small">{{ pc.groups|join(', ') }}</td>
+    <td class="small">{% if pc.sync_hostname %}
+        {% set rep_name = (rep.facts.hostname if rep and rep.facts else None) %}
+        {% if rep_name and rep_name|lower != pc.name|lower %}<span class="pill warning">{{ rep_name }}</span>
+        {% else %}<span class="pill success">yes</span>{% endif %}
+      {% else %}<span class="muted">no</span>{% endif %}</td>
     <td>
       {% if rep %}
         {% set needed = rep.apps|selectattr('needed')|list %}
@@ -38,7 +59,7 @@ It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once 
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="muted">No PCs yet. Add one below or import a list.</td></tr>
+  <tr><td colspan="8" class="muted">No PCs yet. Add one below or import a list.</td></tr>
   {% endfor %}
 </table>
 
@@ -54,6 +75,7 @@ It already contains this server's IP{% if not cfg.settings.server_ip %} <b>once 
         <label>Site<select name="site">{% for s in cfg.sites %}<option>{{ s }}</option>{% endfor %}</select></label>
         <label>Groups (comma-separated, optional)<input name="groups" placeholder="finance, kiosk"></label>
       </div>
+      <label class="check"><input type="checkbox" name="sync_hostname"> Keep the Windows computer name in sync with this name</label>
       <button class="btn primary">Add PC</button>
     </form>
     <p class="muted small">Give each PC a fixed IP (DHCP reservation). Without company DNS, AnsiWEB finds PCs by IP.</p>

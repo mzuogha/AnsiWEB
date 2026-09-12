@@ -11,6 +11,8 @@ WorkingDirectory=/opt/ansiweb
 Environment=ANSIWEB_DATA=/var/lib/ansiweb
 Environment=HOME=/var/lib/ansiweb
 Environment=PYTHONUNBUFFERED=1
+# nginx terminates TLS in front of the app; set to 0 for a plain-HTTP install.
+Environment=ANSIWEB_HTTPS=1
 # One worker: the scheduler and job runner live inside this process.
 ExecStart=/opt/ansiweb/venv/bin/gunicorn --chdir /opt/ansiweb --workers 1 --threads 16 \
           --timeout 7200 --bind 127.0.0.1:8081 --access-logfile - "ansiweb.web:create_app()"

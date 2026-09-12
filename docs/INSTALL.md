@@ -22,8 +22,8 @@ If AnsiWEB will manage more than a handful of PCs, use Option A. WSL works, but 
 | Direction | Port | Purpose |
 |---|---|---|
 | AnsiWEB → each PC | TCP 5986 | WinRM over HTTPS (deployments) |
-| Each PC → AnsiWEB | TCP 80 | downloading cached installers |
-| Admin browser → AnsiWEB | TCP 80 | the web interface |
+| Each PC → AnsiWEB | TCP 80 | downloading cached installers, drivers, scripts and registry files |
+| Admin browser → AnsiWEB | TCP 443 | the web interface (HTTPS) |
 | AnsiWEB → internet | TCP 443 | update checks and installer downloads |
 
 The AnsiWEB server needs a **fixed IP address**. PCs need fixed addresses too (DHCP reservations are fine): without a domain and DNS, AnsiWEB reaches PCs by IP.
@@ -96,6 +96,7 @@ The installer takes a few minutes. It:
 - copies the application to `/opt/ansiweb` and builds its Python environment
 - installs the Ansible collections
 - creates the data folder `/var/lib/ansiweb` (configuration, secrets, cache, logs)
+- creates a self-signed HTTPS certificate in `/etc/ssl/ansiweb`
 - asks you to choose the web admin password
 - adds the `ansiweb` command
 - starts the `ansiweb` service and configures nginx
@@ -103,7 +104,23 @@ The installer takes a few minutes. It:
 It ends with the address to open, for example:
 
 ```
-AnsiWEB is running:  http://192.168.1.10/
+AnsiWEB is running:  https://192.168.1.10/
+```
+
+The certificate is self-signed, so your browser warns the first time. That is expected on an internal
+server. Compare the fingerprint shown by the installer with the one in the browser, then accept it:
+
+```bash
+sudo openssl x509 -in /etc/ssl/ansiweb/server.crt -noout -fingerprint -sha256
+```
+
+To use a certificate from your own authority instead, replace `/etc/ssl/ansiweb/server.crt` and
+`server.key` and run `sudo systemctl reload nginx`. To regenerate the self-signed one — after changing
+the server's IP, for example:
+
+```bash
+sudo /opt/ansiweb/deploy/make-cert.sh 192.168.1.10
+sudo systemctl reload nginx
 ```
 
 ### A4. Optional: restrict access with a firewall
@@ -112,19 +129,20 @@ If you enable `ufw`, allow SSH and HTTP. Restrict the web interface to your admi
 
 ```bash
 sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
+sudo ufw allow 80/tcp     # installer cache, used by the PCs
+sudo ufw allow 443/tcp    # the web interface
 sudo ufw enable
 sudo ufw status
 ```
 
-For a tighter setup, keep the cache open to all PCs but limit the admin pages by editing the nginx site (see [Hardening](#hardening)).
+Port 80 only serves `/software/` and redirects everything else to HTTPS. For a tighter setup, keep the cache open to all PCs but limit the admin pages by editing the nginx site (see [Hardening](#hardening)).
 
 ### A5. Check it is healthy
 
 ```bash
 systemctl status ansiweb --no-pager      # should be "active (running)"
 systemctl status nginx --no-pager
-curl -sI http://localhost/login | head -1  # HTTP/1.1 200 OK
+curl -skI https://localhost/login | head -1  # HTTP/1.1 200 OK
 sudo ansiweb plan                          # rebuilds the plan, prints a summary
 ```
 
@@ -187,7 +205,7 @@ sudo ./install.sh
 
 The installer detects WSL and prints the port-forwarding commands at the end. Note the WSL address it reports (something like `172.24.x.x`).
 
-### B4. Forward port 80 from Windows into WSL
+### B4. Forward ports 80 and 443 from Windows into WSL
 
 Get the current WSL address:
 
@@ -198,10 +216,13 @@ hostname -I | awk '{print $1}'
 Then in an **Administrator** PowerShell on the Windows host (replace the address):
 
 ```powershell
-netsh interface portproxy add v4tov4 listenport=80 listenaddress=0.0.0.0 connectport=80 connectaddress=172.24.58.101
-New-NetFirewallRule -DisplayName "AnsiWEB 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+netsh interface portproxy add v4tov4 listenport=80  listenaddress=0.0.0.0 connectport=80  connectaddress=172.24.58.101
+netsh interface portproxy add v4tov4 listenport=443 listenaddress=0.0.0.0 connectport=443 connectaddress=172.24.58.101
+New-NetFirewallRule -DisplayName "AnsiWEB" -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow
 netsh interface portproxy show v4tov4
 ```
+
+Port 80 carries the cache the PCs download from; 443 is the dashboard.
 
 Find the **Windows** machine's own LAN address, which is what your PCs will use:
 
@@ -209,7 +230,7 @@ Find the **Windows** machine's own LAN address, which is what your PCs will use:
 ipconfig | findstr /i "IPv4"
 ```
 
-Check it from another machine on the network: `http://<windows-ip>/` should show the AnsiWEB login page.
+Check it from another machine on the network: `https://<windows-ip>/` should show the AnsiWEB login page.
 
 > **WSL's address changes** whenever WSL restarts, which breaks the forwarding. Fix it once with the scheduled task in B5, or re-run the `netsh` command after each restart.
 
@@ -222,8 +243,11 @@ Create `C:\Scripts\ansiweb-wsl.ps1` on the Windows host:
 wsl -d Ubuntu-24.04 -u root -e /bin/true          # boot the distribution
 Start-Sleep -Seconds 15
 $ip = (wsl -d Ubuntu-24.04 hostname -I).Trim().Split(' ')[0]
-netsh interface portproxy delete v4tov4 listenport=80 listenaddress=0.0.0.0 2>$null
-netsh interface portproxy add    v4tov4 listenport=80 listenaddress=0.0.0.0 connectport=80 connectaddress=$ip
+foreach ($port in 80, 443) {
+    netsh interface portproxy delete v4tov4 listenport=$port listenaddress=0.0.0.0 2>$null
+    netsh interface portproxy add    v4tov4 listenport=$port listenaddress=0.0.0.0 `
+          connectport=$port connectaddress=$ip
+}
 Write-Output "$(Get-Date -Format s)  AnsiWEB forwarded to $ip" |
     Out-File -Append C:\Scripts\ansiweb-wsl.log
 ```
@@ -239,7 +263,7 @@ Register-ScheduledTask -TaskName 'AnsiWEB WSL' -Action $action -Trigger $trigger
 Start-ScheduledTask -TaskName 'AnsiWEB WSL'
 ```
 
-Reboot Windows and check `http://<windows-ip>/` still answers.
+Reboot Windows and check `https://<windows-ip>/` still answers.
 
 > **Mirrored networking** (`networkingMode=mirrored` in `.wslconfig`) can remove the need for port forwarding on Windows 11 22H2 and later, but it has a long list of open issues around VPNs, loopback and DNS. The port-proxy approach above works on every WSL2 version, so start there.
 
@@ -251,13 +275,20 @@ Set active hours or a maintenance window on the host, so a restart doesn't land 
 
 ## First-time configuration
 
-These steps are the same for both options. Open `http://<server-ip>/` and sign in as `admin`.
+These steps are the same for both options. Open `https://<server-ip>/`, accept the self-signed certificate, and sign in as `admin`.
 
 ### 1. Settings
 
 - **Server IP address:** the address PCs use to reach AnsiWEB. On a server, that's its own IP. **Under WSL, use the Windows host's LAN IP**, not the WSL address.
-- **ansible_svc password:** choose it now; you will type the same one on every PC in step 2. Store it in your password manager.
-- Leave forks and batch size at 20 to start with.
+- Leave forks and batch size at 20 to start with. **Keep job logs for** controls how long job logs and history are kept.
+
+On the **PCs** page, in *Management account on the PCs*:
+
+- **Account name:** the local administrator account AnsiWEB signs in with. The default is `Admin`.
+- **Password:** choose it now; you will type the same one on every PC in step 2. Store it in your password manager.
+
+> If any of your PCs already has a local account with that name, the prep script resets that account's password.
+> Pick a name of your own (for example `AnsiAdmin`) if that would be a problem.
 
 ### 2. Prepare each PC (once per PC)
 
@@ -270,9 +301,9 @@ cd C:\Users\<you>\Downloads
 powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1
 ```
 
-Enter the `ansible_svc` password from step 1 when prompted. The script:
+Enter the password from step 1 when prompted. The script:
 
-- creates the local `ansible_svc` administrator account
+- creates the local administrator account you configured (`Admin` by default)
 - enables WinRM and creates an HTTPS listener with a self-signed certificate
 - allows local administrator accounts to work remotely (`LocalAccountTokenFilterPolicy`)
 - opens TCP 5986 **only** to your AnsiWEB server, and closes the unencrypted WinRM port 5985
@@ -313,7 +344,34 @@ Dashboard → Deploy to all PCs
 
 Run it a second time against the same PC. The second run should report no changes; that's your proof the setup is correct.
 
-### 7. Turn on the schedules
+### 7. Add drivers, scripts and registry files (optional)
+
+Each has its own page in the sidebar and works the same way: upload the file, pick which PCs it applies to, and choose when it runs.
+
+| Page | What to upload | What PCs do |
+|---|---|---|
+| **Drivers** | A `.zip` containing the driver's `.inf` file, plus its `.cat`/`.sys` files | Unpacks it and adds each `.inf` to the Windows driver store with `pnputil` |
+| **Scripts** | `.ps1`, `.cmd` or `.bat` | Runs it as SYSTEM with your arguments; exit code and output are recorded |
+| **Registry** | `.reg` exported from Registry Editor | Merges it with `reg import` |
+
+To build a driver package, take the vendor's *driver* download (not its setup program), and zip the folder that
+contains the `.inf` files:
+
+```powershell
+Compress-Archive -Path C:\Drivers\IntelNIC\* -DestinationPath C:\Drivers\intel-nic.zip
+```
+
+"When it runs" is one of **once per PC**, **again whenever the file changes**, or **every deployment**. Each PC keeps
+a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is what makes "once" and "on change" work
+across reboots and repeat runs.
+
+Test on one PC first with **Run now** on the item, then check the **Reports** page for the outcome before widening
+the target.
+
+> Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
+> on one PC before pointing it at a site.
+
+### 8. Turn on the schedules
 
 In **Settings**, enable:
 
@@ -322,6 +380,15 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
+### 9. Download a backup
+
+Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
+configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
+are left out, since they can be downloaded again.
+
+Keep it somewhere safe: it contains the key to your stored passwords. Restoring is on the same page, and replaces the
+current configuration, so you sign back in with the password from that backup.
+
 ---
 
 ## Day-to-day commands
@@ -329,7 +396,7 @@ PCs that are switched off are picked up on the next run.
 ```bash
 sudo ansiweb plan                     # rebuild inventory and deployment plan
 sudo ansiweb update-cache             # check vendors and refresh the cache
-sudo ansiweb deploy all               # deploy to everything
+sudo ansiweb deploy all               # apps, drivers, scripts and registry, everywhere
 sudo ansiweb deploy site:HQ           # one site
 sudo ansiweb deploy pc:PC-HQ-001      # one PC
 sudo ansiweb set-password admin       # change the web password
@@ -337,6 +404,22 @@ sudo ansiweb set-password admin       # change the web password
 sudo systemctl restart ansiweb        # restart the service
 sudo journalctl -u ansiweb -f         # follow the service log
 ```
+
+Jobs limited to one kind of item (apps only, scripts only, applying computer names) and single-item runs are started
+from the web interface: the **Jobs** page, or **Run now** on an individual item.
+
+### Renaming a PC
+
+Change the name on the PC's page. That alone renames it inside AnsiWEB. To rename Windows as well, tick **Keep the
+Windows computer name in sync** and run the **Apply computer names** job (or any deployment); the PC reboots to
+finish. The PCs page flags any PC whose reported Windows name no longer matches.
+
+### Changing the management account
+
+On the **PCs** page, under *Management account on the PCs*, change the name or password. AnsiWEB starts using it
+immediately, so the account must already exist on the PCs: download the prep script again, run it on every PC, then
+use **Test all connections** to confirm. Do it on one PC first — if the account is wrong, AnsiWEB cannot reach that PC
+to fix it, and you will have to run the prep script locally.
 
 ## Upgrading
 
@@ -350,7 +433,11 @@ Your configuration, secrets and cache live in `/var/lib/ansiweb` and are kept.
 
 ## Backup
 
-Everything that matters is in one folder. Stop the service first so the database is consistent:
+The simplest route is **Settings → Download backup** in the web interface, which covers the configuration, secrets
+and uploaded payloads.
+
+For a full copy from the command line, including the app cache, stop the service first so the database is
+consistent:
 
 ```bash
 sudo systemctl stop ansiweb
@@ -370,35 +457,40 @@ sudo systemctl disable --now ansiweb
 sudo rm -f /etc/systemd/system/ansiweb.service /etc/nginx/sites-enabled/ansiweb \
            /etc/nginx/sites-available/ansiweb /usr/local/bin/ansiweb
 sudo systemctl daemon-reload && sudo systemctl reload nginx
-sudo rm -rf /opt/ansiweb
+sudo rm -rf /opt/ansiweb /etc/ssl/ansiweb
 sudo rm -rf /var/lib/ansiweb      # deletes configuration, secrets and cache
 sudo userdel ansiweb
 ```
 
-This leaves your PCs untouched. To undo the PC side as well, on each PC remove the `ansible_svc` account, the `Ansible WinRM HTTPS` firewall rule and the WinRM HTTPS listener.
+This leaves your PCs untouched. To undo the PC side as well, on each PC remove the management account (`Admin` by default), the `Ansible WinRM HTTPS` firewall rule and the WinRM HTTPS listener.
 
 ## Hardening
 
-- **Limit the admin pages.** Edit `/etc/nginx/sites-available/ansiweb`, and inside `location / { ... }` add your admin subnet:
+- **Limit the admin pages.** Edit `/etc/nginx/sites-available/ansiweb`, and inside the `location / { ... }` block of the `listen 443 ssl` server add your admin subnet:
   ```nginx
   allow 192.168.1.0/24;
   deny all;
   ```
   Leave `location /software/` open, or PCs cannot download installers. Then `sudo nginx -t && sudo systemctl reload nginx`.
-- **Change the `ansible_svc` password periodically.** Re-run the prep script on the PCs with the new password, then update it in Settings.
+- **Change the management-account password periodically.** Re-run the prep script on the PCs with the new password, then update it on the PCs page.
 - **Keep the server patched:** `sudo apt update && sudo apt upgrade`.
-- The web interface uses plain HTTP on the LAN. If you need HTTPS, put a certificate on nginx.
+- **Replace the self-signed certificate** with one from your own authority if you have one, so browsers stop warning: drop `server.crt` and `server.key` into `/etc/ssl/ansiweb/` and reload nginx.
+- **Scripts run as SYSTEM** on every PC they target, and anyone who can sign in to AnsiWEB can upload one. Treat the dashboard password as an administrative credential and keep the login restricted to your admin network.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Web page doesn't load | `systemctl status ansiweb nginx`; then `curl -sI http://localhost/login` on the server itself. If that works but remote browsers fail, it's a firewall or (on WSL) the port forwarding. |
+| Web page doesn't load | `systemctl status ansiweb nginx`; then `curl -skI https://localhost/login` on the server itself. If that works but remote browsers fail, it's a firewall or (on WSL) the port forwarding. |
+| Browser warns about the certificate | Expected with the self-signed certificate. Check the fingerprint with `sudo openssl x509 -in /etc/ssl/ansiweb/server.crt -noout -fingerprint -sha256`, or install your own certificate in `/etc/ssl/ansiweb/`. |
+| Signed out immediately after signing in | The session cookie is only sent over HTTPS. Use `https://`, or set `Environment=ANSIWEB_HTTPS=0` in `/etc/systemd/system/ansiweb.service` for a plain-HTTP install. |
 | `502 Bad Gateway` | The app isn't running: `sudo journalctl -u ansiweb -n 50`. |
 | Under WSL, PCs can't reach the server | `netsh interface portproxy show v4tov4` on Windows — the `connectaddress` must match `hostname -I` inside WSL. Re-run the B4 command with the current address. |
 | Connection test says `UNREACHABLE` | The prep script wasn't run, the IP is wrong, or the script was given the wrong server IP. On the PC: `winrm enumerate winrm/config/listener`. |
 | `credentials were rejected` | The password in Settings differs from the one used on that PC. Re-run the prep script there. |
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
+| A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
+| A script is marked failed | Its exit code isn't in the success list for that script. Add the code on the script's page, or fix the script; its output is on the Reports page. |
 | Cache update fails with a GitHub rate limit | Add a read-only GitHub token in Settings. |
 | An app shows a SHA256 mismatch | The vendor published a new build before the catalogue caught up. It retries on the next check; the previous version stays in use. |
 | Deployment is slow | Raise forks in Settings, but keep in mind every PC downloads from the same server. |
@@ -414,8 +506,12 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | `/var/lib/ansiweb/inventory/` | generated Ansible inventory, including the encrypted vault |
 | `/var/lib/ansiweb/.vault_pass` | key for the encrypted secrets — back this up, keep it private |
 | `/var/lib/ansiweb/cache/apps/` | cached installers, served at `/software/apps/` |
+| `/var/lib/ansiweb/cache/drivers/` | uploaded driver packages |
+| `/var/lib/ansiweb/cache/scripts/` | uploaded scripts |
+| `/var/lib/ansiweb/cache/registry/` | uploaded registry files |
+| `/etc/ssl/ansiweb/` | the dashboard's HTTPS certificate and key |
 | `/var/lib/ansiweb/manifest.json` | what is cached, with versions and checksums |
 | `/var/lib/ansiweb/logs/` | job logs |
-| `/var/lib/ansiweb/reports/` | per-PC installed-app reports |
+| `/var/lib/ansiweb/reports/` | per-PC reports (apps, drivers, scripts, registry, hardware) |
 | `/etc/systemd/system/ansiweb.service` | service definition |
 | `/etc/nginx/sites-available/ansiweb` | web server configuration |

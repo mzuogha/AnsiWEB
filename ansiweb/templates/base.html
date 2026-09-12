@@ -16,6 +16,10 @@
     <a href="{{ url_for('dashboard') }}" class="{{ 'active' if ep == 'dashboard' }}">Dashboard</a>
     <a href="{{ url_for('apps_page') }}" class="{{ 'active' if ep.startswith('app') }}">Apps &amp; cache</a>
     <a href="{{ url_for('pcs_page') }}" class="{{ 'active' if ep.startswith('pc') }}">PCs</a>
+    <a href="{{ url_for('resources_page', kind='drivers') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'drivers' }}">Drivers</a>
+    <a href="{{ url_for('resources_page', kind='scripts') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'scripts' }}">Scripts</a>
+    <a href="{{ url_for('resources_page', kind='registry') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'registry' }}">Registry</a>
+    <a href="{{ url_for('reports_page') }}" class="{{ 'active' if ep.startswith('report') }}">Reports</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>
     <a href="{{ url_for('settings_page') }}" class="{{ 'active' if ep.startswith('settings') }}">Settings</a>

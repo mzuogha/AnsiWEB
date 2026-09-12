@@ -2,9 +2,11 @@
 # then managed from the web interface.
 settings:
   server_ip: ""            # control node IP address that PCs use to reach AnsiWEB
+  pc_account: Admin        # local administrator account on the PCs used by AnsiWEB
   allow_reboot: false      # reboot PCs automatically when an installer asks for it
   forks: 20                # how many PCs Ansible works on at the same time
   batch_size: 20           # PCs per batch during a deployment
+  log_retention_days: 60   # how long job logs are kept
 
 schedules:
   cache_check:
@@ -16,7 +18,14 @@ schedules:
     days: [mon, tue, wed, thu, fri]
 
 sites: [HQ]
-pcs: []                    # {name, ip, site, groups: []}
+# {name, ip, site, groups: [], sync_hostname: false, notes: ""}
+pcs: []
+
+# Uploaded payloads: device drivers, scripts and registry files.
+# Each entry: {id, name, enabled, file, sha256, size, uploaded, targets, ...}
+drivers: []
+scripts: []
+registry: []
 
 apps:
   - id: vcredist-x64

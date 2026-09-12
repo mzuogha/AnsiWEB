@@ -1,0 +1,20 @@
+---
+# Shared by drivers, registry files and scripts: decide whether the item has to
+# run on this PC, and download it from the AnsiWEB cache if so.
+- name: "Check whether {{ item_def.name }} already ran"
+  ansible.windows.win_stat:
+    path: "{{ item_def.win_state }}"
+  register: aw_marker
+
+- name: "Decide whether to run {{ item_def.name }}"
+  ansible.builtin.set_fact:
+    aw_run: "{{ item_def.run_mode == 'always' or not aw_marker.stat.exists }}"
+
+- name: "Download {{ item_def.name }} from AnsiWEB"
+  ansible.windows.win_get_url:
+    url: "{{ item_def.url }}"
+    dest: "{{ item_def.win_file }}"
+    checksum: "{{ item_def.sha256 | lower }}"
+    checksum_algorithm: sha256
+    force: false
+  when: aw_run | bool

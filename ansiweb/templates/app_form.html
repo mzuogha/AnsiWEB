@@ -5,7 +5,7 @@
 <div class="head"><h1>{{ 'Add app' if is_new else app.name }}</h1>
   <div class="actions"><a class="btn" href="{{ url_for('apps_page') }}">Back to apps</a></div></div>
 
-<form method="post" class="panel form" id="appform">{{ csrf() }}
+<form method="post" class="panel form" id="appform" enctype="multipart/form-data">{{ csrf() }}
   <div class="row">
     <label>App ID {% if is_new %}<input name="id" value="{{ app.id }}" required pattern="[a-z0-9][a-z0-9_-]*" placeholder="e.g. notepadpp">
       {% else %}<input value="{{ app.id }}" disabled>{% endif %}
@@ -29,6 +29,9 @@
     <label class="src src-url">Download URL<input name="url" value="{{ app.url or '' }}" placeholder="https://…"></label>
     <label class="src src-url">Expected SHA256 (optional)<input name="sha256" value="{{ app.sha256 or '' }}"></label>
   </div>
+
+  <label class="src src-upload">Installer file (.msi or .exe)<input type="file" name="installer" accept=".msi,.exe">
+    <small>{{ 'Required for an uploaded app.' if is_new else 'Leave empty to keep the file already cached.' }}</small></label>
 
   <h3>Update policy</h3>
   <label class="check"><input type="checkbox" name="pinned" id="pinned" {{ 'checked' if app.pinned }}> Pin to a specific version

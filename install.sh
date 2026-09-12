@@ -35,7 +35,7 @@ fi
 echo "==> Installing system packages"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-dev gcc \
-    libkrb5-dev nginx rsync git >/dev/null
+    libkrb5-dev nginx rsync git openssl >/dev/null
 
 echo "==> Creating service account"
 id ansiweb &>/dev/null || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin ansiweb
@@ -86,6 +86,13 @@ if [[ -d "$DATA_DIR/cache/office" ]]; then
   rm -rf "$DATA_DIR/cache/office" "$DATA_DIR/office_staging" "$DATA_DIR/office_pull.json"
 fi
 
+echo "==> HTTPS certificate"
+if [[ -f /etc/ssl/ansiweb/server.crt ]]; then
+  echo "    keeping the existing certificate in /etc/ssl/ansiweb"
+else
+  "$APP_DIR/deploy/make-cert.sh" "$(hostname -I | awk '{print $1}')"
+fi
+
 echo "==> Web server"
 install -m 0644 "$APP_DIR/deploy/nginx-ansiweb.conf" /etc/nginx/sites-available/ansiweb
 ln -sf /etc/nginx/sites-available/ansiweb /etc/nginx/sites-enabled/ansiweb
@@ -104,7 +111,7 @@ if [[ $HAS_SYSTEMD == yes ]]; then
   systemctl restart nginx
   sleep 2
   systemctl is-active --quiet ansiweb || { echo "AnsiWEB failed to start. Check: journalctl -u ansiweb -n 40"; exit 1; }
-  STARTED="AnsiWEB is running:  http://$IP/"
+  STARTED="AnsiWEB is running:  https://$IP/"
 else
   service nginx restart >/dev/null 2>&1 || nginx -s reload || nginx
   STARTED=$(cat <<MSG
@@ -113,13 +120,15 @@ Start it with:
   sudo runuser -u ansiweb -- env ANSIWEB_DATA=$DATA_DIR HOME=$DATA_DIR \\
        $APP_DIR/venv/bin/gunicorn --chdir $APP_DIR --workers 1 --threads 16 \\
        --timeout 7200 --bind 127.0.0.1:8081 "ansiweb.web:create_app()"
-Then open:  http://$IP/
+Then open:  https://$IP/
 MSG
 )
 fi
 
 echo
 echo "$STARTED"
+echo "The certificate is self-signed, so the browser warns once; check the fingerprint with:"
+echo "  sudo openssl x509 -in /etc/ssl/ansiweb/server.crt -noout -fingerprint -sha256"
 if [[ $NEED_PASSWORD == yes ]]; then
   echo "Set the web admin password before signing in:"
   echo "  sudo ansiweb set-password admin"
@@ -133,9 +142,11 @@ if [[ $IS_WSL == yes ]]; then
 WSL note: $IP is an internal WSL address that your PCs cannot reach.
 Forward port 80 from Windows to WSL, in an *Administrator* PowerShell:
 
-  netsh interface portproxy add v4tov4 listenport=80 listenaddress=0.0.0.0 connectport=80 connectaddress=$IP
-  New-NetFirewallRule -DisplayName "AnsiWEB 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+  netsh interface portproxy add v4tov4 listenport=80  listenaddress=0.0.0.0 connectport=80  connectaddress=$IP
+  netsh interface portproxy add v4tov4 listenport=443 listenaddress=0.0.0.0 connectport=443 connectaddress=$IP
+  New-NetFirewallRule -DisplayName "AnsiWEB" -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow
 
+Port 80 serves the installer cache to the PCs; 443 is the dashboard.
 Then use the *Windows* machine's IP as the server IP in AnsiWEB Settings.
 This has to be redone whenever the WSL address changes - see docs/INSTALL.md.
 MSG

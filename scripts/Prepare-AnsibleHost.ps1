@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    One-time preparation of a Windows PC (workgroup, no AD) for Ansible management.
+    One-time preparation of a Windows PC (workgroup, no AD) for AnsiWEB management.
 
 .DESCRIPTION
-    - Creates a local administrator account for Ansible (default: ansible_svc)
+    - Creates the local administrator account AnsiWEB uses (default: Admin)
     - Enables WinRM and allows local admin accounts to connect remotely
     - Creates a WinRM HTTPS listener with a self-signed certificate
     - Opens TCP 5986 ONLY to the Ansible control node's IP
@@ -13,14 +13,21 @@
 .EXAMPLE
     # From an elevated PowerShell prompt (script downloaded from the AnsiWEB PCs page):
     powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1
-    (You will be prompted for the ansible_svc password. Use the SAME password on every PC.)
+
+    You are prompted for the account password. Use the SAME password on every PC,
+    and the same one entered on the AnsiWEB PCs page.
+
+.EXAMPLE
+    # Different account name and server, without the download:
+    powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1 -ControlNodeIP 192.168.1.10 -AccountName Admin
 #>
 [CmdletBinding()]
 param(
     # Filled in automatically when downloaded from the AnsiWEB PCs page
     [string]$ControlNodeIP = '__CONTROL_NODE_IP__',
 
-    [string]$AccountName = 'ansible_svc',
+    # Filled in automatically when downloaded from the AnsiWEB PCs page
+    [string]$AccountName = '__ACCOUNT_NAME__',
 
     [Parameter(Mandatory = $true)]
     [securestring]$Password
@@ -30,6 +37,9 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $ControlNodeIP -or $ControlNodeIP -eq ('__CONTROL' + '_NODE_IP__')) {
     throw 'Specify the AnsiWEB server IP: -ControlNodeIP 192.168.1.10 (or download this script from the AnsiWEB PCs page).'
+}
+if (-not $AccountName -or $AccountName -eq ('__ACCOUNT' + '_NAME__')) {
+    $AccountName = 'Admin'
 }
 
 # --- Must run as Administrator ---------------------------------------------
@@ -44,7 +54,7 @@ Write-Host "Preparing $env:COMPUTERNAME for Ansible..." -ForegroundColor Cyan
 $user = Get-LocalUser -Name $AccountName -ErrorAction SilentlyContinue
 if (-not $user) {
     New-LocalUser -Name $AccountName -Password $Password -PasswordNeverExpires `
-        -AccountNeverExpires -Description 'Ansible management account' | Out-Null
+        -AccountNeverExpires -Description 'AnsiWEB management account' | Out-Null
     Write-Host "  Created local account $AccountName"
 } else {
     Set-LocalUser -Name $AccountName -Password $Password -PasswordNeverExpires $true

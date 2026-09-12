@@ -1,0 +1,29 @@
+---
+- name: Fetch the registry file
+  ansible.builtin.include_tasks: payload_get.yml
+
+- name: "Merge {{ item_def.name }} into the registry"
+  when: aw_run | bool
+  block:
+    - name: "Import {{ item_def.name }}"
+      ansible.windows.win_command:
+        argv:
+          - reg.exe
+          - import
+          - "{{ item_def.win_file }}"
+      register: aw_reg
+      changed_when: true
+
+    - name: "Record the result for {{ item_def.name }}"
+      ansible.builtin.set_fact:
+        aw_results: '{{ aw_results + [{"kind": "registry", "id": item_def.id, "name": item_def.name,
+                                       "status": "merged", "detail": ""}] }}'
+
+- name: "Record that {{ item_def.name }} was already merged"
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "registry", "id": item_def.id, "name": item_def.name,
+                                   "status": "already merged", "detail": ""}] }}'
+  when: not (aw_run | bool)
+
+- name: Record the registry state
+  ansible.builtin.include_tasks: payload_done.yml

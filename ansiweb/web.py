@@ -1,16 +1,16 @@
 """AnsiWEB web interface."""
 import copy
 import csv
-import functools
 import io
+import os
 import re
 import secrets as pysecrets
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
-                   session, url_for)
-from werkzeug.security import check_password_hash
+                   send_file, session, url_for)
+from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import __version__, cache, jobs, paths, plan, store, vault
+from . import __version__, backup, cache, jobs, paths, payloads, plan, store, vault
 
 DAY_LABELS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
               ("fri", "Fri"), ("sat", "Sat"), ("sun", "Sun")]
@@ -25,10 +25,14 @@ def create_app(start_background: bool = True) -> Flask:
 
     app = Flask(__name__)
     app.secret_key = vault.flask_secret()
+    # Set by the service unit when nginx terminates TLS, so session cookies are
+    # only sent over HTTPS. Set ANSIWEB_HTTPS=0 for a plain-HTTP installation.
+    https = os.environ.get("ANSIWEB_HTTPS", "1") != "0"
     app.config.update(
-        MAX_CONTENT_LENGTH=4 * 1024 ** 3,      # large installers
+        MAX_CONTENT_LENGTH=4 * 1024 ** 3,      # large installers and driver packages
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=https,
         PERMANENT_SESSION_LIFETIME=8 * 3600,
     )
 
@@ -41,7 +45,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.context_processor
     def inject():
         return {"csrf_token": csrf_token, "version": __version__, "running_jobs": jobs.running(),
-                "job_kinds": jobs.KINDS}
+                "job_kinds": jobs.KINDS, "kinds": payloads.KINDS}
 
     @app.before_request
     def protect():
@@ -66,6 +70,8 @@ def create_app(start_background: bool = True) -> Flask:
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Referrer-Policy"] = "same-origin"
         resp.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; script-src 'self'"
+        if https:
+            resp.headers["Strict-Transport-Security"] = "max-age=31536000"
         return resp
 
     def save_or_flash(cfg) -> bool:
@@ -75,6 +81,10 @@ def create_app(start_background: bool = True) -> Flask:
         except store.ValidationError as exc:
             flash(str(exc), "error")
             return False
+
+    def back(default="dashboard"):
+        ref = request.referrer
+        return redirect(ref) if ref else redirect(url_for(default))
 
     # ---- auth ------------------------------------------------------------------
     @app.route("/login", methods=["GET", "POST"])
@@ -104,25 +114,28 @@ def create_app(start_background: bool = True) -> Flask:
         p = store.read_json(paths.PLAN_FILE, {})
         reports = load_reports()
         app_rows = app_status_rows(cfg, manifest)
-        pcs_needing = sum(1 for r in reports.values() if any(a.get("needed") for a in r.get("apps", [])))
         stats = {
             "pcs": len(cfg.get("pcs", [])),
             "apps": len([a for a in cfg["apps"] if a.get("enabled", True)]),
             "cached": sum(1 for r in app_rows if r["state"] in ("ok", "pinned")),
             "problems": sum(1 for r in app_rows if r["state"] in ("error", "stale", "missing")),
             "pcs_reported": len(reports),
-            "pcs_needing": pcs_needing,
+            "pcs_needing": sum(1 for r in reports.values()
+                               if any(a.get("needed") for a in r.get("apps", []))),
+            "payloads": sum(len([e for e in cfg.get(k, []) if e.get("enabled", True)])
+                            for k in payloads.KINDS),
         }
-        warnings = setup_warnings(cfg)
         return render_template("dashboard.html", cfg=cfg, stats=stats, apps=app_rows, plan=p,
-                               recent=jobs.list_jobs(8), warnings=warnings,
-                               last_cache=jobs.last_job("cache_update"), last_deploy=jobs.last_job("deploy"))
+                               recent=jobs.list_jobs(8), warnings=setup_warnings(cfg),
+                               last_cache=jobs.last_job("cache_update"),
+                               last_deploy=jobs.last_job("deploy"))
 
     # ---- apps --------------------------------------------------------------------
     @app.route("/apps")
     def apps_page():
         cfg = store.load()
-        return render_template("apps.html", apps=app_status_rows(cfg, cache.load_manifest()), cfg=cfg)
+        return render_template("apps.html", apps=app_status_rows(cfg, cache.load_manifest()), cfg=cfg,
+                               targets=store.target_choices(cfg))
 
     def app_from_form(existing: dict | None) -> dict:
         f = request.form
@@ -158,21 +171,36 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/apps/new", methods=["GET", "POST"])
     def app_new():
         cfg = store.load()
-        blank = {"id": "", "name": "", "enabled": True, "source": "winget", "installer_types": ["msi", "wix", "exe"],
-                 "arguments": "", "detect_pattern": "", "pinned": False, "targets": ["all"]}
+        blank = {"id": "", "name": "", "enabled": True, "source": "winget",
+                 "installer_types": ["msi", "wix", "exe"], "arguments": "", "detect_pattern": "",
+                 "pinned": False, "targets": ["all"]}
         if request.method == "POST":
             try:
                 new = app_from_form(None)
+                upload = request.files.get("installer")
+                has_file = bool(upload and upload.filename)
+                if new["source"] == "upload" and not has_file:
+                    raise store.ValidationError("Choose the installer file to upload.")
+                if has_file and not upload.filename.lower().endswith((".msi", ".exe")):
+                    raise store.ValidationError("Only .msi and .exe installers can be uploaded.")
+                cfg["apps"].append(new)
+                store.save(cfg)
+                # Save the file only once the entry itself is valid and stored
+                if has_file:
+                    cache.store_upload(new, upload, new["version"])
+                    store.regenerate_all(cfg)
+                    flash(f"Added {new['name']} and cached the uploaded installer.", "ok")
+                else:
+                    flash(f"Added {new['name']}. Run 'Check for updates' to download it into the cache.", "ok")
+                return redirect(url_for("apps_page"))
             except store.ValidationError as exc:
                 flash(str(exc), "error")
-                return render_template("app_form.html", app=request.form, cfg=cfg, is_new=True,
+                form = dict(request.form)
+                form["targets"] = request.form.getlist("targets")
+                return render_template("app_form.html", app=form, cfg=cfg, is_new=True,
                                        targets=store.target_choices(cfg))
-            cfg["apps"].append(new)
-            if save_or_flash(cfg):
-                flash(f"Added {new['name']}. Run 'Check for updates' to download it into the cache.", "ok")
-                return redirect(url_for("apps_page"))
-            return render_template("app_form.html", app=new, cfg=cfg, is_new=True, targets=store.target_choices(cfg))
-        return render_template("app_form.html", app=blank, cfg=cfg, is_new=True, targets=store.target_choices(cfg))
+        return render_template("app_form.html", app=blank, cfg=cfg, is_new=True,
+                              targets=store.target_choices(cfg))
 
     def find_app(cfg, app_id):
         for i, a in enumerate(cfg["apps"]):
@@ -225,7 +253,42 @@ def create_app(start_background: bool = True) -> Flask:
             else:
                 store.regenerate_all(cfg)
             flash(f"Uploaded {f.filename} as {existing['name']} {version}.", "ok")
-        return redirect(url_for("app_edit", app_id=app_id))
+        return back("apps_page")
+
+    @app.route("/apps/upload", methods=["POST"])
+    def app_quick_upload():
+        """Add an offline app straight from the Apps page: file + name is enough."""
+        cfg = store.load()
+        f = request.files.get("installer")
+        name = request.form.get("name", "").strip()
+        version = request.form.get("version", "").strip() or "1.0"
+        pattern = request.form.get("detect_pattern", "").strip()
+        arguments = request.form.get("arguments", "").strip()
+        try:
+            if not f or not f.filename:
+                raise store.ValidationError("Choose an installer file.")
+            if not f.filename.lower().endswith((".msi", ".exe")):
+                raise store.ValidationError("Only .msi and .exe installers can be uploaded.")
+            if not name:
+                raise store.ValidationError("Enter a name for the app.")
+            if not pattern:
+                raise store.ValidationError(
+                    "Enter a detection pattern, so AnsiWEB can tell whether the app is already installed.")
+            new = {
+                "id": payloads.new_id(cfg, "apps", name),
+                "name": name, "enabled": True, "source": "upload", "version": version,
+                "arguments": arguments, "detect_pattern": pattern, "pinned": True,
+                "targets": request.form.getlist("targets") or ["all"],
+            }
+            cfg["apps"].append(new)
+            store.save(cfg)
+            cache.store_upload(new, f, version)
+            store.regenerate_all(cfg)
+            flash(f"Added {name} {version} from the uploaded installer.", "ok")
+            return redirect(url_for("app_edit", app_id=new["id"]))
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("apps_page"))
 
     @app.route("/apps/<app_id>/refresh", methods=["POST"])
     def app_refresh(app_id):
@@ -240,19 +303,137 @@ def create_app(start_background: bool = True) -> Flask:
             flash(f"{existing['name']}: cached version {entry.get('version')}.", "ok")
         return redirect(url_for("apps_page"))
 
+    # ---- drivers / scripts / registry --------------------------------------------
+    def check_kind(kind):
+        if kind not in payloads.KINDS:
+            abort(404)
+
+    @app.route("/<kind>")
+    def resources_page(kind):
+        check_kind(kind)
+        cfg = store.load()
+        rows = [{"entry": e, "present": payloads.present(kind, e)} for e in cfg.get(kind, [])]
+        return render_template("resources.html", kind=kind, meta=payloads.KINDS[kind], rows=rows,
+                               cfg=cfg, targets=store.target_choices(cfg),
+                               run_modes=payloads.RUN_MODES, reports=load_reports())
+
+    @app.route("/<kind>/add", methods=["POST"])
+    def resource_add(kind):
+        check_kind(kind)
+        cfg = store.load()
+        f = request.files.get("payload")
+        name = request.form.get("name", "").strip()
+        try:
+            if not name:
+                raise store.ValidationError("Enter a name.")
+            if not f or not f.filename:
+                raise store.ValidationError("Choose a file to upload.")
+            entry = {
+                "id": payloads.new_id(cfg, kind, name),
+                "name": name,
+                "enabled": True,
+                "run_mode": request.form.get("run_mode", "once"),
+                "targets": request.form.getlist("targets") or ["all"],
+                "notes": request.form.get("notes", "").strip(),
+            }
+            if kind == "scripts":
+                entry.update({"arguments": request.form.get("arguments", "").strip(),
+                              "timeout": int(request.form.get("timeout") or 1800),
+                              "reboot": request.form.get("reboot") == "on",
+                              "success_codes": parse_codes(request.form.get("success_codes", ""))})
+            entry.update(payloads.store_file(kind, entry["id"], f))
+            cfg.setdefault(kind, []).append(entry)
+            store.save(cfg)
+            flash(f"{payloads.KINDS[kind]['label']} '{name}' uploaded.", "ok")
+        except (store.ValidationError, ValueError) as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("resources_page", kind=kind))
+
+    def find_resource(cfg, kind, rid):
+        for i, e in enumerate(cfg.get(kind, [])):
+            if e["id"] == rid:
+                return i, e
+        abort(404)
+
+    @app.route("/<kind>/<rid>/edit", methods=["GET", "POST"])
+    def resource_edit(kind, rid):
+        check_kind(kind)
+        cfg = store.load()
+        idx, entry = find_resource(cfg, kind, rid)
+        if request.method == "POST":
+            try:
+                entry.update({
+                    "name": request.form.get("name", "").strip() or entry["name"],
+                    "enabled": request.form.get("enabled") == "on",
+                    "run_mode": request.form.get("run_mode", "once"),
+                    "targets": request.form.getlist("targets") or ["all"],
+                    "notes": request.form.get("notes", "").strip(),
+                })
+                if kind == "scripts":
+                    entry.update({"arguments": request.form.get("arguments", "").strip(),
+                                  "timeout": int(request.form.get("timeout") or 1800),
+                                  "reboot": request.form.get("reboot") == "on",
+                                  "success_codes": parse_codes(request.form.get("success_codes", ""))})
+                f = request.files.get("payload")
+                if f and f.filename:
+                    entry.update(payloads.store_file(kind, entry["id"], f))
+                cfg[kind][idx] = entry
+                store.save(cfg)
+                flash("Saved.", "ok")
+                return redirect(url_for("resources_page", kind=kind))
+            except (store.ValidationError, ValueError) as exc:
+                flash(str(exc), "error")
+        return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind], entry=entry,
+                               cfg=cfg, targets=store.target_choices(cfg), run_modes=payloads.RUN_MODES,
+                               present=payloads.present(kind, entry))
+
+    @app.route("/<kind>/<rid>/delete", methods=["POST"])
+    def resource_delete(kind, rid):
+        check_kind(kind)
+        cfg = store.load()
+        idx, entry = find_resource(cfg, kind, rid)
+        del cfg[kind][idx]
+        if save_or_flash(cfg):
+            payloads.delete_file(kind, entry)
+            flash(f"Removed '{entry['name']}'. Anything already applied on the PCs stays as it is.", "ok")
+        return redirect(url_for("resources_page", kind=kind))
+
+    @app.route("/<kind>/<rid>/download")
+    def resource_download(kind, rid):
+        check_kind(kind)
+        _, entry = find_resource(store.load(), kind, rid)
+        if not payloads.present(kind, entry):
+            abort(404)
+        return send_file(payloads.kind_dir(kind) / entry["file"], as_attachment=True,
+                         download_name=entry.get("original_name") or entry["file"])
+
+    @app.route("/<kind>/<rid>/run", methods=["POST"])
+    def resource_run(kind, rid):
+        check_kind(kind)
+        _, entry = find_resource(store.load(), kind, rid)
+        kind_job = {"drivers": "deploy_drivers", "scripts": "deploy_scripts",
+                    "registry": "deploy_registry"}[kind]
+        target = request.form.get("target", "") or "all"
+        try:
+            job_id = jobs.start(kind_job, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
+        except (jobs.JobBusy, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("resources_page", kind=kind))
+        return redirect(url_for("job_view", job_id=job_id))
+
     # ---- PCs -----------------------------------------------------------------------
     @app.route("/pcs")
     def pcs_page():
         cfg = store.load()
-        reports = load_reports()
-        p = store.read_json(paths.PLAN_FILE, {})
-        return render_template("pcs.html", cfg=cfg, reports=reports, plan=p,
-                               app_names={a["id"]: a["name"] for a in cfg["apps"]})
+        return render_template("pcs.html", cfg=cfg, reports=load_reports(),
+                               plan=store.read_json(paths.PLAN_FILE, {}),
+                               secrets=vault.secret_status())
 
     def pc_from_form():
         f = request.form
         return {"name": f.get("name", "").strip(), "ip": f.get("ip", "").strip(), "site": f.get("site", ""),
                 "groups": [g.strip() for g in f.get("groups", "").split(",") if g.strip()],
+                "sync_hostname": f.get("sync_hostname") == "on",
                 "notes": f.get("notes", "").strip()}
 
     @app.route("/pcs/add", methods=["POST"])
@@ -271,12 +452,23 @@ def create_app(start_background: bool = True) -> Flask:
             abort(404)
         if request.method == "POST":
             new = pc_from_form()
+            renamed = new["name"] != name
             cfg["pcs"][idx] = new
             if save_or_flash(cfg):
-                flash("Saved.", "ok")
-                return redirect(url_for("pcs_page"))
+                if renamed:
+                    (paths.REPORT_DIR / f"{name}.json").rename(paths.REPORT_DIR / f"{new['name']}.json") \
+                        if (paths.REPORT_DIR / f"{name}.json").exists() else None
+                    if new["sync_hostname"]:
+                        flash(f"Renamed to {new['name']}. Run 'Apply computer name' to rename it in Windows "
+                              "as well; the PC reboots to finish.", "ok")
+                    else:
+                        flash(f"Renamed to {new['name']} in AnsiWEB only. Tick 'Keep the Windows computer name "
+                              "in sync' if the PC itself should be renamed too.", "ok")
+                else:
+                    flash("Saved.", "ok")
+                return redirect(url_for("pc_edit", name=new["name"]))
         return render_template("pc_form.html", pc=cfg["pcs"][idx], cfg=cfg,
-                               report=load_reports().get(name))
+                               report=load_reports().get(cfg["pcs"][idx]["name"]))
 
     @app.route("/pcs/<name>/delete", methods=["POST"])
     def pc_delete(name):
@@ -303,7 +495,8 @@ def create_app(start_background: bool = True) -> Flask:
             if row[2] not in cfg["sites"]:
                 cfg["sites"].append(row[2])
             pc = {"name": row[0], "ip": row[1], "site": row[2],
-                  "groups": [g for g in (row[3].split(";") if len(row) > 3 else []) if g], "notes": ""}
+                  "groups": [g for g in (row[3].split(";") if len(row) > 3 else []) if g],
+                  "sync_hostname": False, "notes": ""}
             if pc["name"].lower() in existing:
                 existing[pc["name"].lower()].update(pc)
             else:
@@ -311,6 +504,25 @@ def create_app(start_background: bool = True) -> Flask:
             added += 1
         if save_or_flash(cfg):
             flash(f"Imported {added} PC(s).", "ok")
+        return redirect(url_for("pcs_page"))
+
+    @app.route("/pcs/account", methods=["POST"])
+    def pc_account():
+        """Change the local administrator account AnsiWEB uses on the PCs."""
+        cfg = store.load()
+        old = cfg["settings"].get("pc_account", "Admin")
+        new = request.form.get("pc_account", "").strip()
+        password = request.form.get("password", "")
+        cfg["settings"]["pc_account"] = new
+        if not save_or_flash(cfg):
+            return redirect(url_for("pcs_page"))
+        if password:
+            vault.set_ansible_secret("vault_ansible_svc_password", password)
+        if new != old:
+            flash(f"AnsiWEB will now connect to PCs as '{new}'. Every PC must already have that account: "
+                  "download the prep script again and run it on each PC, then test the connections.", "ok")
+        elif password:
+            flash("Password updated. It must match the account on the PCs.", "ok")
         return redirect(url_for("pcs_page"))
 
     @app.route("/sites", methods=["POST"])
@@ -332,31 +544,90 @@ def create_app(start_background: bool = True) -> Flask:
     def prepare_script():
         cfg = store.load()
         text = (paths.SCRIPTS_DIR / "Prepare-AnsibleHost.ps1").read_text(encoding="utf-8")
-        ip = cfg["settings"].get("server_ip") or ""
-        text = text.replace("__CONTROL_NODE_IP__", ip)
+        text = text.replace("__CONTROL_NODE_IP__", cfg["settings"].get("server_ip") or "")
+        text = text.replace("__ACCOUNT_NAME__", cfg["settings"].get("pc_account") or "Admin")
         return Response(text.encode("utf-8-sig"), mimetype="application/octet-stream",
                         headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.ps1"})
+
+    # ---- reports ---------------------------------------------------------------------
+    @app.route("/reports")
+    def reports_page():
+        cfg = store.load()
+        reports = load_reports()
+        p = store.read_json(paths.PLAN_FILE, {})
+        rows = []
+        for pc in cfg.get("pcs", []):
+            r = reports.get(pc["name"], {})
+            apps = r.get("apps", [])
+            results = r.get("results") or r.get("items") or []
+            rows.append({
+                "pc": pc,
+                "report": r,
+                "assigned": (p.get("hosts") or {}).get(pc["name"], {}),
+                "needed": [a for a in apps if a.get("needed")],
+                "mismatch": [a for a in apps if a.get("mismatch")],
+                "ok": [a for a in apps if not a.get("needed") and not a.get("mismatch")],
+                "results": results,
+                "failed": [i for i in results if "exit" in str(i.get("status", ""))
+                           and not str(i.get("status", "")).endswith("exit 0)")],
+            })
+        return render_template("reports.html", cfg=cfg, rows=rows, plan=p,
+                               jobs=jobs.list_jobs(25), counts=jobs.job_counts(30))
+
+    @app.route("/reports/export.csv")
+    def reports_export():
+        cfg = store.load()
+        reports = load_reports()
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["pc", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
+                    "reboot_pending", "kind", "item", "installed", "target", "status"])
+        for pc in cfg.get("pcs", []):
+            r = reports.get(pc["name"], {})
+            facts = r.get("facts") or {}
+            base = [pc["name"], pc.get("site", ""), ";".join(pc.get("groups", [])), pc.get("ip", ""),
+                    r.get("time", ""), facts.get("os", ""), facts.get("build", ""),
+                    facts.get("model", ""), facts.get("serial", ""), r.get("reboot_pending", "")]
+            if not r:
+                w.writerow(base + ["", "", "", "", "no report yet"])
+                continue
+            for a in r.get("apps", []):
+                w.writerow(base + ["app", a.get("name", ""), a.get("installed") or "",
+                                   a.get("target", ""), a.get("reason", "")])
+            for i in (r.get("results") or r.get("items") or []):
+                w.writerow(base + [i.get("kind", ""), i.get("name", ""), "", "", i.get("status", "")])
+        return Response(out.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=ansiweb-report.csv"})
+
+    @app.route("/reports/<name>/delete", methods=["POST"])
+    def report_delete(name):
+        if not store.NAME_RE.match(name):
+            abort(400)
+        (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
+        flash(f"Cleared the stored report for {name}.", "ok")
+        return redirect(url_for("reports_page"))
 
     # ---- jobs ----------------------------------------------------------------------------
     @app.route("/jobs")
     def jobs_page():
-        return render_template("jobs.html", jobs=jobs.list_jobs(100))
+        return render_template("jobs.html", jobs=jobs.list_jobs(200), cfg=store.load(),
+                               targets=store.target_choices(store.load()))
 
     @app.route("/jobs/start", methods=["POST"])
     def job_start():
         kind = request.form.get("kind", "")
         target = request.form.get("target", "")
-        if kind in ("deploy", "ping"):
+        if kind in jobs.DEPLOY_TAGS or kind == "ping":
             try:
                 store.limit_for(target or "all")
             except store.ValidationError as exc:
                 flash(str(exc), "error")
-                return redirect(request.referrer or url_for("dashboard"))
+                return back()
         try:
             job_id = jobs.start(kind, target, trigger=f"manual ({session.get('user')})")
         except (jobs.JobBusy, ValueError) as exc:
             flash(str(exc), "error")
-            return redirect(request.referrer or url_for("dashboard"))
+            return back()
         return redirect(url_for("job_view", job_id=job_id))
 
     @app.route("/jobs/<int:job_id>")
@@ -370,6 +641,15 @@ def create_app(start_background: bool = True) -> Flask:
         text, offset = jobs.read_log(job_id, int(request.args.get("offset", 0)))
         return jsonify({"text": text, "offset": offset, "status": job["status"]})
 
+    @app.route("/jobs/<int:job_id>/download")
+    def job_download(job_id):
+        jobs.get_job(job_id) or abort(404)
+        p = jobs.log_path(job_id)
+        if not p.exists():
+            abort(404)
+        return send_file(p, as_attachment=True, download_name=f"ansiweb-job-{job_id}.log",
+                         mimetype="text/plain")
+
     # ---- settings ------------------------------------------------------------------------
     @app.route("/settings", methods=["GET", "POST"])
     def settings_page():
@@ -382,6 +662,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "allow_reboot": f.get("allow_reboot") == "on",
                     "forks": max(1, min(100, int(f.get("forks", 20)))),
                     "batch_size": max(1, min(500, int(f.get("batch_size", 20)))),
+                    "log_retention_days": max(1, min(3650, int(f.get("log_retention_days", 60)))),
                 })
                 cfg["schedules"]["cache_check"] = {"enabled": f.get("cc_enabled") == "on",
                                                    "every_hours": max(1, int(f.get("cc_hours", 24)))}
@@ -389,13 +670,13 @@ def create_app(start_background: bool = True) -> Flask:
                                               "time": f.get("dep_time", "19:00"),
                                               "days": request.form.getlist("dep_days")}
             except ValueError:
-                flash("Numbers expected for forks, batch size and hours.", "error")
+                flash("Numbers expected for forks, batch size, hours and retention.", "error")
                 return redirect(url_for("settings_page"))
             if save_or_flash(cfg):
                 flash("Settings saved.", "ok")
             return redirect(url_for("settings_page"))
         return render_template("settings.html", cfg=cfg, days=DAY_LABELS, secrets=vault.secret_status(),
-                               secret_names=vault.ANSIBLE_SECRET_NAMES)
+                               secret_names=vault.ANSIBLE_SECRET_NAMES, https=https)
 
     @app.route("/settings/secret", methods=["POST"])
     def settings_secret():
@@ -408,11 +689,10 @@ def create_app(start_background: bool = True) -> Flask:
         else:
             abort(400)
         flash("Secret updated." if value else "Secret cleared.", "ok")
-        return redirect(request.referrer or url_for("settings_page"))
+        return back("settings_page")
 
     @app.route("/settings/password", methods=["POST"])
     def settings_password():
-        from werkzeug.security import generate_password_hash
         admin = vault.admin_record()
         if not check_password_hash(admin["password_hash"], request.form.get("current", "")):
             flash("Current password is wrong.", "error")
@@ -425,12 +705,46 @@ def create_app(start_background: bool = True) -> Flask:
             flash("Password changed.", "ok")
         return redirect(url_for("settings_page"))
 
+    @app.route("/settings/backup")
+    def settings_backup():
+        data = backup.create()
+        return send_file(io.BytesIO(data), mimetype="application/gzip",
+                         as_attachment=True, download_name=backup.filename())
+
+    @app.route("/settings/restore", methods=["POST"])
+    def settings_restore():
+        f = request.files.get("archive")
+        if not f or not f.filename:
+            flash("Choose a backup file.", "error")
+        elif request.form.get("confirm") != "REPLACE":
+            flash("Type REPLACE to confirm that the current configuration will be overwritten.", "error")
+        else:
+            try:
+                result = backup.restore(f.stream)
+                session.clear()   # the restored backup has its own admin account
+                flash(f"Restored {len(result['restored'])} item(s) from {f.filename}. "
+                      "Sign in with the credentials from that backup.", "ok")
+                return redirect(url_for("login"))
+            except store.ValidationError as exc:
+                flash(str(exc), "error")
+            except Exception as exc:   # noqa: BLE001 - show the user what went wrong
+                flash(f"Restore failed: {exc}", "error")
+        return redirect(url_for("settings_page"))
+
     if start_background:
         jobs.start_scheduler()
     return app
 
 
 # ---- view helpers -------------------------------------------------------------------------
+def parse_codes(text: str) -> list:
+    codes = [c for c in re.split(r"[,\s]+", text or "") if c]
+    try:
+        return sorted({int(c) for c in codes})
+    except ValueError:
+        raise store.ValidationError("Exit codes must be numbers, e.g. 0, 3010")
+
+
 def load_reports() -> dict:
     out = {}
     for p in sorted(paths.REPORT_DIR.glob("*.json")):
@@ -465,9 +779,10 @@ def setup_warnings(cfg: dict) -> list:
     w = []
     s = vault.secret_status()
     if not cfg["settings"].get("server_ip"):
-        w.append(("Set this server's IP address in Settings, so PCs know where to download apps from.", "settings_page"))
+        w.append(("Set this server's IP address in Settings, so PCs know where to download from.", "settings_page"))
     if not s["vault_ansible_svc_password"]:
-        w.append(("Enter the ansible_svc password (the one used in the PC prep script) in Settings.", "settings_page"))
+        w.append((f"Enter the password for the '{cfg['settings'].get('pc_account')}' account on the PCs.",
+                  "pcs_page"))
     if not cfg.get("pcs"):
         w.append(("Add your PCs on the PCs page.", "pcs_page"))
     return w

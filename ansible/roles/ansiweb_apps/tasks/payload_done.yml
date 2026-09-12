@@ -1,0 +1,13 @@
+---
+# Record that an item ran, and remove the downloaded file from the PC.
+- name: "Write the state marker for {{ item_def.name }}"
+  ansible.windows.win_copy:
+    dest: "{{ item_def.win_state }}"
+    content: "{{ now(fmt='%Y-%m-%d %H:%M:%S') }} {{ item_def.id }} {{ item_def.sha256 }}"
+  when: aw_run | bool
+
+- name: "Remove the downloaded {{ item_def.name }}"
+  ansible.windows.win_file:
+    path: "{{ item_def.win_file }}"
+    state: absent
+  when: aw_run | bool

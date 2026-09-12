@@ -11,7 +11,12 @@
       <small>PCs download installers from http://&lt;this IP&gt;/software/</small></label>
     <label>PCs in parallel (forks)<input name="forks" type="number" min="1" max="100" value="{{ cfg.settings.forks }}"></label>
     <label>PCs per batch<input name="batch_size" type="number" min="1" max="500" value="{{ cfg.settings.batch_size }}"></label>
+    <label>Keep job logs for (days)<input name="log_retention_days" type="number" min="1" max="3650"
+      value="{{ cfg.settings.log_retention_days }}"></label>
   </div>
+  <p class="muted small">The web interface is reached over
+    {% if https %}HTTPS. PCs still download installers over plain HTTP, because they trust no certificate of yours.
+    {% else %}plain HTTP. See docs/INSTALL.md to switch the dashboard to HTTPS.{% endif %}</p>
   <label class="check"><input type="checkbox" name="allow_reboot" {{ 'checked' if cfg.settings.allow_reboot }}>
     Reboot PCs automatically when an installer requires it (otherwise the job lists PCs needing a reboot)</label>
 
@@ -48,6 +53,24 @@
         <input type="password" name="value" placeholder="read-only token" autocomplete="off">
         <button class="btn small">Save</button></form></td></tr>
   </table>
+</section>
+
+<section class="panel">
+  <h2>Backup and restore</h2>
+  <p class="muted small">The backup holds your configuration, PC list, secrets and every uploaded driver, script and
+  registry file. Cached app installers are left out, since they can be downloaded again. Keep the file safe: it
+  contains the key to your stored passwords.</p>
+  <p><a class="btn primary" href="{{ url_for('settings_backup') }}">Download backup</a></p>
+
+  <h3>Restore</h3>
+  <p class="muted small">This replaces the current configuration, secrets and uploaded files with the contents of the
+  archive, then signs you out: after restoring, sign in with the password from that backup.</p>
+  <form method="post" action="{{ url_for('settings_restore') }}" enctype="multipart/form-data" class="row"
+        data-confirm="Replace the current configuration with this backup?">{{ csrf() }}
+    <label>Backup file (.tar.gz)<input type="file" name="archive" accept=".gz,.tgz" required></label>
+    <label>Type REPLACE to confirm<input name="confirm" required placeholder="REPLACE" autocomplete="off"></label>
+    <div><button class="btn danger">Restore</button></div>
+  </form>
 </section>
 
 <form method="post" action="{{ url_for('settings_password') }}" class="panel form">{{ csrf() }}

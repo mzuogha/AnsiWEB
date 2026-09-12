@@ -1,0 +1,36 @@
+---
+- name: Fetch the script
+  ansible.builtin.include_tasks: payload_get.yml
+
+- name: "Run {{ item_def.name }}"
+  when: aw_run | bool
+  block:
+    - name: "Run {{ item_def.name }} on the PC"
+      ansible.windows.win_command:
+        argv: "{{ item_def.argv }}"
+      register: aw_script
+      changed_when: aw_script.rc == 0
+      failed_when: aw_script.rc not in item_def.success_codes
+      async: "{{ item_def.timeout | int }}"
+      poll: 5
+
+    - name: "Store the result for {{ item_def.name }}"
+      ansible.builtin.set_fact:
+        aw_results: '{{ aw_results + [{"kind": "scripts", "id": item_def.id, "name": item_def.name,
+                                       "status": "ran (exit " ~ aw_script.rc ~ ")",
+                                       "detail": ((aw_script.stdout | default("")) ~ (aw_script.stderr | default("")))
+                                                 | trim | truncate(600, true)}] }}'
+
+    - name: "Note that {{ item_def.name }} asked for a reboot"
+      ansible.builtin.set_fact:
+        aw_reboot_needed: true
+      when: (item_def.reboot | bool) or aw_script.rc == 3010
+
+- name: "Record that {{ item_def.name }} already ran"
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "scripts", "id": item_def.id, "name": item_def.name,
+                                   "status": "already ran", "detail": ""}] }}'
+  when: not (aw_run | bool)
+
+- name: Record the script state
+  ansible.builtin.include_tasks: payload_done.yml

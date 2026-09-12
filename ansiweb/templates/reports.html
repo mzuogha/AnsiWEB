@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status_pill with context %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Reports</h1>
+  <div class="actions"><a class="btn" href="{{ url_for('reports_export') }}">Download CSV</a></div>
+</div>
+<p class="muted">Each PC writes a report at the end of every deployment. Jobs from the last 30 days:
+  {% for status, n in counts['items']() %}{{ status_pill(status) }} {{ n }} {% endfor %}
+  {% if not counts %}none yet{% endif %}
+</p>
+
+<table class="list">
+  <tr><th>PC</th><th>Last report</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
+  {% for row in rows %}
+  <tr>
+    <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a><br>
+      <span class="muted small">{{ row.pc.site }}{% if row.pc.groups %} · {{ row.pc.groups|join(', ') }}{% endif %}</span></td>
+    <td class="small">{{ row.report.time or '—' }}
+      {% if row.report.reboot_pending %}<br><span class="pill warning">reboot pending</span>{% endif %}</td>
+    <td class="small">
+      {% if row.report %}
+        <span class="pill success">{{ row.ok|length }} up to date</span>
+        {% if row.needed %}<span class="pill warning">{{ row.needed|length }} to do</span>{% endif %}
+        {% if row.mismatch %}<span class="pill failed">{{ row.mismatch|length }} mismatch</span>{% endif %}
+        {% if row.needed %}<div class="muted">{{ row.needed | map(attribute='name') | join(', ') }}</div>{% endif %}
+      {% else %}<span class="muted">{{ row.assigned.apps|default([])|length }} assigned, no report yet</span>{% endif %}
+    </td>
+    <td class="small">
+      {% for i in row['results'] %}
+        {{ i.name }}: {{ i.status }}{% if i.detail %} <span class="muted">({{ i.detail|truncate(80) }})</span>{% endif %}<br>
+      {% else %}
+        <span class="muted">{{ row.assigned.drivers|default([])|length }} / {{ row.assigned.scripts|default([])|length }} / {{ row.assigned.registry|default([])|length }} assigned</span>
+      {% endfor %}
+    </td>
+    <td class="small">{% if row.report.facts %}{{ row.report.facts.os }}<br>
+      <span class="muted">build {{ row.report.facts.build }} · {{ row.report.facts.model }} · {{ row.report.facts.ram_gb }} GB</span>{% else %}—{% endif %}</td>
+    <td class="nowrap">{% if row.report %}
+      <form method="post" action="{{ url_for('report_delete', name=row.pc.name) }}" class="inline"
+            data-confirm="Clear the stored report for {{ row.pc.name }}?">{{ csrf() }}
+        <button class="btn small">Clear</button></form>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">No PCs yet.</td></tr>
+  {% endfor %}
+</table>
+
+<section class="panel">
+  <h2>Recent jobs</h2>
+  <table>
+    <tr><th>#</th><th>Job</th><th>Target</th><th>Started</th><th>Finished</th><th>Trigger</th><th>Status</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ j.id }}</a></td>
+      <td>{{ job_kinds.get(j.kind, j.kind) }}</td><td class="small">{{ j.target or '' }}</td>
+      <td class="small">{{ j.started }}</td><td class="small">{{ j.finished or '' }}</td>
+      <td class="small">{{ j.trigger }}</td><td>{{ status_pill(j.status) }}</td>
+      <td><a class="small" href="{{ url_for('job_download', job_id=j.id) }}">log</a></td>
+    </tr>
+    {% else %}<tr><td colspan="8" class="muted">No jobs yet.</td></tr>{% endfor %}
+  </table>
+</section>
+{% endblock %}

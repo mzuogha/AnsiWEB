@@ -34,4 +34,29 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
   </tr>
   {% endfor %}
 </table>
+
+<section class="panel">
+  <h2>Add an offline app by uploading its installer</h2>
+  <p class="muted small">For software that isn't in the winget catalogue, or that you must keep at a fixed version.
+  The file is stored on this server and installed on PCs from here. MSI files need no arguments; EXE files usually do.</p>
+  <form method="post" action="{{ url_for('app_quick_upload') }}" enctype="multipart/form-data" class="form">{{ csrf() }}
+    <div class="row">
+      <label>Installer (.msi or .exe)<input type="file" name="installer" accept=".msi,.exe" required></label>
+      <label>App name<input name="name" required placeholder="Vendor App"></label>
+      <label>Version<input name="version" required placeholder="5.2.1"></label>
+    </div>
+    <div class="row">
+      <label>Silent install arguments<input name="arguments" placeholder="/S"><small>Leave empty for MSI files.</small></label>
+      <label>Detection pattern<input name="detect_pattern" required placeholder="^Vendor App">
+        <small>Regular expression matching the name under Windows "Installed apps".</small></label>
+    </div>
+    <h3>Install on</h3>
+    <div class="checks">
+      {% for t in targets %}
+      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
+      {% endfor %}
+    </div>
+    <div class="formactions"><button class="btn primary">Upload and add</button></div>
+  </form>
+</section>
 {% endblock %}

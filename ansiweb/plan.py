@@ -1,7 +1,14 @@
 """Build deploy_plan.json: everything the Ansible role needs, computed from the
-configuration and the cache manifest. Only apps with a verified cached installer
-are included, so a PC is never pointed at something that isn't on the server."""
-from . import cache, paths, store
+configuration and the cache manifest. Only items with a file actually present on
+the server are included, so a PC is never pointed at something that isn't there."""
+import shlex
+
+from . import cache, payloads, paths, store
+
+# Fixed working folders on each PC. Windows paths are built here rather than in
+# Jinja, where backslash escaping is easy to get wrong.
+PC_CACHE = r"C:\ProgramData\AnsiWEB\cache"
+PC_STATE = r"C:\ProgramData\AnsiWEB\state"
 
 
 def pc_matches(pc: dict, targets: list) -> bool:
@@ -17,6 +24,14 @@ def pc_matches(pc: dict, targets: list) -> bool:
     return False
 
 
+def split_arguments(text: str) -> list:
+    """Split a script's arguments the way a shell would, keeping quoted values together."""
+    try:
+        return shlex.split(text.strip())
+    except ValueError as exc:
+        raise store.ValidationError(f"Could not read the script arguments ({exc}). Check the quotes.")
+
+
 def build_plan(cfg: dict, manifest: dict) -> dict:
     base = store.software_url(cfg)
     apps, skipped = [], []
@@ -26,7 +41,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry = manifest.get(app["id"], {})
         f = entry.get("file")
         if not f or not (paths.APPS_DIR / f).exists():
-            skipped.append({"id": app["id"], "reason": entry.get("error") or "not cached yet"})
+            skipped.append({"kind": "apps", "id": app["id"], "name": app["name"],
+                            "reason": entry.get("error") or "not cached yet"})
             continue
         codes = set(entry.get("success_codes") or [0, 3010])
         codes.update(int(c) for c in app.get("extra_success_codes", []) or [])
@@ -36,6 +52,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "version": entry["version"],
             "file": f,
             "url": f"{base}/apps/{f}",
+            "win_file": f"{PC_CACHE}\\{f}",
             "sha256": entry.get("sha256", ""),
             "arguments": (app.get("arguments") or "").strip(),
             "success_codes": sorted(codes),
@@ -45,16 +62,68 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "targets": app.get("targets") or ["all"],
         })
 
+    # Uploaded payloads: drivers, scripts, registry files
+    payload_sets = {}
+    for kind in payloads.KINDS:
+        items = []
+        for e in cfg.get(kind, []):
+            if not e.get("enabled", True):
+                continue
+            if not payloads.present(kind, e):
+                skipped.append({"kind": kind, "id": e["id"], "name": e["name"],
+                                "reason": "no file uploaded"})
+                continue
+            item = {
+                "id": e["id"],
+                "name": e["name"],
+                "file": e["file"],
+                "url": f"{base}/{kind}/{e['file']}",
+                "sha256": e.get("sha256", ""),
+                "run_mode": e.get("run_mode", "once"),
+                # marker written on the PC, so "once" and "changed" work across runs
+                "state_key": f"{kind}-{e['id']}-{(e.get('sha256') or '')[:12]}",
+                "targets": e.get("targets") or ["all"],
+            }
+            item["win_file"] = f"{PC_CACHE}\\{e['file']}"
+            item["win_state"] = f"{PC_STATE}\\{item['state_key']}.done"
+            item["win_unpack"] = f"{PC_CACHE}\\{e['id']}"
+            if kind == "scripts":
+                shell = payloads.script_shell(e)
+                launcher = (["powershell.exe", "-NoProfile", "-NonInteractive",
+                             "-ExecutionPolicy", "Bypass", "-File", item["win_file"]]
+                            if shell == "powershell" else ["cmd.exe", "/c", item["win_file"]])
+                item.update({
+                    "shell": shell,
+                    "arguments": (e.get("arguments") or "").strip(),
+                    # Built here so quoted arguments survive intact
+                    "argv": launcher + split_arguments(e.get("arguments") or ""),
+                    "success_codes": sorted({0} | {int(c) for c in e.get("success_codes", []) or []}),
+                    "timeout": int(e.get("timeout") or 1800),
+                    "reboot": bool(e.get("reboot")),
+                })
+            items.append(item)
+        payload_sets[kind] = items
+
     hosts = {}
     for pc in cfg.get("pcs", []):
-        hosts[pc["name"]] = {"apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])]}
+        entry = {"apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])]}
+        for kind, items in payload_sets.items():
+            entry[kind] = [i["id"] for i in items if pc_matches(pc, i["targets"])]
+        entry["hostname"] = pc["name"] if pc.get("sync_hostname") else ""
+        hosts[pc["name"]] = entry
 
     return {
         "generated": cache.now(),
         "software_url": base,
         "server_ip": (cfg.get("settings") or {}).get("server_ip", ""),
         "allow_reboot": bool((cfg.get("settings") or {}).get("allow_reboot")),
+        "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),
+        "pc_cache": PC_CACHE,
+        "pc_state": PC_STATE,
         "apps": apps,
+        "drivers": payload_sets["drivers"],
+        "scripts": payload_sets["scripts"],
+        "registry": payload_sets["registry"],
         "skipped": skipped,
         "hosts": hosts,
     }

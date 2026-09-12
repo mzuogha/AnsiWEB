@@ -1,5 +1,11 @@
 {% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}
 
+{% macro target_select(name, targets, selected='all', cls='') %}
+<select name="{{ name }}" class="{{ cls }}">
+  {% for t in targets %}<option value="{{ t }}" {{ 'selected' if t == selected }}>{{ target_label(t) }}</option>{% endfor %}
+</select>
+{% endmacro %}
+
 {% macro job_button(kind, label, target='', cls='btn', confirm='') %}
 <form method="post" action="{{ url_for('job_start') }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
   {{ csrf() }}<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="target" value="{{ target }}">
@@ -14,5 +20,7 @@
                  'missing': 'not cached', 'disabled': 'disabled'} %}
 <span class="pill st-{{ state }}">{{ labels.get(state, state) }}</span>
 {% endmacro %}
+
+{% macro size(bytes) %}{{ '%.1f'|format((bytes or 0) / 1048576) }} MB{% endmacro %}
 
 {% macro target_label(t) %}{{ 'All PCs' if t == 'all' else t.replace('site:', 'Site: ').replace('group:', 'Group: ').replace('pc:', 'PC: ') }}{% endmacro %}

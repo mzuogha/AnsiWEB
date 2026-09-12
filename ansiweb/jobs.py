@@ -12,8 +12,23 @@ from . import cache, paths, store
 
 KINDS = {
     "cache_update": "Check for updates & refresh cache",
-    "deploy": "Deploy apps",
+    "deploy": "Deploy everything",
+    "deploy_apps": "Deploy apps",
+    "deploy_drivers": "Install drivers",
+    "deploy_scripts": "Run scripts",
+    "deploy_registry": "Merge registry files",
+    "rename": "Apply computer names",
     "ping": "Connection test",
+}
+
+# Job kinds that run deploy.yml, with the Ansible tags they limit it to
+DEPLOY_TAGS = {
+    "deploy": "",
+    "deploy_apps": "apps",
+    "deploy_drivers": "drivers",
+    "deploy_scripts": "scripts",
+    "deploy_registry": "registry",
+    "rename": "hostname",
 }
 
 _db_lock = threading.Lock()
@@ -104,7 +119,7 @@ def ansible_env() -> dict:
     return env
 
 
-def playbook_cmd(playbook: str, limit: str = "", extra: dict | None = None) -> list:
+def playbook_cmd(playbook: str, limit: str = "", extra: dict | None = None, tags: str = "") -> list:
     cfg = store.load()
     cmd = [paths.venv_bin("ansible-playbook"),
            "-i", str(paths.HOSTS_FILE),
@@ -116,6 +131,8 @@ def playbook_cmd(playbook: str, limit: str = "", extra: dict | None = None) -> l
            str(paths.ANSIBLE_DIR / "playbooks" / playbook)]
     if limit:
         cmd += ["--limit", limit]
+    if tags:
+        cmd += ["--tags", tags]
     for k, v in (extra or {}).items():
         cmd += ["-e", f"{k}={v}"]
     return cmd
@@ -130,23 +147,29 @@ def run_command(cmd: list, log, env=None) -> int:
     return proc.wait()
 
 
-def start(kind: str, target: str = "", trigger: str = "manual") -> int:
+def start(kind: str, target: str = "", trigger: str = "manual", only: str = "") -> int:
     """Start a job in the background. Raises JobBusy if one of this kind is running."""
     if kind not in KINDS:
         raise ValueError(kind)
     with _run_lock:
         if kind in _running:
             raise JobBusy(f"A '{KINDS[kind]}' job (#{_running[kind]}) is already running.")
+        # Only one deployment at a time, whatever it covers
+        if kind in DEPLOY_TAGS:
+            for other in DEPLOY_TAGS:
+                if other in _running:
+                    raise JobBusy(f"A '{KINDS[other]}' job (#{_running[other]}) is already running.")
         with _db_lock, _conn() as c:
             cur = c.execute("INSERT INTO jobs(kind,target,status,started,trigger) VALUES(?,?,?,?,?)",
                             (kind, target, "running", _stamp(), trigger))
             job_id = cur.lastrowid
         _running[kind] = job_id
-    threading.Thread(target=_run, args=(job_id, kind, target), daemon=True, name=f"job-{job_id}").start()
+    threading.Thread(target=_run, args=(job_id, kind, target, only),
+                     daemon=True, name=f"job-{job_id}").start()
     return job_id
 
 
-def _run(job_id: int, kind: str, target: str) -> None:
+def _run(job_id: int, kind: str, target: str, only: str = "") -> None:
     fh = open(log_path(job_id), "a", encoding="utf-8", buffering=1)
 
     def log(line: str) -> None:
@@ -159,8 +182,10 @@ def _run(job_id: int, kind: str, target: str) -> None:
         if kind == "cache_update":
             counts = cache.update_all(log)
             rc = 0 if counts["error"] == 0 else 2
-        elif kind == "deploy":
-            rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all")), log)
+        elif kind in DEPLOY_TAGS:
+            extra = {"aw_only": only} if only else None
+            rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
+                                          extra=extra, tags=DEPLOY_TAGS[kind]), log)
             store.regenerate_all()
         elif kind == "ping":
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),
@@ -171,6 +196,7 @@ def _run(job_id: int, kind: str, target: str) -> None:
         log(traceback.format_exc())
         rc = 1
     finally:
+        prune_logs()
         status = "success" if rc == 0 else ("warning" if rc == 2 else "failed")
         log(f"[{_stamp()}] Finished with status: {status}")
         fh.close()
@@ -178,6 +204,31 @@ def _run(job_id: int, kind: str, target: str) -> None:
             c.execute("UPDATE jobs SET status=?, finished=?, rc=? WHERE id=?", (status, _stamp(), rc, job_id))
         with _run_lock:
             _running.pop(kind, None)
+
+
+def prune_logs() -> None:
+    """Delete job logs and job rows older than the configured retention."""
+    try:
+        days = max(int(store.load()["settings"].get("log_retention_days", 60)), 1)
+    except Exception:
+        days = 60
+    cutoff = dt.datetime.now() - dt.timedelta(days=days)
+    with _db_lock, _conn() as c:
+        rows = c.execute("SELECT id, started FROM jobs").fetchall()
+        old = [r["id"] for r in rows
+               if r["started"] and dt.datetime.fromisoformat(r["started"]) < cutoff]
+        for job_id in old:
+            log_path(job_id).unlink(missing_ok=True)
+            c.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+
+
+def job_counts(days: int = 30) -> dict:
+    """Totals per status for the reporting page."""
+    since = (dt.datetime.now() - dt.timedelta(days=days)).isoformat(sep=" ")
+    with _db_lock, _conn() as c:
+        rows = c.execute("SELECT status, COUNT(*) n FROM jobs WHERE started >= ? GROUP BY status",
+                         (since,)).fetchall()
+    return {r["status"]: r["n"] for r in rows}
 
 
 def running() -> dict:
