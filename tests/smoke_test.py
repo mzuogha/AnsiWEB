@@ -136,6 +136,32 @@ ok("Choose the installer file" in c.post("/apps/new", data={"csrf": tok, "id": "
                                          content_type="multipart/form-data", follow_redirects=True).text,
    "uploaded app without a file is refused")
 
+# ---------------------------------------------------------------- remove an app from the Apps page
+import glob as _glob
+cached_file = cache.load_manifest()["vendor-app"]["file"]
+cached_path = os.path.join(DATA, "cache/apps", cached_file)
+ok(os.path.exists(cached_path), "uploaded installer is on disk before removal")
+r = c.get("/apps")
+ok('/apps/vendor-app/delete' in r.text, "the Apps page offers a Remove button per app")
+r = c.post("/apps/vendor-app/delete", data={"csrf": tok}, follow_redirects=True)
+ok("Removed Vendor App" in r.text, "removal is confirmed")
+ok("stays installed on the PCs" in r.text, "removal explains that PCs keep the app")
+ok(not any(a["id"] == "vendor-app" for a in store.load()["apps"]), "app is gone from the configuration")
+ok("vendor-app" not in cache.load_manifest(), "cache manifest entry is gone")
+ok(not os.path.exists(cached_path), "cached installer file is deleted")
+plan_after = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(not any(a["id"] == "vendor-app" for a in plan_after["apps"]), "app is gone from the deployment plan")
+ok("vendor-app" not in plan_after["hosts"]["PC-HQ-001"]["apps"], "PCs no longer target the app")
+ok(c.post("/apps/vendor-app/delete", data={"csrf": tok}).status_code == 404,
+   "removing it twice gives a clean 404")
+ok(c.get("/apps/line-of-business/edit").status_code == 200, "other apps are untouched")
+# put it back for the rest of the test
+c.post("/apps/upload", data={"csrf": tok, "name": "Vendor App", "version": "5.2.1",
+                             "detect_pattern": "^Vendor App", "arguments": "/S",
+                             "targets": ["group:finance"],
+                             "installer": (io.BytesIO(b"MZ-stub"), "VendorApp.exe")},
+       content_type="multipart/form-data", follow_redirects=True)
+
 # ---------------------------------------------------------------- drivers / scripts / registry
 r = c.post("/drivers/add", data={"csrf": tok, "name": "Intel NIC", "run_mode": "once", "targets": ["all"],
                                  "payload": (zip_bytes(["net.inf", "net.cat"]), "intel-nic.zip")},
@@ -263,6 +289,7 @@ for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit
             "/settings"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
+ok(c.get("/directory").status_code == 404, "there is no Active Directory page")
 ok(c.get("/nonsense").status_code == 404, "unknown resource kind is 404")
 r = c.get("/prepare-script")
 ok(b"$ControlNodeIP = '192.168.1.10'" in r.data and b"$AccountName = 'Admin'" in r.data,

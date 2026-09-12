@@ -298,6 +298,31 @@ def update_all(log=print, only: list | None = None, force: bool = False) -> dict
     return counts
 
 
+def forget_app(app_id: str) -> int:
+    """Delete an app's cached installers and its manifest entry.
+
+    Returns the number of bytes freed. Called when an app is removed, so the
+    cache does not keep files nothing points at any more.
+    """
+    freed = 0
+    with _manifest_lock:
+        m = load_manifest()
+        entry = m.pop(app_id, None)
+        if entry is None:
+            return 0
+        for fname in (entry.get("file"), (entry.get("previous") or {}).get("file")):
+            if not fname:
+                continue
+            path = paths.APPS_DIR / fname
+            try:
+                freed += path.stat().st_size
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        save_manifest(m)
+    return freed
+
+
 def store_upload(app: dict, file_storage, version: str) -> None:
     """Save an installer uploaded through the web interface."""
     name = file_storage.filename or ""

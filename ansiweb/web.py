@@ -231,8 +231,10 @@ def create_app(start_background: bool = True) -> Flask:
         idx, existing = find_app(cfg, app_id)
         del cfg["apps"][idx]
         if save_or_flash(cfg):
-            flash(f"Removed {existing['name']} from the standard apps. Its cached files are deleted at the next "
-                  "update check. It is not uninstalled from PCs.", "ok")
+            freed = cache.forget_app(app_id)
+            flash(f"Removed {existing['name']} from the standard apps"
+                  + (f" and deleted {freed // 1048576} MB of cached installers" if freed else "")
+                  + ". It stays installed on the PCs.", "ok")
         return redirect(url_for("apps_page"))
 
     @app.route("/apps/<app_id>/upload", methods=["POST"])
