@@ -6,14 +6,15 @@
   <h1>PCs</h1>
   <div class="actions">
     <a class="btn" href="{{ url_for('prepare_script') }}">Download PC prep script</a>
-    {{ job_button('ping', 'Test all connections', 'all') }}
-    {{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}
+    {% if can(perms.run) %}{{ job_button('ping', 'Test all connections', 'all') }}{% endif %}
+    {% if can(perms.run) %}{{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}{% endif %}
   </div>
 </div>
 <p class="muted">Run the prep script once on each PC (PowerShell as Administrator), then add the PC here. The script
 already contains this server's IP{% if not cfg.settings.server_ip %} <b>once you set it in Settings</b>{% endif %}
 and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 
+{% if can(perms.admin) %}
 <section class="panel">
   <h2>Management account on the PCs</h2>
   <p class="muted small">AnsiWEB signs in to every PC with this local administrator account. Changing the name here
@@ -27,6 +28,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     <div><button class="btn primary">Save account</button></div>
   </form>
 </section>
+{% endif %}
 
 <table class="list">
   <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
@@ -54,8 +56,10 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     </td>
     <td class="small">{{ rep.time if rep else '—' }}</td>
     <td class="nowrap">
+      {% if can(perms.run) %}
       {{ job_button('ping', 'Test', 'pc:' ~ pc.name, 'btn small') }}
       {{ job_button('deploy', 'Deploy', 'pc:' ~ pc.name, 'btn small primary') }}
+      {% endif %}
     </td>
   </tr>
   {% else %}
@@ -63,6 +67,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   {% endfor %}
 </table>
 
+{% if can(perms.pcs) %}
 <div class="grid2">
   <section class="panel">
     <h2>Add a PC</h2>
@@ -110,4 +115,5 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     <label>New site<input name="site" required placeholder="Branch1"></label><div><button class="btn">Add site</button></div>
   </form>
 </section>
+{% endif %}
 {% endblock %}

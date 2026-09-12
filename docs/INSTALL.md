@@ -313,7 +313,25 @@ It prints the PC name and IP to enter in AnsiWEB. It is safe to run again.
 
 You can also build this into your imaging process, so new PCs arrive ready.
 
-### 3. Add the PCs
+### 3. Add people, if others will use AnsiWEB (optional)
+
+The account created by the installer is an administrator. To give someone less, go to **Users**:
+
+- **Operator** — manages apps, drivers, scripts, registry files and PCs, and runs jobs. No settings or secrets.
+- **Helpdesk** — runs deployments and connection tests, and reads reports.
+- **Viewer** — read-only.
+
+Or from the command line:
+
+```bash
+sudo ansiweb add-user jane operator
+sudo ansiweb list-users
+```
+
+Anyone who can manage apps or scripts can cause code to run on the PCs they target, so treat Operator as trusted.
+The **Help** page inside AnsiWEB repeats the commands on this page, with your own addresses filled in.
+
+### 4. Add the PCs
 
 On the **PCs** page, add each PC by name and IP, or paste a list:
 
@@ -323,17 +341,17 @@ PC-HQ-002,192.168.1.22,HQ,finance
 PC-BR1-001,192.168.2.21,Branch1
 ```
 
-### 4. Test the connections
+### 5. Test the connections
 
 Click **Test all connections**. Every PC should answer `pong`. Fix any failures now — a PC that can't be reached can't be deployed to.
 
-### 5. Fill the cache
+### 6. Fill the cache
 
 On the **Apps** page, click **Check for updates now**. Watch the live log: each app is downloaded once and verified against its published SHA256 fingerprint. This takes a while on the first run, and it's the only step that needs internet.
 
 Firefox is pinned to 65.0.2 and is downloaded from Mozilla's release archive.
 
-### 6. Deploy
+### 7. Deploy
 
 Start with one PC (PCs page → **Deploy**), then a site, then everything:
 
@@ -345,7 +363,7 @@ Dashboard → Deploy to all PCs
 
 Run it a second time against the same PC. The second run should report no changes; that's your proof the setup is correct.
 
-### 7. Add drivers, scripts and registry files (optional)
+### 8. Add drivers, scripts and registry files (optional)
 
 Each has its own page in the sidebar and works the same way: upload the file, pick which PCs it applies to, and choose when it runs.
 
@@ -372,7 +390,7 @@ the target.
 > Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
 > on one PC before pointing it at a site.
 
-### 8. Install Windows updates (optional)
+### 9. Install Windows updates (optional)
 
 **Settings → Windows updates**:
 
@@ -385,7 +403,7 @@ the target.
 Updates can take hours per PC, so they run last in a deployment and have their own timeout. AnsiWEB does not change
 which update service a PC uses; if you want PCs pointed at a WSUS server, upload a `.reg` file on the Registry page.
 
-### 9. Set the time zone and clock (optional)
+### 10. Set the time zone and clock (optional)
 
 **Settings → Time and time zone** pushes clock settings to the PCs:
 
@@ -397,7 +415,7 @@ which update service a PC uses; if you want PCs pointed at a WSUS server, upload
 Each PC reports its time zone, local time and time source afterwards, and the job log flags any PC whose clock is
 more than two minutes off the server's. PCs need UDP 123 open to whatever time servers you name.
 
-### 10. Activate Windows (optional)
+### 11. Activate Windows (optional)
 
 If you want AnsiWEB to handle Windows licensing, go to **Settings → Windows activation**:
 
@@ -410,7 +428,7 @@ The key is stored encrypted and never appears in the deployment plan or job logs
 Microsoft, so those PCs need internet access at least once; KMS activation stays on your own network. The Reports
 page shows each PC's licence state afterwards.
 
-### 11. Turn on the schedules
+### 12. Turn on the schedules
 
 In **Settings**, enable:
 
@@ -419,7 +437,7 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 12. Download a backup
+### 13. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers

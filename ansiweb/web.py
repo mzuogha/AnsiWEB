@@ -10,9 +10,38 @@ from datetime import timedelta
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
-from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import __version__, backup, cache, jobs, paths, payloads, plan, release, store, vault
+from . import __version__, backup, cache, jobs, paths, payloads, plan, release, store, users, vault
+
+# What each route needs. Anything not listed here requires an administrator,
+# so a new route is never accidentally open to a lesser role.
+ENDPOINT_PERMISSIONS = {
+    # read-only
+    "dashboard": users.VIEW, "apps_page": users.VIEW, "pcs_page": users.VIEW,
+    "resources_page": users.VIEW, "resource_download": users.VIEW,
+    "reports_page": users.VIEW, "reports_export": users.VIEW,
+    "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
+    "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
+    "help_page": users.VIEW,
+    "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
+    "pc_edit": users.VIEW,            # the form itself; saving is checked below
+    "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
+    # running things
+    "job_start": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
+    # what gets deployed
+    "app_save": users.MANAGE_CONTENT, "app_delete": users.MANAGE_CONTENT,
+    "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
+    "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
+    "resource_save": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
+    # the PC list
+    "pc_add": users.MANAGE_PCS, "pc_save": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS,
+    "pc_import": users.MANAGE_PCS, "sites": users.MANAGE_PCS, "report_delete": users.MANAGE_PCS,
+}
+# POSTs to these endpoints need more than the GET does
+POST_PERMISSIONS = {
+    "app_new": users.MANAGE_CONTENT, "app_edit": users.MANAGE_CONTENT,
+    "resource_edit": users.MANAGE_CONTENT, "pc_edit": users.MANAGE_PCS,
+}
 
 DAY_LABELS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
               ("fri", "Fri"), ("sat", "Sat"), ("sun", "Sun")]
@@ -20,6 +49,7 @@ DAY_LABELS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
 
 def create_app(start_background: bool = True) -> Flask:
     paths.ensure_dirs()
+    users.migrate()
     vault.ensure_vault_pass()
     vault.ensure_ansible_vault()
     jobs.init_db()
@@ -57,7 +87,12 @@ def create_app(start_background: bool = True) -> Flask:
     def inject():
         return {"csrf_token": csrf_token, "version": __version__, "running_jobs": jobs.running(),
                 "job_kinds": jobs.KINDS, "kinds": payloads.KINDS,
-                "idle_timeout": idle_timeout()}
+                "idle_timeout": idle_timeout(),
+                "can": lambda perm: users.can(session.get("role", ""), perm),
+                "perms": {"view": users.VIEW, "run": users.RUN_JOBS,
+                          "content": users.MANAGE_CONTENT, "pcs": users.MANAGE_PCS,
+                          "admin": users.ADMIN},
+                "role_label": users.ROLES.get(session.get("role", ""), {}).get("label", "")}
 
     @app.before_request
     def protect():
@@ -85,8 +120,22 @@ def create_app(start_background: bool = True) -> Flask:
             return None
         if not session.get("user"):
             return redirect(url_for("login", next=request.path))
+
+        # The role may have been changed or the account disabled since sign-in
+        record = users.get(session["user"])
+        if not record or record.get("disabled"):
+            session.clear()
+            flash("Your account is no longer available. Ask an administrator.", "error")
+            return redirect(url_for("login"))
+        session["role"] = record["role"]
+
         if request.method == "POST":
             _check_csrf()
+        needed = (POST_PERMISSIONS.get(request.endpoint) if request.method == "POST" else None) \
+            or ENDPOINT_PERMISSIONS.get(request.endpoint, users.ADMIN)
+        if not users.can(record["role"], needed):
+            return render_template("denied.html", needed=needed,
+                                   role=users.ROLES[record["role"]]), 403
         return None
 
     def _check_csrf():
@@ -119,18 +168,18 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- auth ------------------------------------------------------------------
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        admin = vault.admin_record()
         if request.method == "POST":
-            if (admin and request.form.get("username") == admin["username"]
-                    and check_password_hash(admin["password_hash"], request.form.get("password", ""))):
+            user = users.authenticate(request.form.get("username", ""), request.form.get("password", ""))
+            if user:
                 session.clear()
                 session.permanent = True
-                session["user"] = admin["username"]
+                session["user"] = user["username"]
+                session["role"] = user["role"]
                 session["seen"] = time.time()
                 nxt = request.args.get("next", "/")
                 return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
-            flash("Wrong username or password.", "error")
-        return render_template("login.html", no_admin=not admin)
+            flash("Wrong user name or password, or the account is disabled.", "error")
+        return render_template("login.html", no_admin=not users.any_users())
 
     @app.route("/logout", methods=["POST"])
     def logout():
@@ -647,6 +696,73 @@ def create_app(start_background: bool = True) -> Flask:
         return redirect(url_for("reports_page"))
 
     # ---- jobs ----------------------------------------------------------------------------
+    # ---- help ---------------------------------------------------------------------------
+    @app.route("/help")
+    def help_page():
+        cfg = store.load()
+        ip = cfg["settings"].get("server_ip") or "192.168.1.10"
+        return render_template("help.html", cfg=cfg, server_ip=ip,
+                               account=cfg["settings"].get("pc_account", "Admin"))
+
+    # ---- users and roles ---------------------------------------------------------------
+    @app.route("/users")
+    def users_page():
+        return render_template("users.html", users=users.all_users(), roles=users.ROLES,
+                               me=session.get("user"), min_password=users.MIN_PASSWORD)
+
+    @app.route("/users/add", methods=["POST"])
+    def user_add():
+        f = request.form
+        try:
+            users.create(f.get("username", ""), f.get("password", ""), f.get("role", users.DEFAULT_ROLE))
+            flash(f"Added {f.get('username')} as {users.ROLES[f.get('role')]['label']}.", "ok")
+        except (users.UserError, KeyError) as exc:
+            flash(str(exc) if isinstance(exc, users.UserError) else "Unknown role.", "error")
+        return redirect(url_for("users_page"))
+
+    @app.route("/users/<username>/role", methods=["POST"])
+    def user_role(username):
+        try:
+            users.set_role(username, request.form.get("role", ""))
+            flash(f"{username} is now a {users.ROLES[request.form['role']]['label']}.", "ok")
+        except (users.UserError, KeyError) as exc:
+            flash(str(exc) if isinstance(exc, users.UserError) else "Unknown role.", "error")
+        return redirect(url_for("users_page"))
+
+    @app.route("/users/<username>/password", methods=["POST"])
+    def user_password(username):
+        try:
+            users.set_password(username, request.form.get("password", ""))
+            flash(f"Password for {username} updated.", "ok")
+        except users.UserError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("users_page"))
+
+    @app.route("/users/<username>/disable", methods=["POST"])
+    def user_disable(username):
+        if username.lower() == (session.get("user") or "").lower():
+            flash("You cannot disable your own account.", "error")
+            return redirect(url_for("users_page"))
+        try:
+            disable = request.form.get("disabled") == "on"
+            users.set_disabled(username, disable)
+            flash(f"{username} {'disabled' if disable else 'enabled'}.", "ok")
+        except users.UserError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("users_page"))
+
+    @app.route("/users/<username>/delete", methods=["POST"])
+    def user_delete(username):
+        if username.lower() == (session.get("user") or "").lower():
+            flash("You cannot remove your own account.", "error")
+            return redirect(url_for("users_page"))
+        try:
+            users.delete(username)
+            flash(f"Removed {username}.", "ok")
+        except users.UserError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("users_page"))
+
     # ---- release notes -----------------------------------------------------------------
     @app.route("/release-notes")
     def release_notes():
@@ -823,17 +939,19 @@ def create_app(start_background: bool = True) -> Flask:
         return back("settings_page")
 
     @app.route("/settings/password", methods=["POST"])
-    def settings_password():
-        admin = vault.admin_record()
-        if not check_password_hash(admin["password_hash"], request.form.get("current", "")):
+    def own_password():
+        """Any signed-in user can change their own password."""
+        me = session.get("user", "")
+        if not users.authenticate(me, request.form.get("current", "")):
             flash("Current password is wrong.", "error")
-        elif len(request.form.get("new", "")) < 10:
-            flash("New password must be at least 10 characters.", "error")
         elif request.form.get("new") != request.form.get("confirm"):
             flash("New passwords do not match.", "error")
         else:
-            vault.set_admin(admin["username"], generate_password_hash(request.form["new"]))
-            flash("Password changed.", "ok")
+            try:
+                users.set_password(me, request.form.get("new", ""))
+                flash("Password changed.", "ok")
+            except users.UserError as exc:
+                flash(str(exc), "error")
         return redirect(url_for("settings_page"))
 
     @app.route("/settings/backup")

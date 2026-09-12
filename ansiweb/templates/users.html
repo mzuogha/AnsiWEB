@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="head"><h1>Users and roles</h1></div>
+
+<p class="muted">Give people the least they need. A role can be changed at any time, and takes effect on that
+person's next click. AnsiWEB always keeps at least one administrator, so the last one cannot be demoted,
+disabled or removed.</p>
+
+<table class="list">
+  <tr><th>User</th><th>Role</th><th>Added</th><th>Status</th><th>Reset password</th><th></th></tr>
+  {% for u in users %}
+  <tr class="{{ 'dim' if u.disabled }}">
+    <td><b>{{ u.username }}</b>{% if u.username == me %} <span class="pill">you</span>{% endif %}</td>
+    <td>
+      <form method="post" action="{{ url_for('user_role', username=u.username) }}" class="inline row tight">{{ csrf() }}
+        <select name="role">
+          {% for key, role in roles.items() %}<option value="{{ key }}" {{ 'selected' if key == u.role }}>{{ role.label }}</option>{% endfor %}
+        </select>
+        <button class="btn small">Change</button>
+      </form>
+    </td>
+    <td class="small">{{ u.created }}</td>
+    <td>{% if u.disabled %}<span class="pill failed">disabled</span>{% else %}<span class="pill success">active</span>{% endif %}</td>
+    <td>
+      <form method="post" action="{{ url_for('user_password', username=u.username) }}" class="inline row tight">{{ csrf() }}
+        <input type="password" name="password" placeholder="new password" autocomplete="new-password">
+        <button class="btn small">Set</button>
+      </form>
+    </td>
+    <td class="nowrap">
+      {% if u.username != me %}
+      <form method="post" action="{{ url_for('user_disable', username=u.username) }}" class="inline">{{ csrf() }}
+        <input type="hidden" name="disabled" value="{{ '' if u.disabled else 'on' }}">
+        <button class="btn small">{{ 'Enable' if u.disabled else 'Disable' }}</button></form>
+      <form method="post" action="{{ url_for('user_delete', username=u.username) }}" class="inline"
+            data-confirm="Remove {{ u.username }}?">{{ csrf() }}
+        <button class="btn small danger">Remove</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<section class="panel">
+  <h2>Add a user</h2>
+  <form method="post" action="{{ url_for('user_add') }}" class="row">{{ csrf() }}
+    <label>User name<input name="username" required pattern="[A-Za-z0-9._@-]{2,32}"></label>
+    <label>Password<input type="password" name="password" required autocomplete="new-password">
+      <small>At least {{ min_password }} characters.</small></label>
+    <label>Role<select name="role">
+      {% for key, role in roles.items() %}<option value="{{ key }}" {{ 'selected' if key == 'helpdesk' }}>{{ role.label }}</option>{% endfor %}
+    </select></label>
+    <div><button class="btn primary">Add user</button></div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>What each role can do</h2>
+  <table>
+    <tr><th>Role</th><th>Can</th></tr>
+    {% for key, role in roles.items() %}
+    <tr><td><b>{{ role.label }}</b></td><td>{{ role.description }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="muted small">Anyone who can manage apps, drivers, scripts or registry files can cause code to run on
+  every PC they target, so treat Operator as a trusted role. Helpdesk and Viewer cannot change what gets deployed.</p>
+</section>
+{% endblock %}

@@ -4,6 +4,12 @@
 {% block content %}
 <div class="head"><h1>Settings</h1></div>
 
+{% if not can(perms.admin) %}
+<div class="flash">You are signed in as {{ role_label }}. Settings are shown read-only; only your own password can
+  be changed here.</div>
+{% endif %}
+
+{% if can(perms.admin) %}
 <form method="post" class="panel form">{{ csrf() }}
   <h2>Server</h2>
   <div class="row">
@@ -211,8 +217,10 @@
   </form>
 </section>
 
-<form method="post" action="{{ url_for('settings_password') }}" class="panel form">{{ csrf() }}
-  <h2>Change web password</h2>
+{% endif %}
+
+<form method="post" action="{{ url_for('own_password') }}" class="panel form">{{ csrf() }}
+  <h2>Change my password</h2>
   <div class="row">
     <label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
     <label>New password (10+ characters)<input type="password" name="new" required autocomplete="new-password"></label>

@@ -5,6 +5,26 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.4.0 - 2026-09-12
+
+Roles, so you can give people the access they need without handing out full administrator rights, and a Help page with the deployment commands.
+
+
+### New
+
+- Four roles - Administrator, Operator, Helpdesk and Viewer. Operators manage what gets deployed and run jobs; Helpdesk can run deployments and read reports; Viewers are read-only.
+- A Users page for adding accounts, changing roles, resetting passwords and disabling or removing people. AnsiWEB always keeps one administrator.
+- Everyone can change their own password, whatever their role.
+- A Help page with copyable commands for deploying on Ubuntu Server and under WSL, preparing a PC, backups and common problems.
+
+
+### Changed
+
+- Buttons and forms people cannot use are hidden rather than failing when pressed, and Settings is read-only for non-administrators.
+- A role change or a disabled account takes effect on the next click, even for a session that is already open.
+- The command line gained add-user and list-users, and set-password now creates the first administrator or resets anyone's password.
+
+
 ## 1.3.0 - 2026-09-12
 
 Windows updates, activation, clock settings and an idle timeout for the web session. Everything here is optional and off until you turn it on.

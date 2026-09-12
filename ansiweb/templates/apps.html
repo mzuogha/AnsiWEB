@@ -5,8 +5,8 @@
 <div class="head">
   <h1>Apps &amp; cache</h1>
   <div class="actions">
-    {{ job_button('cache_update', 'Check for updates now') }}
-    <a class="btn primary" href="{{ url_for('app_new') }}">Add app</a>
+    {% if can(perms.content) %}{{ job_button('cache_update', 'Check for updates now') }}
+    <a class="btn primary" href="{{ url_for('app_new') }}">Add app</a>{% endif %}
   </div>
 </div>
 <p class="muted">Every enabled app is downloaded once to this server and installed on PCs from here, so PCs need no
@@ -26,6 +26,7 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
     <td class="small">{% for t in a.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
     <td>{{ state_pill(r.state) }}{% if r.entry.error %}<div class="err small">{{ r.entry.error }}</div>{% endif %}</td>
     <td class="nowrap">
+      {% if can(perms.content) %}
       {% if a.source != 'upload' %}
       <form method="post" action="{{ url_for('app_refresh', app_id=a.id) }}" class="inline">{{ csrf() }}
         <button class="btn small" title="Download again now">Re-download</button></form>
@@ -33,11 +34,13 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
       <form method="post" action="{{ url_for('app_delete', app_id=a.id) }}" class="inline"
             data-confirm="Remove {{ a.name }} from the standard apps? It stays installed on the PCs.">{{ csrf() }}
         <button class="btn small danger" title="Remove from the standard apps">Remove</button></form>
+      {% endif %}
     </td>
   </tr>
   {% endfor %}
 </table>
 
+{% if can(perms.content) %}
 <section class="panel">
   <h2>Add an offline app by uploading its installer</h2>
   <p class="muted small">For software that isn't in the winget catalogue, or that you must keep at a fixed version.
@@ -62,4 +65,5 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
     <div class="formactions"><button class="btn primary">Upload and add</button></div>
   </form>
 </section>
+{% endif %}
 {% endblock %}

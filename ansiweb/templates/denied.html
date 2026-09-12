@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not allowed{% endblock %}
+{% block content %}
+<div class="head"><h1>Not allowed</h1></div>
+<div class="panel">
+  <p>Your account is a <b>{{ role.label }}</b>, which cannot do this.</p>
+  <p class="muted">{{ role.description }}</p>
+  <p>If you need it, ask an administrator to change your role.</p>
+  <p><a class="btn" href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
+</div>
+{% endblock %}

@@ -45,6 +45,8 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Pages: Dashboard, Apps & cache, PCs (including CSV import), Drivers, Scripts, Registry, Reports, Jobs, Settings.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Roles.** Four levels of access, so you can let someone run deployments or manage apps without giving them administrator rights.
+- **Built-in help.** A Help page with the deployment commands for Ubuntu Server and WSL.
 - **Release notes.** The web interface shows what changed in each version, and says so on the dashboard after an upgrade.
 - **Session timeout.** The web session signs itself out after a period of inactivity, set in Settings.
 - **Backup and restore.** One click to download your configuration, secrets and uploaded files; restore them into a fresh install from the same page.
@@ -115,6 +117,35 @@ Each of these has its own page and works the same way: upload the file once, cho
 - **Every deployment** — runs each time, for anything that enforces a setting.
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
+
+## Roles
+
+AnsiWEB has four roles, so you can hand out what someone actually needs. Manage them on the **Users** page.
+
+| Role | Can do |
+|---|---|
+| **Administrator** | Everything: settings, stored secrets, backup and restore, and managing accounts. |
+| **Operator** | Manage apps, drivers, scripts, registry files and PCs, and run any job. No settings, secrets or accounts. |
+| **Helpdesk** | Run deployments and connection tests against PCs, and read reports. Cannot change what is deployed. |
+| **Viewer** | Read-only: dashboard, apps, PCs, reports and job logs. |
+
+Everyone can change their own password. Controls a role cannot use are hidden rather than failing when pressed, and a role change or a disabled account takes effect on that person's next click. AnsiWEB always keeps at least one administrator, so the last one cannot be demoted, disabled or removed.
+
+Every route is mapped to a permission, and anything unmapped requires an administrator, so a new feature is never accidentally exposed to a lesser role.
+
+Anyone who can manage apps, drivers, scripts or registry files can cause code to run on the PCs they target, so Operator is a trusted role. Helpdesk and Viewer cannot change what gets deployed.
+
+From the command line:
+
+```bash
+sudo ansiweb list-users
+sudo ansiweb add-user jane operator
+sudo ansiweb set-password jane
+```
+
+## Built-in help
+
+The **Help** page in the web interface has copyable commands for deploying on Ubuntu Server and under WSL, preparing a PC, taking backups, and checking common problems. It fills in your own server address.
 
 ## Windows updates
 

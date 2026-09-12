@@ -5,12 +5,14 @@
 <div class="head">
   <h1>{{ meta.plural }}</h1>
   <div class="actions">
+    {% if can(perms.run) %}
     <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
           data-confirm="Apply all enabled {{ meta.plural|lower }} now?">{{ csrf() }}
       <input type="hidden" name="kind" value="{{ {'drivers':'deploy_drivers','scripts':'deploy_scripts','registry':'deploy_registry'}[kind] }}">
       {{ target_select('target', targets) }}
       <button class="btn primary">Apply now</button>
     </form>
+    {% endif %}
   </div>
 </div>
 <p class="muted">{{ meta.hint }} Files are uploaded here once and fetched by the PCs from this server, so PCs need no
@@ -33,9 +35,11 @@ internet access. Each PC records what it has already applied, so repeat deployme
         {% elif row.present %}<span class="pill st-ok">ready</span>
         {% else %}<span class="pill st-missing">file missing</span>{% endif %}</td>
     <td class="nowrap">
+      {% if can(perms.run) %}
       <form method="post" action="{{ url_for('resource_run', kind=kind, rid=e.id) }}" class="inline">{{ csrf() }}
         <input type="hidden" name="target" value="all">
         <button class="btn small primary" {{ 'disabled' if not row.present or not e.enabled }}>Run now</button></form>
+      {% endif %}
     </td>
   </tr>
   {% else %}
@@ -43,6 +47,7 @@ internet access. Each PC records what it has already applied, so repeat deployme
   {% endfor %}
 </table>
 
+{% if can(perms.content) %}
 <section class="panel">
   <h2>Upload a new {{ meta.label|lower }}</h2>
   <form method="post" action="{{ url_for('resource_add', kind=kind) }}" enctype="multipart/form-data" class="form">{{ csrf() }}
@@ -72,4 +77,5 @@ internet access. Each PC records what it has already applied, so repeat deployme
     <div class="formactions"><button class="btn primary">Upload</button></div>
   </form>
 </section>
+{% endif %}
 {% endblock %}

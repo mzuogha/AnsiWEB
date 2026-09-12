@@ -24,10 +24,15 @@
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>
     <a href="{{ url_for('settings_page') }}" class="{{ 'active' if ep.startswith('settings') }}">Settings</a>
+    {% if can(perms.admin) %}
+    <a href="{{ url_for('users_page') }}" class="{{ 'active' if ep.startswith('user') }}">Users</a>
+    {% endif %}
+    <a href="{{ url_for('help_page') }}" class="{{ 'active' if ep == 'help_page' }}">Help</a>
   </nav>
   <form method="post" action="{{ url_for('logout') }}" class="logout">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="link">Sign out {{ session.user }}</button>
+    {% if role_label %}<div class="rolebadge">{{ role_label }}</div>{% endif %}
   </form>
   <div class="ver"><a href="{{ url_for('release_notes') }}">v{{ version }} - what's new</a></div>
 </aside>

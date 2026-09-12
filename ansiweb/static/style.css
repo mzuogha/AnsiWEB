@@ -83,3 +83,7 @@ input.short, select.short { width: 90px; }
 .panel ul { margin: 6px 0 12px; padding-left: 22px; }
 .panel ul li { margin-bottom: 4px; }
 .panel h2 .pill { vertical-align: middle; margin-left: 6px; }
+
+pre.cmd { background: #0d1117; color: #d1d9e0; padding: 12px 14px; border-radius: 8px; overflow-x: auto;
+          font: 12px/1.6 ui-monospace, Consolas, monospace; white-space: pre; margin: 6px 0 14px; }
+.sidebar .rolebadge { color: #64748b; font-size: 11px; padding: 2px 10px 6px; }

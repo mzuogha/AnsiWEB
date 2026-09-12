@@ -4,6 +4,28 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.4.0"
+  date: "2026-09-12"
+  summary: >-
+    Roles, so you can give people the access they need without handing out full
+    administrator rights, and a Help page with the deployment commands.
+  added:
+    - "Four roles - Administrator, Operator, Helpdesk and Viewer. Operators
+       manage what gets deployed and run jobs; Helpdesk can run deployments and
+       read reports; Viewers are read-only."
+    - A Users page for adding accounts, changing roles, resetting passwords and
+      disabling or removing people. AnsiWEB always keeps one administrator.
+    - Everyone can change their own password, whatever their role.
+    - A Help page with copyable commands for deploying on Ubuntu Server and
+      under WSL, preparing a PC, backups and common problems.
+  changed:
+    - Buttons and forms people cannot use are hidden rather than failing when
+      pressed, and Settings is read-only for non-administrators.
+    - A role change or a disabled account takes effect on the next click, even
+      for a session that is already open.
+    - The command line gained add-user and list-users, and set-password now
+      creates the first administrator or resets anyone's password.
+
 - version: "1.3.0"
   date: "2026-09-12"
   summary: >-

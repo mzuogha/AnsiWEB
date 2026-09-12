@@ -28,7 +28,8 @@ VAULT_FILE = GROUP_VARS_WINDOWS / "vault.yml"
 
 VAULT_PASS_FILE = DATA_DIR / ".vault_pass"
 APP_SECRETS_FILE = DATA_DIR / "app_secrets.vault"
-ADMIN_FILE = DATA_DIR / "admin.json"
+ADMIN_FILE = DATA_DIR / "admin.json"      # single-admin file from before roles existed
+USERS_FILE = DATA_DIR / "users.json"
 FLASK_SECRET_FILE = DATA_DIR / ".flask_secret"
 
 

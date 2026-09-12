@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Help{% endblock %}
+{% block content %}
+<div class="head"><h1>Help</h1></div>
+
+<p class="muted">Commands for deploying and running AnsiWEB. Where an address appears it is filled in with this
+server's settings{% if not cfg.settings.server_ip %} (set the server IP in Settings for accurate commands){% endif %}.
+The full guide is in <code>docs/INSTALL.md</code> in the repository.</p>
+
+<section class="panel">
+  <h2>Deploy on Ubuntu Server (standalone)</h2>
+  <p class="muted small">Ubuntu Server 22.04 or 24.04, 2 vCPU, 4 GB RAM, about 10 GB free for the cache, on a fixed
+  IP address.</p>
+  <h3>Install</h3>
+  <pre class="cmd">sudo apt update &amp;&amp; sudo apt install -y git
+git clone https://github.com/mzuogha/AnsiWEB.git
+cd AnsiWEB
+sudo ./install.sh</pre>
+  <p class="muted small">The installer asks for the first administrator password, then prints the address to open.</p>
+
+  <h3>Give the server a fixed IP (if it is not reserved in DHCP)</h3>
+  <pre class="cmd">ip -brief address
+sudo nano /etc/netplan/50-cloud-init.yaml
+sudo netplan try        # reverts by itself if it breaks your connection
+sudo netplan apply</pre>
+
+  <h3>Firewall</h3>
+  <pre class="cmd">sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp     # installer cache, used by the PCs
+sudo ufw allow 443/tcp    # this web interface
+sudo ufw enable</pre>
+
+  <h3>Day to day</h3>
+  <pre class="cmd">sudo systemctl status ansiweb          # is it running
+sudo systemctl restart ansiweb         # restart it
+sudo journalctl -u ansiweb -f          # follow the log
+
+sudo ansiweb plan                      # rebuild inventory and deployment plan
+sudo ansiweb update-cache               # check vendors, refresh the cache
+sudo ansiweb deploy all                 # deploy everything, everywhere
+sudo ansiweb deploy site:HQ             # one site
+sudo ansiweb deploy pc:PC-HQ-001        # one PC
+sudo ansiweb list-users                 # who can sign in
+sudo ansiweb add-user jane operator     # add a user with a lesser role
+sudo ansiweb set-password jane          # reset a password</pre>
+
+  <h3>Upgrade</h3>
+  <pre class="cmd">cd ~/AnsiWEB
+git pull
+sudo ./install.sh</pre>
+  <p class="muted small">Your configuration, secrets and cache in <code>/var/lib/ansiweb</code> are kept. See the
+  <a href="{{ url_for('release_notes') }}">release notes</a> afterwards.</p>
+</section>
+
+<section class="panel">
+  <h2>Deploy on WSL (Ubuntu on a Windows PC)</h2>
+  <p class="muted small">Fine for trying AnsiWEB out or for a small site. Two extra things are needed: systemd
+  inside WSL, and port forwarding from Windows so your PCs can reach the server. Use a Windows machine that stays
+  on, and not one that AnsiWEB itself manages.</p>
+
+  <h3>1. Install WSL and Ubuntu (Administrator PowerShell on the Windows host)</h3>
+  <pre class="cmd">wsl --install -d Ubuntu-24.04
+wsl --update
+wsl --version</pre>
+
+  <h3>2. Turn on systemd (inside Ubuntu)</h3>
+  <pre class="cmd">printf '[boot]\nsystemd=true\n' | sudo tee -a /etc/wsl.conf</pre>
+  <p class="muted small">Then, in PowerShell: <code>wsl --shutdown</code>. Reopen Ubuntu and check with
+  <code>systemctl is-system-running</code> — "running" or "degraded" are both fine.</p>
+
+  <h3>3. Install AnsiWEB (inside Ubuntu)</h3>
+  <pre class="cmd">sudo apt update &amp;&amp; sudo apt install -y git
+git clone https://github.com/mzuogha/AnsiWEB.git
+cd AnsiWEB
+sudo ./install.sh
+hostname -I | awk '{print $1}'      # note this WSL address</pre>
+
+  <h3>4. Forward ports 80 and 443 from Windows (Administrator PowerShell)</h3>
+  <pre class="cmd">$ip = (wsl hostname -I).Trim().Split(' ')[0]
+netsh interface portproxy add v4tov4 listenport=80  listenaddress=0.0.0.0 connectport=80  connectaddress=$ip
+netsh interface portproxy add v4tov4 listenport=443 listenaddress=0.0.0.0 connectport=443 connectaddress=$ip
+New-NetFirewallRule -DisplayName "AnsiWEB" -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow
+ipconfig | findstr /i "IPv4"         # the address your PCs should use</pre>
+  <p class="muted small">Port 80 serves the installer cache to the PCs; 443 is this interface. In
+  <b>Settings</b>, the server IP must be the <b>Windows</b> machine's LAN address, not the WSL one.</p>
+
+  <h3>5. Keep it working after a reboot</h3>
+  <p class="muted small">WSL's address changes when it restarts, which breaks the forwarding. Save this as
+  <code>C:\Scripts\ansiweb-wsl.ps1</code>:</p>
+  <pre class="cmd">wsl -d Ubuntu-24.04 -u root -e /bin/true
+Start-Sleep -Seconds 15
+$ip = (wsl -d Ubuntu-24.04 hostname -I).Trim().Split(' ')[0]
+foreach ($port in 80, 443) {
+    netsh interface portproxy delete v4tov4 listenport=$port listenaddress=0.0.0.0 2>$null
+    netsh interface portproxy add    v4tov4 listenport=$port listenaddress=0.0.0.0 `
+          connectport=$port connectaddress=$ip
+}</pre>
+  <p class="muted small">Then register it to run at startup as SYSTEM:</p>
+  <pre class="cmd">$action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
+           -Argument '-NoProfile -ExecutionPolicy Bypass -File C:\Scripts\ansiweb-wsl.ps1'
+$trigger = New-ScheduledTaskTrigger -AtStartup
+Register-ScheduledTask -TaskName 'AnsiWEB WSL' -Action $action -Trigger $trigger `
+    -User 'SYSTEM' -RunLevel Highest</pre>
+</section>
+
+<section class="panel">
+  <h2>Preparing a PC</h2>
+  <p class="muted small">Once per PC, before AnsiWEB can reach it. Download the script from the
+  <a href="{{ url_for('pcs_page') }}">PCs</a> page — it already has this server's address and the
+  <code>{{ account }}</code> account name in it.</p>
+  <pre class="cmd">powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1</pre>
+  <p class="muted small">Run it in an <b>Administrator</b> PowerShell on the PC and enter the same account password
+  used in AnsiWEB. It creates the local administrator account, enables WinRM over HTTPS and opens port 5986 to this
+  server only. Useful checks on the PC:</p>
+  <pre class="cmd">winrm enumerate winrm/config/listener
+Test-WSMan -ComputerName localhost -UseSSL
+tzutil /l                          # valid time zone IDs</pre>
+</section>
+
+<section class="panel">
+  <h2>Backup and restore</h2>
+  <pre class="cmd"># easiest: Settings -> Download backup
+
+# or from the command line, including the app cache:
+sudo systemctl stop ansiweb
+sudo tar czf ~/ansiweb-backup-$(date +%F).tar.gz -C /var/lib ansiweb
+sudo systemctl start ansiweb</pre>
+  <p class="muted small">The archive holds the key to your stored passwords, so keep it somewhere safe.</p>
+</section>
+
+<section class="panel">
+  <h2>When something is wrong</h2>
+  <table>
+    <tr><th>Symptom</th><th>What to check</th></tr>
+    <tr><td>Web page does not load</td>
+      <td><code>systemctl status ansiweb nginx</code>, then <code>curl -skI https://localhost/login</code> on the
+        server. If that works but other machines cannot reach it, it is a firewall or, on WSL, the port forwarding.</td></tr>
+    <tr><td>Certificate warning in the browser</td>
+      <td>Expected: it is self-signed. Compare fingerprints with
+        <code>sudo openssl x509 -in /etc/ssl/ansiweb/server.crt -noout -fingerprint -sha256</code>.</td></tr>
+    <tr><td>A PC shows as unreachable</td>
+      <td>The prep script has not been run there, the IP is wrong, or the script had the wrong server address.</td></tr>
+    <tr><td>Credentials rejected</td>
+      <td>The account password in AnsiWEB differs from the one used on that PC. Re-run the prep script there.</td></tr>
+    <tr><td>A PC cannot download installers</td>
+      <td>On the PC, <code>curl http://{{ server_ip }}/software/apps/</code> should answer 403. A timeout means a
+        routing or firewall problem.</td></tr>
+    <tr><td>Signed out while working</td>
+      <td>The idle timeout in Settings has elapsed. Watching a job log does not count as activity.</td></tr>
+  </table>
+</section>
+{% endblock %}

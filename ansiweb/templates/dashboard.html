@@ -5,8 +5,8 @@
 <div class="head">
   <h1>Dashboard</h1>
   <div class="actions">
-    {{ job_button('cache_update', 'Check for updates now') }}
-    {{ job_button('deploy', 'Deploy to all PCs', 'all', 'btn primary', 'Apply everything (apps, drivers, scripts, registry) to every PC now?') }}
+    {% if can(perms.content) %}{{ job_button('cache_update', 'Check for updates now') }}{% endif %}
+    {% if can(perms.run) %}{{ job_button('deploy', 'Deploy to all PCs', 'all', 'btn primary', 'Apply everything (apps, drivers, scripts, registry) to every PC now?') }}{% endif %}
   </div>
 </div>
 

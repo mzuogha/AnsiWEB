@@ -13,10 +13,11 @@ os.environ["ANSIWEB_HTTPS"] = "0"          # test client speaks plain HTTP
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from werkzeug.security import generate_password_hash            # noqa: E402
-from ansiweb import __version__, backup, cache, jobs, payloads, release, store, vault, web  # noqa: E402
+from ansiweb import (__version__, backup, cache, jobs, payloads, release, store, users,  # noqa: E402
+                     vault, web)
 
 PW = "correct-horse-1"
-vault.set_admin("admin", generate_password_hash(PW))
+vault.set_admin("admin", generate_password_hash(PW))   # the pre-roles single admin
 app = web.create_app(start_background=False)
 c = app.test_client()
 checks = 0
@@ -44,7 +45,8 @@ def zip_bytes(names):
 # ---------------------------------------------------------------- login / CSRF
 ok(c.get("/").status_code == 302, "anonymous request is redirected")
 tok = csrf(c.get("/login").text)
-ok("Wrong username" in c.post("/login", data={"username": "admin", "password": "no", "csrf": tok}).text,
+ok("Wrong user name or password" in c.post("/login", data={"username": "admin", "password": "no",
+                                                           "csrf": tok}).text,
    "wrong password is rejected")
 r = c.post("/login", data={"username": "admin", "password": PW, "csrf": tok}, follow_redirects=True)
 ok("Dashboard" in r.text, "login works")
@@ -482,8 +484,150 @@ ok("no AnsiWEB data" in c.post("/settings/restore", data={"csrf": tok, "confirm"
    "path traversal in an archive is refused")
 ok(not os.path.exists("/etc/evil"), "nothing escaped the data folder")
 
+# ---------------------------------------------------------------- roles and permissions
+ok([u["username"] for u in users.all_users()] == ["admin"], "the old single admin was migrated")
+ok(users.get("admin")["role"] == "admin", "the migrated account is an administrator")
+r = c.get("/users")
+ok(r.status_code == 200 and "Administrator" in r.text, "an admin can open the users page")
+for name, role, pw in [("olivia", "operator", "operator-pass-1"),
+                       ("hank", "helpdesk", "helpdesk-pass-1"),
+                       ("vicky", "viewer", "viewer-pass-111")]:
+    r = c.post("/users/add", data={"csrf": tok, "username": name, "password": pw, "role": role},
+               follow_redirects=True)
+    ok(f"Added {name}" in r.text, f"added a {role}")
+ok("at least 10 characters" in c.post("/users/add", data={"csrf": tok, "username": "shorty",
+                                                          "password": "abc", "role": "viewer"},
+                                      follow_redirects=True).text, "a short password is refused")
+ok("already exists" in c.post("/users/add", data={"csrf": tok, "username": "olivia",
+                                                  "password": "another-pass-1", "role": "viewer"},
+                              follow_redirects=True).text, "duplicate user names are refused")
+ok("Unknown role" in c.post("/users/add", data={"csrf": tok, "username": "ghost",
+                                                "password": "ghost-pass-11", "role": "superuser"},
+                            follow_redirects=True).text, "an invented role is refused")
+
+# a throwaway app for the "may change what is deployed" probe
+c.post("/apps/new", data={"csrf": tok, "id": "rbac-probe", "name": "RBAC probe", "enabled": "on",
+                          "source": "url", "url": "https://example.invalid/probe.msi", "version": "1.0",
+                          "detect_pattern": "^RBAC probe", "targets": ["all"]}, follow_redirects=True)
+ok(any(a["id"] == "rbac-probe" for a in store.load()["apps"]), "probe app created for the matrix")
+
+# the permission matrix, exercised with real sessions
+MATRIX = {
+    "admin":    {"view": True,  "run": True,  "content": True,  "pcs": True,  "admin": True},
+    "operator": {"view": True,  "run": True,  "content": True,  "pcs": True,  "admin": False},
+    "helpdesk": {"view": True,  "run": True,  "content": False, "pcs": False, "admin": False},
+    "viewer":   {"view": True,  "run": False, "content": False, "pcs": False, "admin": False},
+}
+PROBES = {
+    "view":    ("get",  "/reports", {}),
+    "run":     ("post", "/jobs/start", {"kind": "ping", "target": "all"}),
+    "content": ("post", "/apps/rbac-probe/delete", {}),   # a throwaway app, not part of the set
+    "pcs":     ("post", "/pcs/add", {"name": "PC-RBAC-1", "ip": "10.9.9.9", "site": "HQ"}),
+    "admin":   ("get",  "/users", {}),
+}
+for role, expected in MATRIX.items():
+    who = {"admin": ("admin", PW), "operator": ("olivia", "operator-pass-1"),
+           "helpdesk": ("hank", "helpdesk-pass-1"), "viewer": ("vicky", "viewer-pass-111")}[role]
+    rc = app.test_client()
+    t = csrf(rc.get("/login").text)
+    r = rc.post("/login", data={"username": who[0], "password": who[1], "csrf": t}, follow_redirects=True)
+    ok("Dashboard" in r.text, f"{role} can sign in")
+    t = csrf(rc.get("/").text)
+    for perm, allowed in expected.items():
+        method, url, data = PROBES[perm]
+        if method == "get":
+            resp = rc.get(url)
+        else:
+            resp = rc.post(url, data={**data, "csrf": t})
+        denied = resp.status_code == 403
+        ok(denied != allowed, f"{role} {'may' if allowed else 'may not'} {perm} ({url})")
+    # everyone can reach help and change their own password
+    ok(rc.get("/help").status_code == 200, f"{role} can open the help page")
+    ok(rc.get("/settings").status_code == 200, f"{role} can open settings")
+    if role != "admin":
+        ok("shown read-only" in rc.get("/settings").text, f"{role} sees settings as read-only")
+        ok("Save activation settings" not in rc.get("/settings").text,
+           f"{role} is not offered the activation form")
+        ok(rc.post("/settings/activation", data={"csrf": t, "mode": "mak"}).status_code == 403,
+           f"{role} cannot post activation settings")
+        ok(rc.get("/settings/backup").status_code == 403, f"{role} cannot download a backup")
+        ok(rc.post("/settings/restore", data={"csrf": t, "confirm": "REPLACE"}).status_code == 403,
+           f"{role} cannot restore a backup")
+        ok(rc.post("/users/add", data={"csrf": t, "username": "sneak", "password": "sneaky-pass-1",
+                                       "role": "admin"}).status_code == 403,
+           f"{role} cannot create an account")
+    # own password change works for any role
+    if role == "viewer":
+        r = rc.post("/settings/password", data={"csrf": t, "current": who[1],
+                                                "new": "viewer-pass-222", "confirm": "viewer-pass-222"},
+                    follow_redirects=True)
+        ok("Password changed" in r.text, "a viewer can change their own password")
+        ok(bool(users.authenticate("vicky", "viewer-pass-222")), "the new password works")
+        users.set_password("vicky", "viewer-pass-111")
+        ok(rc.post("/users/vicky/password", data={"csrf": t, "password": "sneaky-pass-1"}).status_code == 403,
+           "a viewer cannot reset anyone's password")
+
+# an unmapped route falls back to admin-only
+ok("help_page" in web.ENDPOINT_PERMISSIONS, "the help page is mapped")
+ok(web.ENDPOINT_PERMISSIONS.get("settings_updates") is None,
+   "settings routes are deliberately unmapped, so they need an admin")
+
+# role changes and the last-administrator guard
+r = c.post("/users/olivia/role", data={"csrf": tok, "role": "viewer"}, follow_redirects=True)
+ok("olivia is now a Viewer" in r.text, "a role can be changed")
+ok("only administrator left" in c.post("/users/admin/role", data={"csrf": tok, "role": "viewer"},
+                                       follow_redirects=True).text,
+   "the last administrator cannot be demoted")
+ok("cannot remove your own account" in c.post("/users/admin/delete", data={"csrf": tok},
+                                              follow_redirects=True).text,
+   "you cannot remove your own account")
+try:
+    users.delete("admin")
+    ok(False, "the last administrator cannot be removed")
+except users.UserError as exc:
+    ok("only administrator left" in str(exc), "the last administrator cannot be removed")
+ok("cannot disable your own account" in c.post("/users/admin/disable", data={"csrf": tok, "disabled": "on"},
+                                               follow_redirects=True).text,
+   "you cannot disable yourself")
+# a disabled account cannot sign in, and an open session ends
+r = c.post("/users/hank/disable", data={"csrf": tok, "disabled": "on"}, follow_redirects=True)
+ok("hank disabled" in r.text, "an account can be disabled")
+hc = app.test_client()
+t = csrf(hc.get("/login").text)
+ok("or the account is disabled" in hc.post("/login", data={"username": "hank", "password": "helpdesk-pass-1",
+                                                           "csrf": t}).text,
+   "a disabled account cannot sign in")
+# role changes take effect on an existing session
+oc = app.test_client()
+t = csrf(oc.get("/login").text)
+oc.post("/login", data={"username": "olivia", "password": "operator-pass-1", "csrf": t}, follow_redirects=True)
+ok(oc.get("/reports").status_code == 200, "olivia (now viewer) can still read")
+t = csrf(oc.get("/").text)
+ok(oc.post("/jobs/start", data={"csrf": t, "kind": "ping", "target": "all"}).status_code == 403,
+   "a demotion applies to a session that is already open")
+c.post("/users/olivia/delete", data={"csrf": tok}, follow_redirects=True)
+c.post("/users/vicky/delete", data={"csrf": tok}, follow_redirects=True)
+c.post("/users/hank/delete", data={"csrf": tok}, follow_redirects=True)
+ok([u["username"] for u in users.all_users()] == ["admin"], "users can be removed again")
+
+# ---------------------------------------------------------------- help page
+r = c.get("/help")
+ok("Deploy on Ubuntu Server" in r.text and "Deploy on WSL" in r.text,
+   "the help page covers both Ubuntu and WSL")
+for snippet in ["sudo ./install.sh", "git clone https://github.com/mzuogha/AnsiWEB.git",
+                "netsh interface portproxy add", "systemd=true", "Register-ScheduledTask",
+                "sudo ansiweb deploy all", "Prepare-AnsibleHost.ps1", "journalctl -u ansiweb -f"]:
+    ok(snippet in r.text, f"help includes: {snippet}")
+ok("192.168.1.10" in r.text, "help uses the configured server address")
+ok("what each role can do" in c.get("/users").text.lower(), "the users page explains the roles")
+
 # ---------------------------------------------------------------- release notes
+import yaml as _yaml
+_raw = _yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..",
+                                         "ansiweb/defaults/release_notes.yml")).read())
+ok(isinstance(_raw, list) and len(_raw) >= 2, "the release notes file parses as a list of releases")
 notes = release.all_notes()
+ok(len(notes) == len(_raw), "every release in the file is loaded")
 ok(len(notes) >= 2, "release notes are available")
 ok([n["version"] for n in notes] == sorted([n["version"] for n in notes],
                                            key=release.version_key, reverse=True),
@@ -514,7 +658,7 @@ ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/drivers", "/scripts", "/registry", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
-            "/settings", "/release-notes"]:
+            "/settings", "/release-notes", "/help", "/users"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")
