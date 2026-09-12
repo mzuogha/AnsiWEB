@@ -15,6 +15,15 @@
   <a href="{{ url_for('release_notes') }}">See what changed</a>.</div>
 {% endif %}
 
+{% if stale.needs_attention %}
+<div class="flash warn">
+  {% if stale.stale %}{{ stale.stale }} PC(s) have not reported for {{ stale_days }} days or more{% if stale.stale_names %}:
+    {{ stale.stale_names[:6] | join(', ') }}{% if stale.stale|int > 6 %} and {{ stale.stale - 6 }} more{% endif %}{% endif %}.{% endif %}
+  {% if stale.never %} {{ stale.never }} PC(s) have never reported.{% endif %}
+  <a href="{{ url_for('reports_page', only='stale') }}">See which</a>.
+</div>
+{% endif %}
+
 {% for text, ep in warnings %}
 <div class="flash warn"><a href="{{ url_for(ep) }}">{{ text }}</a></div>
 {% endfor %}
@@ -24,6 +33,8 @@
   <div class="card"><div class="num">{{ stats.cached }}/{{ stats.apps }}</div><div class="lbl">apps cached and ready</div></div>
   <div class="card {{ 'bad' if stats.problems }}"><div class="num">{{ stats.problems }}</div><div class="lbl">cache problems</div></div>
   <div class="card"><div class="num">{{ stats.payloads }}</div><div class="lbl">drivers, scripts &amp; registry files</div></div>
+  <div class="card {{ 'warnc' if stats.stale }}"><div class="num">{{ stats.stale }}</div>
+    <div class="lbl">PCs not reporting<br><span class="muted small">nothing for {{ stale_days }}+ days, or never</span></div></div>
   <div class="card {{ 'warnc' if stats.pcs_needing }}"><div class="num">{{ stats.pcs_needing }}</div><div class="lbl">PCs missing apps or updates<br><span class="muted small">of {{ stats.pcs_reported }} that have reported</span></div></div>
 </div>
 

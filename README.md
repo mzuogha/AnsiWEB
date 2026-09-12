@@ -45,6 +45,9 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Pages: Dashboard, Apps & cache, PCs (including CSV import), Drivers, Scripts, Registry, Reports, Jobs, Settings.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Uninstall from PCs.** Remove an app from the PCs it was installed on, with a preview first and a typed confirmation before anything goes.
+- **Audit log.** Every change through the web interface, with the account that made it.
+- **Stale PC detection.** PCs that stop reporting are counted and flagged rather than quietly disappearing.
 - **Roles.** Four levels of access, so you can let someone run deployments or manage apps without giving them administrator rights.
 - **Built-in help.** A Help page with the deployment commands for Ubuntu Server and WSL.
 - **Release notes.** The web interface shows what changed in each version, and says so on the dashboard after an upgrade.
@@ -117,6 +120,33 @@ Each of these has its own page and works the same way: upload the file once, cho
 - **Every deployment** — runs each time, for anything that enforces a setting.
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
+
+## Uninstalling apps from the PCs
+
+Removing an app from the standard set stops AnsiWEB installing it, but leaves it on the PCs. The **Uninstall** page removes it from them.
+
+An entry is a name, a pattern matching the program's name in Windows "Installed apps", and which PCs it applies to. AnsiWEB finds the program and runs its own uninstaller silently — the MSI product code where there is one, otherwise the vendor's quiet uninstall command. A program with no silent uninstaller is reported and left alone, rather than left sitting on a prompt nobody can see.
+
+Two deliberate safeguards, since this is the one destructive thing AnsiWEB does:
+
+- **A normal deployment never uninstalls anything.** It only reports what would go. Removal happens only when you run the uninstall job.
+- **Running it needs REMOVE typed in**, and **Preview** shows the exact command per PC beforehand, changing nothing.
+
+A pattern that would match every installed program is refused. When you remove an app from the standard set you can tick a box to queue it for removal at the same time, which copies the app's own detection pattern.
+
+## Audit log
+
+Admins get an **Audit log** page recording every change made through the web interface: what was done, by which account and role, what was submitted, and whether it was refused. Sign-ins, failed sign-ins and backup downloads are included. It filters by user, action and period, and exports to CSV.
+
+Passwords, product keys and stored secrets are never written to it — those fields are recorded as hidden. Entries are kept for the same number of days as job logs.
+
+Every state-changing request is logged automatically rather than route by route, so a new feature is covered without anyone remembering to add a call.
+
+## Stale PC detection
+
+A PC writes a report at the end of every deployment. If one stops reporting it is switched off, off the network, or gone — and previously it simply vanished from the reports quietly.
+
+Now the dashboard counts PCs that have not reported within **Treat a PC as not reporting after** days (14 by default, set in Settings) plus any that never have, and links straight to them. The Reports page shows each PC's freshness, filters to just the problem ones, and the CSV export carries both the state and the days since the last report.
 
 ## Roles
 

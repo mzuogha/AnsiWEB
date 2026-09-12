@@ -19,6 +19,9 @@
     <label>PCs per batch<input name="batch_size" type="number" min="1" max="500" value="{{ cfg.settings.batch_size }}"></label>
     <label>Keep job logs for (days)<input name="log_retention_days" type="number" min="1" max="3650"
       value="{{ cfg.settings.log_retention_days }}"></label>
+    <label>Treat a PC as not reporting after (days)<input name="stale_after_days" type="number" min="1" max="365"
+      value="{{ cfg.settings.stale_after_days }}">
+      <small>PCs that have not reported for this long are flagged on the dashboard and Reports page.</small></label>
     <label>Sign out after inactivity (minutes)<input name="session_timeout_minutes" type="number" min="5" max="1440"
       value="{{ cfg.settings.session_timeout_minutes }}">
       <small>Applies to this web interface, between 5 minutes and 24 hours. Running jobs carry on regardless.</small></label>

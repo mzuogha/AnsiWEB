@@ -104,6 +104,11 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    uninstalls = [{
+        "id": e["id"], "name": e["name"], "detect_pattern": e["detect_pattern"],
+        "targets": e.get("targets") or ["all"],
+    } for e in cfg.get("uninstalls", []) if e.get("enabled", True)]
+
     upd = cfg.get("updates") or {}
     updates = {
         "enabled": bool(upd.get("enabled")),
@@ -143,6 +148,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry["activate"] = activation["enabled"] and pc_matches(pc, activation["targets"])
         entry["set_time"] = clock["enabled"] and pc_matches(pc, clock["targets"])
         entry["update"] = updates["enabled"] and pc_matches(pc, updates["targets"])
+        entry["uninstalls"] = [u["id"] for u in uninstalls if pc_matches(pc, u["targets"])]
         hosts[pc["name"]] = entry
 
     return {
@@ -153,6 +159,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
+        "uninstalls": uninstalls,
         "time": clock,
         "updates": updates,
         "activation": activation,

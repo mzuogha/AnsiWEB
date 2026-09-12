@@ -6,6 +6,13 @@
   <h1>Reports</h1>
   <div class="actions"><a class="btn" href="{{ url_for('reports_export') }}">Download CSV</a></div>
 </div>
+{% if stale.needs_attention %}
+<div class="flash warn">{{ stale.stale }} PC(s) have not reported for {{ stale_days }}+ days and
+  {{ stale.never }} never have.
+  {% if only == 'stale' %}<a href="{{ url_for('reports_page') }}">Show all PCs</a>.
+  {% else %}<a href="{{ url_for('reports_page', only='stale') }}">Show only those</a>.{% endif %}</div>
+{% endif %}
+
 <p class="muted">Each PC writes a report at the end of every deployment. Jobs from the last 30 days:
   {% for status, n in counts['items']() %}{{ status_pill(status) }} {{ n }} {% endfor %}
   {% if not counts %}none yet{% endif %}
@@ -13,11 +20,14 @@
 
 <table class="list">
   <tr><th>PC</th><th>Last report</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
-  {% for row in rows %}
+  {% for row in rows if not only or (only == 'stale' and row.freshness.state != 'ok') %}
   <tr>
     <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a><br>
       <span class="muted small">{{ row.pc.site }}{% if row.pc.groups %} · {{ row.pc.groups|join(', ') }}{% endif %}</span></td>
     <td class="small">{{ row.report.time or '—' }}
+      <br>{% if row.freshness.state == 'ok' %}<span class="pill success">{{ row.freshness.label }}</span>
+      {% elif row.freshness.state == 'stale' %}<span class="pill warning">{{ row.freshness.label }}</span>
+      {% else %}<span class="pill failed">{{ row.freshness.label }}</span>{% endif %}
       {% if row.report.reboot_pending %}<br><span class="pill warning">reboot pending</span>{% endif %}</td>
     <td class="small">
       {% if row.report %}

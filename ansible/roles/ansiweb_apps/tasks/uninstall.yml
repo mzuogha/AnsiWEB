@@ -1,0 +1,26 @@
+---
+- name: "{{ 'Uninstall' if aw_apply else 'Check what would be uninstalled' }}: {{ item_def.name }}"
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'uninstall_app.ps1') }}"
+    parameters:
+      Pattern: "{{ item_def.detect_pattern }}"
+      Apply: "{{ aw_apply | bool }}"
+  register: aw_uninstall
+  async: 3600
+  poll: 15
+
+- name: "Record the result for {{ item_def.name }}"
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "uninstall", "id": item_def.id, "name": item_def.name,
+                                   "status": aw_uninstall.result.state ~ " (" ~ aw_uninstall.result.matched
+                                             ~ " matched, " ~ aw_uninstall.result.removed ~ " removed)",
+                                   "detail": aw_uninstall.result.detail | truncate(600, true)}] }}'
+
+- name: "Note that removing {{ item_def.name }} needs a reboot"
+  ansible.builtin.set_fact:
+    aw_reboot_needed: true
+  when: aw_uninstall.result.reboot | default(false)
+
+- name: "Show what happened to {{ item_def.name }}"
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ item_def.name }} - {{ aw_uninstall.result.detail }}"

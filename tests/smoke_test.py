@@ -13,8 +13,8 @@ os.environ["ANSIWEB_HTTPS"] = "0"          # test client speaks plain HTTP
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from werkzeug.security import generate_password_hash            # noqa: E402
-from ansiweb import (__version__, backup, cache, jobs, payloads, release, store, users,  # noqa: E402
-                     vault, web)
+from ansiweb import (__version__, audit, backup, cache, jobs, payloads, release,  # noqa: E402
+                     report_state, store, users, vault, web)
 
 PW = "correct-horse-1"
 vault.set_admin("admin", generate_password_hash(PW))   # the pre-roles single admin
@@ -484,6 +484,142 @@ ok("no AnsiWEB data" in c.post("/settings/restore", data={"csrf": tok, "confirm"
    "path traversal in an archive is refused")
 ok(not os.path.exists("/etc/evil"), "nothing escaped the data folder")
 
+# ---------------------------------------------------------------- uninstalling apps from PCs
+r = c.get("/uninstalls")
+ok(r.status_code == 200 and "Nothing queued" in r.text, "the uninstall page starts empty")
+r = c.post("/uninstalls/add", data={"csrf": tok, "name": "Old PDF reader",
+                                    "detect_pattern": "^Foxit Reader", "targets": ["site:HQ"],
+                                    "notes": "replaced"}, follow_redirects=True)
+ok("Preview it before removing anything" in r.text, "an uninstall entry is added with a warning")
+u = store.load()["uninstalls"][0]
+ok(u["detect_pattern"] == "^Foxit Reader" and u["enabled"] is True, "entry stored")
+plan_un = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_un["uninstalls"][0]["id"] == u["id"], "the entry reaches the plan")
+ok(plan_un["hosts"]["PC-HQ-001"]["uninstalls"] == [u["id"]], "targeted PCs are listed")
+ok(plan_un["hosts"]["PC-BR1-009"]["uninstalls"] == [], "PCs outside the target are not")
+# a pattern that would match everything is refused
+ok("matches every installed program" in
+   c.post("/uninstalls/add", data={"csrf": tok, "name": "Everything", "detect_pattern": ".*",
+                                   "targets": ["all"]}, follow_redirects=True).text,
+   "a catch-all pattern is refused")
+ok("not a valid regular expression" in
+   c.post("/uninstalls/add", data={"csrf": tok, "name": "Broken", "detect_pattern": "(",
+                                   "targets": ["all"]}, follow_redirects=True).text,
+   "a broken pattern is refused")
+ok("Enter a name" in c.post("/uninstalls/add", data={"csrf": tok, "detect_pattern": "^X",
+                                                     "targets": ["all"]},
+                            follow_redirects=True).text, "a nameless entry is refused")
+# running needs typed confirmation; previewing does not
+r = c.post(f"/uninstalls/{u['id']}/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+ok("Type REMOVE to confirm" in r.text, "uninstalling requires typed confirmation")
+ok(jobs.last_job("uninstall_run") is None, "no uninstall job ran without confirmation")
+r = c.post(f"/uninstalls/{u['id']}/preview", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+ok("Preview an uninstall" in r.text, "previewing starts a preview job")
+ok(jobs.last_job("uninstall_preview") is not None, "the preview job was recorded")
+ok(jobs.DEPLOY_TAGS["uninstall_preview"] == "uninstall"
+   and jobs.DEPLOY_TAGS["uninstall_run"] == "uninstall", "both uninstall jobs use the uninstall tag")
+# disable / enable / delete
+r = c.post(f"/uninstalls/{u['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+ok("disabled" in r.text and store.load()["uninstalls"][0]["enabled"] is False, "an entry can be disabled")
+ok(json.load(open(os.path.join(DATA, "deploy_plan.json")))["uninstalls"] == [],
+   "a disabled entry is left out of the plan")
+c.post(f"/uninstalls/{u['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+# removing an app can queue it for removal from the PCs
+before = len(store.load()["uninstalls"])
+r = c.post("/apps/line-of-business/delete", data={"csrf": tok, "uninstall": "on"}, follow_redirects=True)
+ok("queued for removal from the PCs" in r.text, "removing an app can queue the uninstall")
+queued = store.load()["uninstalls"]
+ok(len(queued) == before + 1 and any(e["name"] == "LOB client" for e in queued),
+   "the queued entry carries the app's name and pattern")
+r = c.post(f"/uninstalls/{queued[-1]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok("stay uninstalled" in r.text, "an entry can be deleted")
+c.post(f"/uninstalls/{u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok(store.load()["uninstalls"] == [], "the uninstall list can be emptied again")
+
+# ---------------------------------------------------------------- stale PCs
+import datetime as _dt
+now = _dt.datetime(2026, 9, 12, 12, 0, 0)
+ok(report_state.classify({"time": "2026-09-12 09:00:00"}, 14, now)["state"] == "ok",
+   "a PC that reported today is current")
+ok(report_state.classify({"time": "2026-08-01 09:00:00"}, 14, now)["state"] == "stale",
+   "a PC silent for six weeks is stale")
+ok(report_state.classify({}, 14, now)["state"] == "never", "a PC with no report is flagged")
+ok(report_state.classify({"time": "not a date"}, 14, now)["state"] == "never",
+   "an unreadable timestamp counts as never")
+ok(report_state.classify({"time": "2026-09-13 09:00:00"}, 14, now)["age_days"] == 0,
+   "a PC whose clock is ahead is not treated as negative-age")
+ok(report_state.classify({"time": "2026-08-29 12:00:00"}, 14, now)["state"] == "stale",
+   "exactly at the threshold counts as stale")
+ok(report_state.classify({"time": "2026-08-30 12:00:00"}, 14, now)["state"] == "ok",
+   "one day inside the threshold is still current")
+summary = report_state.summarise([{"name": "A"}, {"name": "B"}, {"name": "C"}],
+                                 {"A": {"time": "2026-09-12 09:00:00"}, "B": {"time": "2026-06-01 09:00:00"}},
+                                 14, now)
+ok(summary == {"ok": 1, "stale": 1, "never": 1, "stale_names": ["B"], "never_names": ["C"],
+               "needs_attention": 2}, "the dashboard summary counts each state")
+# PC-HQ-001 has a report from the fixture; the others never reported
+r = c.get("/")
+ok("PCs not reporting" in r.text, "the dashboard has a card for PCs that are not reporting")
+ok("never reported" in c.get("/reports").text, "reports flag PCs that never reported")
+r = c.get("/reports?only=stale")
+ok("Show all PCs" in r.text, "reports can be filtered to only those PCs")
+ok("PC-BR1-009" in r.text and "PC-HQ-001" not in r.text.split("Recent jobs")[0],
+   "the filter hides PCs that are reporting")
+csv_stale = c.get("/reports/export.csv").text
+ok("freshness" in csv_stale.splitlines()[0] and "days_since_report" in csv_stale.splitlines()[0],
+   "the CSV export carries freshness")
+r = c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
+                              "log_retention_days": "45", "session_timeout_minutes": "60",
+                              "stale_after_days": "3", "cc_hours": "24", "dep_time": "19:00"},
+           follow_redirects=True)
+ok("Settings saved" in r.text and store.load()["settings"]["stale_after_days"] == 3,
+   "the threshold is configurable")
+ok("between 1 and 365" in c.post("/settings", data={"csrf": tok, "forks": "20", "batch_size": "20",
+                                                    "log_retention_days": "45",
+                                                    "session_timeout_minutes": "60",
+                                                    "stale_after_days": "0", "cc_hours": "24",
+                                                    "dep_time": "19:00"}, follow_redirects=True).text,
+   "a nonsense threshold is refused")
+c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
+                          "log_retention_days": "45", "session_timeout_minutes": "60",
+                          "stale_after_days": "14", "cc_hours": "24", "dep_time": "19:00"},
+       follow_redirects=True)
+
+# ---------------------------------------------------------------- audit log
+entries = audit.entries(limit=1000)
+ok(entries, "the audit log has entries")
+actions = {e["action"] for e in entries}
+ok("uninstall_add" in actions and "settings_page" in actions and "login" in actions,
+   "changes, settings edits and sign-ins are all recorded")
+ok(all(e["user"] for e in entries), "every entry names a user")
+detail_blob = " ".join(e["detail"] for e in entries)
+ok("S3cret!pw" not in detail_blob and "NewPw123456" not in detail_blob
+   and "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE" not in detail_blob and PW not in detail_blob,
+   "no password or product key was ever written to the audit log")
+ok("(hidden)" in detail_blob, "secret fields are recorded as hidden")
+ok(any("Old PDF reader" in e["detail"] for e in entries), "useful detail is kept")
+refused = [e for e in entries if e["outcome"] != "ok"]
+ok(refused, "refused attempts are recorded")
+ok(any(e["action"] == "login" and e["outcome"] != "ok" for e in entries),
+   "a failed sign-in is recorded")
+r = c.get("/audit")
+ok(r.status_code == 200 and "Audit log" in r.text, "the audit page renders")
+ok("Added an app to uninstall" in r.text, "actions are shown in readable words")
+ok("?user=" in r.text or "user" in r.text, "the page offers filters")
+ok(len(audit.entries(limit=1000, action="uninstall_add")) >= 1, "filtering by action works")
+ok(all(e["user"] == "admin" for e in audit.entries(limit=50, user="admin")), "filtering by user works")
+csv_audit = c.get("/audit/export.csv").text
+ok("time,user,role,action" in csv_audit.splitlines()[0], "the audit CSV has a header")
+ok("uninstall_add" in csv_audit, "the audit CSV carries the entries")
+# retention
+audit.record("olduser", "admin", "app_edit", "long ago")
+with jobs._conn() as _c:
+    _c.execute("UPDATE audit SET time='2020-01-01 00:00:00' WHERE user='olduser'")
+removed = audit.prune(30)
+ok(removed >= 1, "old audit entries are pruned")
+ok(not audit.entries(limit=10, user="olduser"), "the pruned entry is gone")
+ok(audit.entries(limit=10), "recent entries survive pruning")
+
 # ---------------------------------------------------------------- roles and permissions
 ok([u["username"] for u in users.all_users()] == ["admin"], "the old single admin was migrated")
 ok(users.get("admin")["role"] == "admin", "the migrated account is an administrator")
@@ -658,7 +794,7 @@ ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/drivers", "/scripts", "/registry", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
-            "/settings", "/release-notes", "/help", "/users"]:
+            "/settings", "/release-notes", "/help", "/users", "/uninstalls", "/audit"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")

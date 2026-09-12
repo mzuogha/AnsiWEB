@@ -281,6 +281,7 @@ These steps are the same for both options. Open `https://<server-ip>/`, accept t
 
 - **Server IP address:** the address PCs use to reach AnsiWEB. On a server, that's its own IP. **Under WSL, use the Windows host's LAN IP**, not the WSL address.
 - Leave forks and batch size at 20 to start with. **Keep job logs for** controls how long job logs and history are kept.
+- **Treat a PC as not reporting after** flags PCs that have gone quiet for that many days (14 by default) on the dashboard and Reports page.
 - **Sign out after inactivity** ends the web session after the minutes you set (60 by default, between 5 minutes and 24 hours). Running jobs carry on regardless; only the browser session ends.
 
 On the **PCs** page, in *Management account on the PCs*:
@@ -437,7 +438,16 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 13. Download a backup
+### 13. Removing an app from the PCs (when the time comes)
+
+Taking an app out of the standard set stops AnsiWEB installing it, but leaves it on the PCs. To remove it from them,
+use the **Uninstall** page: add an entry with a pattern matching the program's name in Windows, press **Preview** to
+see exactly what would run on each PC, then type REMOVE and press **Uninstall**.
+
+A normal deployment never uninstalls anything — it only reports what would go — so entries are safe to add and check
+before you commit to anything.
+
+### 14. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
@@ -552,6 +562,9 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
 | Updates time out | Expected on PCs that are far behind. Raise the timeout in Settings and run the job again. |
+| An uninstall reports "no silent uninstaller" | That program can only be removed interactively, so AnsiWEB left it alone. Remove it by hand, or use a script with the vendor's own switches. |
+| An uninstall matched nothing | The pattern does not match the name under Windows Settings → Apps → Installed apps on that PC. Check a PC's page in Reports for the exact names. |
+| A PC shows as not reporting | It has been off or unreachable since its last deployment. Test the connection from its page; the threshold is in Settings. |
 | A PC reports that the resync did not succeed | It could not reach the time servers you named. Check the names and that UDP 123 is open. |
 | Activation leaves a PC unactivated | The job log shows what Windows reported. MAK and retail keys need internet access from the PC; KMS needs the host reachable on port 1688. |
 | A script is marked failed | Its exit code isn't in the success list for that script. Add the code on the script's page, or fix the script; its output is on the Reports page. |

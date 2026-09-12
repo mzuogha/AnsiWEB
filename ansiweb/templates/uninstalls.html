@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_select with context %}
+{% block title %}Uninstall{% endblock %}
+{% block content %}
+<div class="head"><h1>Uninstall apps from PCs</h1></div>
+
+<div class="flash warn">Nothing is removed until you run an uninstall here. A normal deployment only reports what
+  <em>would</em> go, so you can add entries safely and check them first.</div>
+
+<p class="muted">AnsiWEB looks for a program whose name in Windows "Installed apps" matches your pattern, then runs
+its own uninstaller silently — the MSI product code where there is one, otherwise the vendor's quiet uninstall
+command. A program with no silent uninstaller is reported and left alone rather than left hanging on a prompt
+nobody can see.</p>
+
+<table class="list">
+  <tr><th>What to remove</th><th>Matches programs named</th><th>On</th><th>Status</th><th></th></tr>
+  {% for e in entries %}
+  <tr class="{{ 'dim' if not e.enabled }}">
+    <td><b>{{ e.name }}</b>{% if e.notes %}<br><span class="muted small">{{ e.notes }}</span>{% endif %}</td>
+    <td class="small"><code>{{ e.detect_pattern }}</code></td>
+    <td class="small">{% for t in e.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{% if e.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
+    <td class="nowrap">
+      {% if can(perms.content) %}
+      <form method="post" action="{{ url_for('uninstall_preview', uid=e.id) }}" class="inline">{{ csrf() }}
+        <input type="hidden" name="target" value="all">
+        <button class="btn small" title="Report what would be removed, changing nothing">Preview</button></form>
+      <form method="post" action="{{ url_for('uninstall_run', uid=e.id) }}" class="inline row tight"
+            data-confirm="Uninstall {{ e.name }} from the targeted PCs? This cannot be undone from here.">{{ csrf() }}
+        <input type="hidden" name="target" value="all">
+        <input name="confirm" placeholder="type REMOVE" size="12" autocomplete="off">
+        <button class="btn small danger" {{ 'disabled' if not e.enabled }}>Uninstall</button></form>
+      <form method="post" action="{{ url_for('uninstall_toggle', uid=e.id) }}" class="inline">{{ csrf() }}
+        <button class="btn small">{{ 'Disable' if e.enabled else 'Enable' }}</button></form>
+      <form method="post" action="{{ url_for('uninstall_delete', uid=e.id) }}" class="inline"
+            data-confirm="Remove this entry? Apps already uninstalled stay uninstalled.">{{ csrf() }}
+        <button class="btn small">Delete entry</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Nothing queued for removal.</td></tr>
+  {% endfor %}
+</table>
+
+{% if can(perms.content) %}
+<section class="panel">
+  <h2>Add an app to remove</h2>
+  <form method="post" action="{{ url_for('uninstall_add') }}" class="form">{{ csrf() }}
+    <div class="row">
+      <label>Name<input name="name" required placeholder="Old PDF reader"></label>
+      <label>Matches programs named<input name="detect_pattern" required placeholder="^Foxit Reader">
+        <small>A regular expression against the name under Windows "Installed apps". Be specific: a pattern that
+        matches everything is refused.</small></label>
+    </div>
+    <label>Notes (optional)<input name="notes" placeholder="replaced by Adobe Reader"></label>
+    <h3>Remove from</h3>
+    <div class="checks">
+      {% for t in targets %}
+      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
+      {% endfor %}
+    </div>
+    <div class="formactions"><button class="btn primary">Add</button></div>
+  </form>
+  <p class="muted small">To find the exact name, open Windows Settings → Apps → Installed apps on a PC, or look at
+  a PC's page here: the reported app names come from the same registry entries.</p>
+</section>
+{% endif %}
+{% endblock %}

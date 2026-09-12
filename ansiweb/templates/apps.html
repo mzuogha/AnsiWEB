@@ -32,7 +32,7 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
         <button class="btn small" title="Download again now">Re-download</button></form>
       {% endif %}
       <form method="post" action="{{ url_for('app_delete', app_id=a.id) }}" class="inline"
-            data-confirm="Remove {{ a.name }} from the standard apps? It stays installed on the PCs.">{{ csrf() }}
+            data-confirm="Remove {{ a.name }} from the standard apps? It stays installed on the PCs - use the Uninstall page to remove it from them.">{{ csrf() }}
         <button class="btn small danger" title="Remove from the standard apps">Remove</button></form>
       {% endif %}
     </td>

@@ -145,6 +145,12 @@ def validate(cfg: dict) -> None:
         raise ValidationError("The session timeout must be a number of minutes.")
     if not 5 <= timeout <= 1440:
         raise ValidationError("The session timeout must be between 5 and 1440 minutes (24 hours).")
+    try:
+        stale = int(s.get("stale_after_days", 14))
+    except (TypeError, ValueError):
+        raise ValidationError("The stale-PC threshold must be a number of days.")
+    if not 1 <= stale <= 365:
+        raise ValidationError("The stale-PC threshold must be between 1 and 365 days.")
     if s.get("server_ip"):
         try:
             ipaddress.ip_address(s["server_ip"])
@@ -235,6 +241,27 @@ def validate(cfg: dict) -> None:
         t = cfg.get("schedules", {}).get(key, {}).get("time", "00:00")
         if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t):
             raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")
+
+    seen = set()
+    for entry in cfg.get("uninstalls", []):
+        if not ID_RE.match(entry.get("id", "")):
+            raise ValidationError(f"uninstalls: '{entry.get('id')}' is not a valid ID")
+        if entry["id"] in seen:
+            raise ValidationError(f"uninstalls: duplicate ID '{entry['id']}'")
+        seen.add(entry["id"])
+        if not entry.get("name"):
+            raise ValidationError("Every uninstall entry needs a name.")
+        if not entry.get("detect_pattern"):
+            raise ValidationError(f"{entry['name']}: a detection pattern is required, so AnsiWEB "
+                                  "knows what to look for on the PCs")
+        try:
+            re.compile(entry["detect_pattern"])
+        except re.error as exc:
+            raise ValidationError(f"{entry['name']}: '{entry['detect_pattern']}' is not a valid "
+                                  f"regular expression ({exc})")
+        if entry["detect_pattern"].strip() in (".", ".*", "^.*$", ""):
+            raise ValidationError(f"{entry['name']}: that pattern matches every installed program. "
+                                  "Use something specific, e.g. ^7-Zip")
 
     for kind in payloads.KINDS:
         seen = set()

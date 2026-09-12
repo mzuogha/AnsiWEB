@@ -21,6 +21,8 @@ KINDS = {
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
     "updates": "Install Windows updates",
+    "uninstall_preview": "Preview an uninstall",
+    "uninstall_run": "Uninstall apps from PCs",
     "ping": "Connection test",
 }
 
@@ -35,6 +37,8 @@ DEPLOY_TAGS = {
     "activate": "activation",
     "set_time": "time",
     "updates": "updates",
+    "uninstall_preview": "uninstall",
+    "uninstall_run": "uninstall",
 }
 
 _db_lock = threading.Lock()
@@ -59,6 +63,10 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, target TEXT, status TEXT,
             started TEXT, finished TEXT, rc INTEGER, trigger TEXT)""")
         c.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)")
+        c.execute("""CREATE TABLE IF NOT EXISTS audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT, user TEXT, role TEXT,
+            action TEXT, detail TEXT, outcome TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS audit_time ON audit(time)")
         # jobs left 'running' by a restart can never finish
         c.execute("UPDATE jobs SET status='interrupted' WHERE status IN ('running','queued')")
 
@@ -189,7 +197,9 @@ def _run(job_id: int, kind: str, target: str, only: str = "") -> None:
             counts = cache.update_all(log)
             rc = 0 if counts["error"] == 0 else 2
         elif kind in DEPLOY_TAGS:
-            extra = {"aw_only": only} if only else None
+            extra = {"aw_only": only} if only else {}
+            if kind == "uninstall_run":
+                extra["aw_uninstall_apply"] = "true"   # nothing is removed without this
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
                                           extra=extra, tags=DEPLOY_TAGS[kind]), log)
             store.regenerate_all()
@@ -218,6 +228,8 @@ def prune_logs() -> None:
         days = max(int(store.load()["settings"].get("log_retention_days", 60)), 1)
     except Exception:
         days = 60
+    from . import audit
+    audit.prune(days)
     cutoff = dt.datetime.now() - dt.timedelta(days=days)
     with _db_lock, _conn() as c:
         rows = c.execute("SELECT id, started FROM jobs").fetchall()

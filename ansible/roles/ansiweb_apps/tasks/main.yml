@@ -17,6 +17,8 @@
     aw_drivers: "{{ aw_plan.drivers | selectattr('id', 'in', aw_host.drivers | default([])) | list }}"
     aw_scripts: "{{ aw_plan.scripts | selectattr('id', 'in', aw_host.scripts | default([])) | list }}"
     aw_registry: "{{ aw_plan.registry | selectattr('id', 'in', aw_host.registry | default([])) | list }}"
+    aw_uninstalls: "{{ aw_plan.uninstalls | selectattr('id', 'in', aw_host.uninstalls | default([])) | list }}"
+    aw_apply: "{{ aw_uninstall_apply | default(false) }}"
 
 # aw_only is set when the web interface runs a single item ("Run now"/"Install now").
 - name: Narrow down to one item when asked
@@ -25,6 +27,7 @@
     aw_drivers: "{{ aw_drivers | selectattr('id', 'equalto', aw_only) | list }}"
     aw_scripts: "{{ aw_scripts | selectattr('id', 'equalto', aw_only) | list }}"
     aw_registry: "{{ aw_registry | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_uninstalls: "{{ aw_uninstalls | selectattr('id', 'equalto', aw_only) | list }}"
   when: (aw_only | default('')) | length > 0
 
 - name: Create the AnsiWEB working folders on the PC
@@ -116,6 +119,17 @@
     loop_var: item_def
     label: "{{ item_def.name }}"
   tags: [scripts]
+
+- name: Uninstall apps that should no longer be on this PC
+  ansible.builtin.include_tasks:
+    file: uninstall.yml
+    apply:
+      tags: [uninstall]
+  loop: "{{ aw_uninstalls }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.name }}"
+  tags: [uninstall]
 
 - name: Install Windows updates
   ansible.builtin.include_tasks:

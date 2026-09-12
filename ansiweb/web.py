@@ -11,7 +11,8 @@ from datetime import timedelta
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
 
-from . import __version__, backup, cache, jobs, paths, payloads, plan, release, store, users, vault
+from . import (__version__, audit, backup, cache, jobs, paths, payloads, plan, release,
+               report_state, store, users, vault)
 
 # What each route needs. Anything not listed here requires an administrator,
 # so a new route is never accidentally open to a lesser role.
@@ -22,7 +23,7 @@ ENDPOINT_PERMISSIONS = {
     "reports_page": users.VIEW, "reports_export": users.VIEW,
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
-    "help_page": users.VIEW,
+    "help_page": users.VIEW, "uninstalls_page": users.VIEW,
     "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
@@ -32,6 +33,9 @@ ENDPOINT_PERMISSIONS = {
     "app_save": users.MANAGE_CONTENT, "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
+    "uninstall_add": users.MANAGE_CONTENT, "uninstall_delete": users.MANAGE_CONTENT,
+    "uninstall_toggle": users.MANAGE_CONTENT, "uninstall_preview": users.MANAGE_CONTENT,
+    "uninstall_run": users.MANAGE_CONTENT,
     "resource_save": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
     # the PC list
     "pc_add": users.MANAGE_PCS, "pc_save": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS,
@@ -53,6 +57,7 @@ def create_app(start_background: bool = True) -> Flask:
     vault.ensure_vault_pass()
     vault.ensure_ansible_vault()
     jobs.init_db()
+    audit.init()
     store.regenerate_all()
 
     app = Flask(__name__)
@@ -143,6 +148,28 @@ def create_app(start_background: bool = True) -> Flask:
         if not token or not pysecrets.compare_digest(token, session.get("csrf", "")):
             abort(400, "Invalid or missing form token. Reload the page and try again.")
 
+    # Record anything that changes state, plus backup downloads and sign-ins.
+    AUDITED_GETS = {"settings_backup", "prepare_script"}
+
+    @app.after_request
+    def write_audit(resp):
+        try:
+            endpoint = request.endpoint or ""
+            if endpoint in ("static", "job_log"):
+                return resp
+            audit_it = request.method in ("POST", "PUT", "DELETE") or endpoint in AUDITED_GETS
+            if not audit_it:
+                return resp
+            outcome = "ok" if resp.status_code < 400 else f"refused ({resp.status_code})"
+            if endpoint == "login" and resp.status_code < 400 and not session.get("user"):
+                outcome = "refused (wrong credentials)"
+            audit.record(session.get("user") or request.form.get("username") or "-",
+                         session.get("role", ""), endpoint,
+                         audit.summarise(request.form, request.files, request.view_args), outcome)
+        except Exception:      # noqa: BLE001 - auditing must never break a response
+            pass
+        return resp
+
     @app.after_request
     def headers(resp):
         resp.headers["X-Frame-Options"] = "DENY"
@@ -194,6 +221,8 @@ def create_app(start_background: bool = True) -> Flask:
         p = store.read_json(paths.PLAN_FILE, {})
         reports = load_reports()
         app_rows = app_status_rows(cfg, manifest)
+        stale = report_state.summarise(cfg.get("pcs", []), reports,
+                                       cfg["settings"].get("stale_after_days", 14))
         stats = {
             "pcs": len(cfg.get("pcs", [])),
             "apps": len([a for a in cfg["apps"] if a.get("enabled", True)]),
@@ -202,6 +231,7 @@ def create_app(start_background: bool = True) -> Flask:
             "pcs_reported": len(reports),
             "pcs_needing": sum(1 for r in reports.values()
                                if any(a.get("needed") for a in r.get("apps", []))),
+            "stale": stale["needs_attention"],
             "payloads": sum(len([e for e in cfg.get(k, []) if e.get("enabled", True)])
                             for k in payloads.KINDS),
         }
@@ -213,7 +243,9 @@ def create_app(start_background: bool = True) -> Flask:
                                recent=jobs.list_jobs(8), warnings=setup_warnings(cfg),
                                upgraded_from=upgraded_from,
                                last_cache=jobs.last_job("cache_update"),
-                               last_deploy=jobs.last_job("deploy"))
+                               last_deploy=jobs.last_job("deploy"),
+                               stale=stale,
+                               stale_days=cfg["settings"].get("stale_after_days", 14))
 
     # ---- apps --------------------------------------------------------------------
     @app.route("/apps")
@@ -315,7 +347,22 @@ def create_app(start_background: bool = True) -> Flask:
         cfg = store.load()
         idx, existing = find_app(cfg, app_id)
         del cfg["apps"][idx]
+        also_uninstall = request.form.get("uninstall") == "on"
         if save_or_flash(cfg):
+            if also_uninstall and existing.get("detect_pattern"):
+                cfg = store.load()
+                cfg.setdefault("uninstalls", []).append({
+                    "id": payloads.new_id(cfg, "uninstalls", existing["name"]),
+                    "name": existing["name"],
+                    "detect_pattern": existing["detect_pattern"],
+                    "enabled": True,
+                    "targets": existing.get("targets") or ["all"],
+                    "notes": "added when the app was removed from the standard set",
+                    "created": cache.now(),
+                })
+                store.save(cfg)
+                flash(f"{existing['name']} is queued for removal from the PCs. "
+                      "Preview it on the Uninstall page before removing anything.", "ok")
             freed = cache.forget_app(app_id)
             flash(f"Removed {existing['name']} from the standard apps"
                   + (f" and deleted {freed // 1048576} MB of cached installers" if freed else "")
@@ -389,6 +436,83 @@ def create_app(start_background: bool = True) -> Flask:
         else:
             flash(f"{existing['name']}: cached version {entry.get('version')}.", "ok")
         return redirect(url_for("apps_page"))
+
+    # ---- uninstalling apps from the PCs --------------------------------------------
+    @app.route("/uninstalls")
+    def uninstalls_page():
+        cfg = store.load()
+        return render_template("uninstalls.html", cfg=cfg, entries=cfg.get("uninstalls", []),
+                               targets=store.target_choices(cfg), reports=load_reports(),
+                               apps=cfg.get("apps", []))
+
+    @app.route("/uninstalls/add", methods=["POST"])
+    def uninstall_add():
+        cfg = store.load()
+        f = request.form
+        name = f.get("name", "").strip()
+        try:
+            if not name:
+                raise store.ValidationError("Enter a name for what you are removing.")
+            entry = {
+                "id": payloads.new_id(cfg, "uninstalls", name),
+                "name": name,
+                "detect_pattern": f.get("detect_pattern", "").strip(),
+                "enabled": True,
+                "targets": request.form.getlist("targets") or ["all"],
+                "notes": f.get("notes", "").strip(),
+                "created": cache.now(),
+            }
+            cfg.setdefault("uninstalls", []).append(entry)
+            store.save(cfg)
+            flash(f"'{name}' added. Preview it before removing anything.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("uninstalls_page"))
+
+    def find_uninstall(cfg, uid):
+        for i, e in enumerate(cfg.get("uninstalls", [])):
+            if e["id"] == uid:
+                return i, e
+        abort(404)
+
+    @app.route("/uninstalls/<uid>/toggle", methods=["POST"])
+    def uninstall_toggle(uid):
+        cfg = store.load()
+        idx, entry = find_uninstall(cfg, uid)
+        cfg["uninstalls"][idx]["enabled"] = not entry.get("enabled", True)
+        if save_or_flash(cfg):
+            flash(f"'{entry['name']}' {'enabled' if cfg['uninstalls'][idx]['enabled'] else 'disabled'}.", "ok")
+        return redirect(url_for("uninstalls_page"))
+
+    @app.route("/uninstalls/<uid>/delete", methods=["POST"])
+    def uninstall_delete(uid):
+        cfg = store.load()
+        idx, entry = find_uninstall(cfg, uid)
+        del cfg["uninstalls"][idx]
+        if save_or_flash(cfg):
+            flash(f"Removed the '{entry['name']}' uninstall entry. Apps already removed stay removed.", "ok")
+        return redirect(url_for("uninstalls_page"))
+
+    def _start_uninstall(kind, uid):
+        _, entry = find_uninstall(store.load(), uid)
+        target = request.form.get("target", "") or "all"
+        try:
+            job_id = jobs.start(kind, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
+        except (jobs.JobBusy, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("uninstalls_page"))
+        return redirect(url_for("job_view", job_id=job_id))
+
+    @app.route("/uninstalls/<uid>/preview", methods=["POST"])
+    def uninstall_preview(uid):
+        return _start_uninstall("uninstall_preview", uid)
+
+    @app.route("/uninstalls/<uid>/run", methods=["POST"])
+    def uninstall_run(uid):
+        if request.form.get("confirm") != "REMOVE":
+            flash("Type REMOVE to confirm that the app should be uninstalled from the targeted PCs.", "error")
+            return redirect(url_for("uninstalls_page"))
+        return _start_uninstall("uninstall_run", uid)
 
     # ---- drivers / scripts / registry --------------------------------------------
     def check_kind(kind):
@@ -642,6 +766,7 @@ def create_app(start_background: bool = True) -> Flask:
         cfg = store.load()
         reports = load_reports()
         p = store.read_json(paths.PLAN_FILE, {})
+        threshold = cfg["settings"].get("stale_after_days", 14)
         rows = []
         for pc in cfg.get("pcs", []):
             r = reports.get(pc["name"], {})
@@ -650,6 +775,7 @@ def create_app(start_background: bool = True) -> Flask:
             rows.append({
                 "pc": pc,
                 "report": r,
+                "freshness": report_state.classify(r, threshold),
                 "assigned": (p.get("hosts") or {}).get(pc["name"], {}),
                 "needed": [a for a in apps if a.get("needed")],
                 "mismatch": [a for a in apps if a.get("mismatch")],
@@ -659,7 +785,10 @@ def create_app(start_background: bool = True) -> Flask:
                            and not str(i.get("status", "")).endswith("exit 0)")],
             })
         return render_template("reports.html", cfg=cfg, rows=rows, plan=p,
-                               jobs=jobs.list_jobs(25), counts=jobs.job_counts(30))
+                               jobs=jobs.list_jobs(25), counts=jobs.job_counts(30),
+                               stale=report_state.summarise(cfg.get("pcs", []), reports, threshold),
+                               stale_days=threshold,
+                               only=request.args.get("only", ""))
 
     @app.route("/reports/export.csv")
     def reports_export():
@@ -668,14 +797,17 @@ def create_app(start_background: bool = True) -> Flask:
         out = io.StringIO()
         w = csv.writer(out)
         w.writerow(["pc", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
-                    "activated", "reboot_pending", "kind", "item", "installed", "target", "status"])
+                    "activated", "reboot_pending", "freshness", "days_since_report",
+                    "kind", "item", "installed", "target", "status"])
         for pc in cfg.get("pcs", []):
             r = reports.get(pc["name"], {})
             facts = r.get("facts") or {}
             base = [pc["name"], pc.get("site", ""), ";".join(pc.get("groups", [])), pc.get("ip", ""),
                     r.get("time", ""), facts.get("os", ""), facts.get("build", ""),
                     facts.get("model", ""), facts.get("serial", ""),
-                    facts.get("activated", ""), r.get("reboot_pending", "")]
+                    facts.get("activated", ""), r.get("reboot_pending", ""),
+                    report_state.classify(r, cfg["settings"].get("stale_after_days", 14))["state"],
+                    report_state.age_days(r) if r else ""]
             if not r:
                 w.writerow(base + ["", "", "", "", "no report yet"])
                 continue
@@ -696,6 +828,33 @@ def create_app(start_background: bool = True) -> Flask:
         return redirect(url_for("reports_page"))
 
     # ---- jobs ----------------------------------------------------------------------------
+    # ---- audit log ---------------------------------------------------------------------
+    @app.route("/audit")
+    def audit_page():
+        days = max(0, min(int(request.args.get("days", 7) or 0), 3650))
+        return render_template("audit.html",
+                               entries=audit.entries(limit=500, user=request.args.get("user", ""),
+                                                     action=request.args.get("action", ""), days=days),
+                               users_seen=audit.known_users(), actions=audit.known_actions(),
+                               describe=audit.describe, filters={"user": request.args.get("user", ""),
+                                                                 "action": request.args.get("action", ""),
+                                                                 "days": days},
+                               retention=store.load()["settings"].get("log_retention_days", 60))
+
+    @app.route("/audit/export.csv")
+    def audit_export():
+        rows = audit.entries(limit=20000, user=request.args.get("user", ""),
+                             action=request.args.get("action", ""),
+                             days=max(0, int(request.args.get("days", 0) or 0)))
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["time", "user", "role", "action", "description", "detail", "outcome"])
+        for r in rows:
+            w.writerow([r["time"], r["user"], r["role"], r["action"], audit.describe(r["action"]),
+                        r["detail"], r["outcome"]])
+        return Response(out.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=ansiweb-audit.csv"})
+
     # ---- help ---------------------------------------------------------------------------
     @app.route("/help")
     def help_page():
@@ -831,6 +990,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "batch_size": max(1, min(500, int(f.get("batch_size", 20)))),
                     "log_retention_days": max(1, min(3650, int(f.get("log_retention_days", 60)))),
                     "session_timeout_minutes": int(f.get("session_timeout_minutes", 60)),
+                    "stale_after_days": int(f.get("stale_after_days", 14)),
                 })
                 cfg["schedules"]["cache_check"] = {"enabled": f.get("cc_enabled") == "on",
                                                    "every_hours": max(1, int(f.get("cc_hours", 24)))}

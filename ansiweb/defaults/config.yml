@@ -8,6 +8,7 @@ settings:
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
   session_timeout_minutes: 60   # sign the web session out after this much inactivity
+  stale_after_days: 14     # treat a PC as stale if it has not reported for this long
 
 # Windows updates installed on the PCs.
 updates:
@@ -52,6 +53,11 @@ schedules:
 sites: [HQ]
 # {name, ip, site, groups: [], sync_hostname: false, notes: ""}
 pcs: []
+
+# Apps to remove from the PCs. Nothing is removed until the Uninstall job is
+# run; a normal deployment only reports what would go.
+# Each entry: {id, name, detect_pattern, enabled, targets, notes}
+uninstalls: []
 
 # Uploaded payloads: device drivers, scripts and registry files.
 # Each entry: {id, name, enabled, file, sha256, size, uploaded, targets, ...}

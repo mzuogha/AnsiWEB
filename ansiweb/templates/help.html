@@ -129,6 +129,14 @@ sudo systemctl start ansiweb</pre>
 </section>
 
 <section class="panel">
+  <h2>Removing an app from the PCs</h2>
+  <p class="muted small">Taking an app out of the standard set stops AnsiWEB installing it but leaves it on the PCs.
+  Use the <a href="{{ url_for('uninstalls_page') }}">Uninstall</a> page to remove it from them: add an entry, press
+  <b>Preview</b> to see the exact command per PC, then type REMOVE to run it. A normal deployment never uninstalls
+  anything, so entries are safe to add and check first.</p>
+</section>
+
+<section class="panel">
   <h2>When something is wrong</h2>
   <table>
     <tr><th>Symptom</th><th>What to check</th></tr>
@@ -145,6 +153,11 @@ sudo systemctl start ansiweb</pre>
     <tr><td>A PC cannot download installers</td>
       <td>On the PC, <code>curl http://{{ server_ip }}/software/apps/</code> should answer 403. A timeout means a
         routing or firewall problem.</td></tr>
+    <tr><td>A PC shows as not reporting</td>
+      <td>It has been off or unreachable since its last deployment. Test the connection from its page; the
+        threshold is in Settings.</td></tr>
+    <tr><td>An uninstall left a program in place</td>
+      <td>Either the pattern matched nothing, or the program has no silent uninstaller. The job log says which.</td></tr>
     <tr><td>Signed out while working</td>
       <td>The idle timeout in Settings has elapsed. Watching a job log does not count as activity.</td></tr>
   </table>

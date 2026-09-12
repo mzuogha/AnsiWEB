@@ -5,6 +5,25 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.5.0 - 2026-09-12
+
+Uninstalling apps from the PCs, an audit log, and PCs that have stopped reporting are now flagged instead of quietly disappearing.
+
+
+### New
+
+- Uninstall apps from the PCs. Entries are matched against the program name in Windows, then removed with the MSI product code or the vendor's quiet uninstall command. Nothing is removed until the uninstall job is run with a typed confirmation, and a preview reports what would go first.
+- Removing an app from the standard set can queue it for removal from the PCs at the same time.
+- An audit log of every change made through the web interface, with the account that made it, including sign-ins, refused attempts and backup downloads. Filterable, exportable as CSV, and never records secrets.
+- PCs that have not reported for a configurable number of days, or have never reported, are counted on the dashboard, flagged on the Reports page and included in the CSV export.
+
+
+### Changed
+
+- A program with no silent uninstaller is reported and left alone rather than being left on a prompt nobody can see.
+- Audit entries are kept for the same period as job logs.
+
+
 ## 1.4.0 - 2026-09-12
 
 Roles, so you can give people the access they need without handing out full administrator rights, and a Help page with the deployment commands.
