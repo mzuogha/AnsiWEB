@@ -1,3 +1,26 @@
+// Session timeout: after the configured idle period, take the browser to the
+// sign-in page instead of leaving a stale page open. The server enforces the
+// timeout itself; this only keeps the window in step with it.
+(function () {
+  var meta = document.querySelector('meta[name="idle-timeout"]');
+  if (!meta) return;
+  var seconds = parseInt(meta.getAttribute('content'), 10);
+  if (!seconds || seconds < 30) return;
+  var timer;
+  function expire() {
+    window.location.href = '/login?expired=1';
+  }
+  function reset() {
+    window.clearTimeout(timer);
+    // A second's grace, so the server has already expired the session
+    timer = window.setTimeout(expire, (seconds + 1) * 1000);
+  }
+  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function (evt) {
+    window.addEventListener(evt, reset, { passive: true });
+  });
+  reset();
+})();
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

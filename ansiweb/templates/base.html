@@ -6,6 +6,7 @@
   <title>{% block title %}AnsiWEB{% endblock %} · AnsiWEB</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% if session.user %}<meta name="idle-timeout" content="{{ idle_timeout }}">{% endif %}
 </head>
 <body>
 {% if session.user %}

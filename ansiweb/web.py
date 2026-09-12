@@ -5,6 +5,8 @@ import io
 import os
 import re
 import secrets as pysecrets
+import time
+from datetime import timedelta
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
@@ -33,8 +35,17 @@ def create_app(start_background: bool = True) -> Flask:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=https,
-        PERMANENT_SESSION_LIFETIME=8 * 3600,
+        # The cookie outlives the longest allowed idle timeout; the actual
+        # timeout is enforced per request below, so changing it takes effect at once.
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=1441),
     )
+
+    def idle_timeout() -> int:
+        """Seconds of inactivity before the web session is signed out."""
+        try:
+            return int(store.load()["settings"].get("session_timeout_minutes", 60)) * 60
+        except (ValueError, TypeError, KeyError):
+            return 3600
 
     # ---- security helpers ----------------------------------------------------
     def csrf_token() -> str:
@@ -45,12 +56,31 @@ def create_app(start_background: bool = True) -> Flask:
     @app.context_processor
     def inject():
         return {"csrf_token": csrf_token, "version": __version__, "running_jobs": jobs.running(),
-                "job_kinds": jobs.KINDS, "kinds": payloads.KINDS}
+                "job_kinds": jobs.KINDS, "kinds": payloads.KINDS,
+                "idle_timeout": idle_timeout()}
 
     @app.before_request
     def protect():
-        if request.endpoint in ("static", "login"):
-            if request.method == "POST" and request.endpoint == "login":
+        if request.endpoint == "static":
+            return None
+
+        # Sign out an idle session, whichever page is asked for
+        timeout = idle_timeout()
+        if session.get("user"):
+            seen = session.get("seen")
+            if seen and time.time() - seen > timeout:
+                session.clear()
+                flash(f"You were signed out after {timeout // 60} minutes without activity.", "ok")
+                return redirect(url_for("login"))
+            # Sliding window: activity keeps the session alive. The live job log
+            # polls on its own, so it does not count - an unattended job page
+            # still times out.
+            if request.endpoint != "job_log":
+                session["seen"] = time.time()
+            session.permanent = True
+
+        if request.endpoint == "login":
+            if request.method == "POST":
                 _check_csrf()
             return None
         if not session.get("user"):
@@ -96,6 +126,7 @@ def create_app(start_background: bool = True) -> Flask:
                 session.clear()
                 session.permanent = True
                 session["user"] = admin["username"]
+                session["seen"] = time.time()
                 nxt = request.args.get("next", "/")
                 return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
             flash("Wrong username or password.", "error")
@@ -666,6 +697,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "forks": max(1, min(100, int(f.get("forks", 20)))),
                     "batch_size": max(1, min(500, int(f.get("batch_size", 20)))),
                     "log_retention_days": max(1, min(3650, int(f.get("log_retention_days", 60)))),
+                    "session_timeout_minutes": int(f.get("session_timeout_minutes", 60)),
                 })
                 cfg["schedules"]["cache_check"] = {"enabled": f.get("cc_enabled") == "on",
                                                    "every_hours": max(1, int(f.get("cc_hours", 24)))}
@@ -673,7 +705,7 @@ def create_app(start_background: bool = True) -> Flask:
                                               "time": f.get("dep_time", "19:00"),
                                               "days": request.form.getlist("dep_days")}
             except ValueError:
-                flash("Numbers expected for forks, batch size, hours and retention.", "error")
+                flash("Numbers expected for forks, batch size, hours, retention and the session timeout.", "error")
                 return redirect(url_for("settings_page"))
             if save_or_flash(cfg):
                 flash("Settings saved.", "ok")

@@ -45,6 +45,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Pages: Dashboard, Apps & cache, PCs (including CSV import), Drivers, Scripts, Registry, Reports, Jobs, Settings.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Session timeout.** The web session signs itself out after a period of inactivity, set in Settings.
 - **Backup and restore.** One click to download your configuration, secrets and uploaded files; restore them into a fresh install from the same page.
 - **Security.**
   - The dashboard is served over HTTPS; secrets are encrypted with Ansible Vault.
@@ -201,6 +202,7 @@ GitHub allows 60 unauthenticated catalogue lookups per hour, which is plenty for
 | A PC reports "resync did not succeed" | It cannot reach the time servers. Check the names and that UDP 123 is open to them. |
 | Activation reports "still in notification mode" | Windows accepted the key but could not activate. For a MAK key the PC needs internet access; for KMS check the host name, port 1688 and that the PC has a KMS client key. |
 | Activation says no product key is stored | Add one in Settings, or switch to KMS mode. |
+| Signed out while working | The session times out after the inactivity period set in Settings (60 minutes by default). Watching a job log does not count as activity, so an unattended job page still times out. |
 | Service logs | `journalctl -u ansiweb -f` |
 
 More, including backup, uninstall and WSL networking: [docs/INSTALL.md](docs/INSTALL.md#troubleshooting).

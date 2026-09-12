@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import zipfile
 
 os.environ["ANSIWEB_DATA"] = DATA = tempfile.mkdtemp(prefix="ansiweb-test-")
@@ -49,6 +50,65 @@ r = c.post("/login", data={"username": "admin", "password": PW, "csrf": tok}, fo
 ok("Dashboard" in r.text, "login works")
 tok = csrf(r.text)
 ok(c.post("/settings", data={}).status_code == 400, "POST without a CSRF token is refused")
+
+# ---------------------------------------------------------------- session timeout
+ok(store.load()["settings"]["session_timeout_minutes"] == 60, "default idle timeout is 60 minutes")
+r = c.get("/settings")
+ok("Sign out after inactivity" in r.text, "Settings offers the timeout field")
+ok('name="idle-timeout"' in c.get("/").text, "pages tell the browser the idle timeout")
+tok = csrf(c.get("/").text)
+r = c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
+                              "log_retention_days": "45", "session_timeout_minutes": "15",
+                              "cc_hours": "24", "dep_time": "19:00"}, follow_redirects=True)
+ok("Settings saved" in r.text, "a new timeout saves")
+ok(store.load()["settings"]["session_timeout_minutes"] == 15, "timeout stored")
+ok('content="900"' in c.get("/").text, "the new timeout reaches the browser")
+ok("between 5 and 1440" in c.post("/settings", data={"csrf": tok, "forks": "20", "batch_size": "20",
+                                                     "log_retention_days": "45",
+                                                     "session_timeout_minutes": "2", "cc_hours": "24",
+                                                     "dep_time": "19:00"}, follow_redirects=True).text,
+   "too short a timeout is rejected")
+ok("between 5 and 1440" in c.post("/settings", data={"csrf": tok, "forks": "20", "batch_size": "20",
+                                                     "log_retention_days": "45",
+                                                     "session_timeout_minutes": "4000", "cc_hours": "24",
+                                                     "dep_time": "19:00"}, follow_redirects=True).text,
+   "too long a timeout is rejected")
+
+# activity keeps the session alive
+with c.session_transaction() as sess:
+    sess["seen"] = time.time() - 600          # 10 minutes idle, timeout is 15
+ok(c.get("/apps").status_code == 200, "a session inside the timeout still works")
+with c.session_transaction() as sess:
+    ok(sess["seen"] > time.time() - 5, "each request slides the idle clock forward")
+
+# the live job-log poll must not keep an unattended page signed in
+with c.session_transaction() as sess:
+    sess["seen"] = time.time() - 600
+c.get("/jobs/1/log")
+with c.session_transaction() as sess:
+    ok(sess["seen"] < time.time() - 300, "polling the job log does not slide the idle clock")
+
+# going over the timeout signs the session out
+with c.session_transaction() as sess:
+    sess["seen"] = time.time() - 1000         # 16 minutes idle
+r = c.get("/apps", follow_redirects=True)
+ok("Sign in" in r.text and "15 minutes without activity" in r.text,
+   "an idle session is signed out with an explanation")
+with c.session_transaction() as sess:
+    ok("user" not in sess, "the expired session is cleared server-side")
+ok(c.get("/apps").status_code == 302, "the expired session cannot reach a page")
+ok("session timed out" in c.get("/login?expired=1").text, "the login page explains a browser-side expiry")
+
+# sign back in for the rest of the test
+tok = csrf(c.get("/login").text)
+r = c.post("/login", data={"username": "admin", "password": PW, "csrf": tok}, follow_redirects=True)
+ok("Dashboard" in r.text, "signing back in works after a timeout")
+tok = csrf(r.text)
+with c.session_transaction() as sess:
+    ok(sess.get("seen") is not None, "signing in starts the idle clock")
+c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
+                          "log_retention_days": "45", "session_timeout_minutes": "60",
+                          "cc_hours": "24", "dep_time": "19:00"}, follow_redirects=True)
 
 # ---------------------------------------------------------------- settings
 r = c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",

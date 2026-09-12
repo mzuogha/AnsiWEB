@@ -13,6 +13,9 @@
     <label>PCs per batch<input name="batch_size" type="number" min="1" max="500" value="{{ cfg.settings.batch_size }}"></label>
     <label>Keep job logs for (days)<input name="log_retention_days" type="number" min="1" max="3650"
       value="{{ cfg.settings.log_retention_days }}"></label>
+    <label>Sign out after inactivity (minutes)<input name="session_timeout_minutes" type="number" min="5" max="1440"
+      value="{{ cfg.settings.session_timeout_minutes }}">
+      <small>Applies to this web interface, between 5 minutes and 24 hours. Running jobs carry on regardless.</small></label>
   </div>
   <p class="muted small">The web interface is reached over
     {% if https %}HTTPS. PCs still download installers over plain HTTP, because they trust no certificate of yours.

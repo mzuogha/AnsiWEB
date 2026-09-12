@@ -139,6 +139,12 @@ def validate(cfg: dict) -> None:
     if not ACCOUNT_RE.match(s.get("pc_account", "") or ""):
         raise ValidationError("The PC account name may only contain letters, digits, . - _ "
                               "and must be at most 20 characters.")
+    try:
+        timeout = int(s.get("session_timeout_minutes", 60))
+    except (TypeError, ValueError):
+        raise ValidationError("The session timeout must be a number of minutes.")
+    if not 5 <= timeout <= 1440:
+        raise ValidationError("The session timeout must be between 5 and 1440 minutes (24 hours).")
     if s.get("server_ip"):
         try:
             ipaddress.ip_address(s["server_ip"])

@@ -4,6 +4,9 @@
 <div class="login-box">
   <div class="brand big">Ansi<span>WEB</span></div>
   <p class="muted">Standard app deployment for Windows PCs</p>
+  {% if request.args.get('expired') %}
+    <div class="flash">Your session timed out. Sign in again to carry on.</div>
+  {% endif %}
   {% if no_admin %}
     <div class="flash error">No admin account yet. On the server run:<br>
       <code>sudo ansiweb set-password admin</code></div>

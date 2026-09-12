@@ -7,6 +7,7 @@ settings:
   forks: 20                # how many PCs Ansible works on at the same time
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
+  session_timeout_minutes: 60   # sign the web session out after this much inactivity
 
 # Windows updates installed on the PCs.
 updates:

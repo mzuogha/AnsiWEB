@@ -281,6 +281,7 @@ These steps are the same for both options. Open `https://<server-ip>/`, accept t
 
 - **Server IP address:** the address PCs use to reach AnsiWEB. On a server, that's its own IP. **Under WSL, use the Windows host's LAN IP**, not the WSL address.
 - Leave forks and batch size at 20 to start with. **Keep job logs for** controls how long job logs and history are kept.
+- **Sign out after inactivity** ends the web session after the minutes you set (60 by default, between 5 minutes and 24 hours). Running jobs carry on regardless; only the browser session ends.
 
 On the **PCs** page, in *Management account on the PCs*:
 
@@ -521,6 +522,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 |---|---|
 | Web page doesn't load | `systemctl status ansiweb nginx`; then `curl -skI https://localhost/login` on the server itself. If that works but remote browsers fail, it's a firewall or (on WSL) the port forwarding. |
 | Browser warns about the certificate | Expected with the self-signed certificate. Check the fingerprint with `sudo openssl x509 -in /etc/ssl/ansiweb/server.crt -noout -fingerprint -sha256`, or install your own certificate in `/etc/ssl/ansiweb/`. |
+| Signed out unexpectedly | The idle timeout in Settings has passed. Raise it if it is too short for how you work; viewing a job log does not count as activity. |
 | Signed out immediately after signing in | The session cookie is only sent over HTTPS. Use `https://`, or set `Environment=ANSIWEB_HTTPS=0` in `/etc/systemd/system/ansiweb.service` for a plain-HTTP install. |
 | `502 Bad Gateway` | The app isn't running: `sudo journalctl -u ansiweb -n 50`. |
 | Under WSL, PCs can't reach the server | `netsh interface portproxy show v4tov4` on Windows — the `connectaddress` must match `hostname -I` inside WSL. Re-run the B4 command with the current address. |
