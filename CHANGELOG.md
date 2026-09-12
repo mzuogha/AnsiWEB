@@ -5,6 +5,19 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.6.1 - 2026-09-12
+
+Scripts and registry files now share one page, since both are simply things to run on a PC.
+
+
+### Changed
+
+- Scripts & registry is a single page. Upload either kind there and AnsiWEB works out which it is from the file; each row shows its type.
+- Apply now on that page runs scripts and merges registry files in one job.
+- The old /registry address redirects to the merged page, so saved links still work.
+- Nothing changed on the PCs, and existing scripts and registry files are untouched.
+
+
 ## 1.6.0 - 2026-09-12
 
 A searchable inventory of everything installed on the PCs, and roles that can be limited to particular sites or groups.

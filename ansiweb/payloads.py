@@ -32,6 +32,30 @@ KINDS = {
     },
 }
 
+# Scripts and registry files are managed on one page: both are "run this on the
+# PC" items, and which one a file is can be told from its extension.
+GROUPS = {
+    "drivers": {"kinds": ["drivers"], "title": "Device drivers",
+                "hint": KINDS["drivers"]["hint"]},
+    "scripts": {"kinds": ["scripts", "registry"], "title": "Scripts & registry",
+                "hint": "PowerShell or command scripts (.ps1, .cmd, .bat) run as SYSTEM on the PC, "
+                        "and registry files (.reg) are merged with reg import. Upload either here - "
+                        "AnsiWEB works out which it is from the file."},
+}
+# Which page a kind is managed on
+GROUP_OF = {kind: group for group, meta in GROUPS.items() for kind in meta["kinds"]}
+
+
+def kind_for_filename(filename: str, allowed: list | None = None) -> str:
+    """Work out which kind an uploaded file is, from its extension."""
+    kinds = allowed or list(KINDS)
+    for kind in kinds:
+        if (filename or "").lower().endswith(KINDS[kind]["extensions"]):
+            return kind
+    wanted = ", ".join(ext for kind in kinds for ext in KINDS[kind]["extensions"])
+    raise store.ValidationError(f"That file type is not supported here. Expected one of: {wanted}")
+
+
 RUN_MODES = {
     "once": "Once per PC (skipped afterwards)",
     "changed": "Again whenever the file changes",

@@ -3,7 +3,7 @@
 {% block title %}{{ entry.name }}{% endblock %}
 {% block content %}
 <div class="head"><h1>{{ entry.name }}</h1>
-  <div class="actions"><a class="btn" href="{{ url_for('resources_page', kind=kind) }}">Back to {{ meta.plural|lower }}</a></div></div>
+  <div class="actions"><a class="btn" href="{{ url_for('resources_page', group=group) }}">Back</a></div></div>
 
 <form method="post" enctype="multipart/form-data" class="panel form">{{ csrf() }}
   <div class="row">

@@ -20,6 +20,7 @@ ENDPOINT_PERMISSIONS = {
     # read-only
     "dashboard": users.VIEW, "apps_page": users.VIEW, "pcs_page": users.VIEW,
     "resources_page": users.VIEW, "resource_download": users.VIEW,
+    "registry_redirect": users.VIEW,
     "reports_page": users.VIEW, "reports_export": users.VIEW,
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
@@ -556,18 +557,35 @@ def create_app(start_background: bool = True) -> Flask:
         if kind not in payloads.KINDS:
             abort(404)
 
-    @app.route("/<kind>")
-    def resources_page(kind):
-        check_kind(kind)
-        cfg = store.load()
-        rows = [{"entry": e, "present": payloads.present(kind, e)} for e in cfg.get(kind, [])]
-        return render_template("resources.html", kind=kind, meta=payloads.KINDS[kind], rows=rows,
-                               cfg=cfg, targets=store.target_choices(cfg),
-                               run_modes=payloads.RUN_MODES, reports=load_reports())
+    def check_group(group):
+        if group not in payloads.GROUPS:
+            abort(404)
 
-    @app.route("/<kind>/add", methods=["POST"])
-    def resource_add(kind):
-        check_kind(kind)
+    @app.route("/registry")
+    def registry_redirect():
+        """Registry files moved onto the scripts page; keep old links working."""
+        return redirect(url_for("resources_page", group="scripts"))
+
+    @app.route("/<group>")
+    def resources_page(group):
+        check_group(group)
+        cfg = store.load()
+        meta = payloads.GROUPS[group]
+        rows = [{"entry": e, "kind": kind, "label": payloads.KINDS[kind]["label"],
+                 "present": payloads.present(kind, e)}
+                for kind in meta["kinds"] for e in cfg.get(kind, [])]
+        rows.sort(key=lambda r: r["entry"]["name"].lower())
+        return render_template("resources.html", group=group, meta=meta, rows=rows,
+                               kinds=[payloads.KINDS[k] for k in meta["kinds"]],
+                               accept=",".join(ext for k in meta["kinds"]
+                                               for ext in payloads.KINDS[k]["extensions"]),
+                               cfg=cfg, targets=store.target_choices(cfg),
+                               run_modes=payloads.RUN_MODES, reports=load_reports(),
+                               job_kind=("deploy_drivers" if group == "drivers" else "deploy_automation"))
+
+    @app.route("/<group>/add", methods=["POST"])
+    def resource_add(group):
+        check_group(group)
         cfg = store.load()
         f = request.files.get("payload")
         name = request.form.get("name", "").strip()
@@ -576,6 +594,7 @@ def create_app(start_background: bool = True) -> Flask:
                 raise store.ValidationError("Enter a name.")
             if not f or not f.filename:
                 raise store.ValidationError("Choose a file to upload.")
+            kind = payloads.kind_for_filename(f.filename, payloads.GROUPS[group]["kinds"])
             entry = {
                 "id": payloads.new_id(cfg, kind, name),
                 "name": name,
@@ -595,7 +614,7 @@ def create_app(start_background: bool = True) -> Flask:
             flash(f"{payloads.KINDS[kind]['label']} '{name}' uploaded.", "ok")
         except (store.ValidationError, ValueError) as exc:
             flash(str(exc), "error")
-        return redirect(url_for("resources_page", kind=kind))
+        return redirect(url_for("resources_page", group=group))
 
     def find_resource(cfg, kind, rid):
         for i, e in enumerate(cfg.get(kind, [])):
@@ -628,10 +647,11 @@ def create_app(start_background: bool = True) -> Flask:
                 cfg[kind][idx] = entry
                 store.save(cfg)
                 flash("Saved.", "ok")
-                return redirect(url_for("resources_page", kind=kind))
+                return redirect(url_for("resources_page", group=payloads.GROUP_OF[kind]))
             except (store.ValidationError, ValueError) as exc:
                 flash(str(exc), "error")
-        return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind], entry=entry,
+        return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind],
+                               group=payloads.GROUP_OF[kind], entry=entry,
                                cfg=cfg, targets=store.target_choices(cfg), run_modes=payloads.RUN_MODES,
                                present=payloads.present(kind, entry))
 
@@ -644,7 +664,7 @@ def create_app(start_background: bool = True) -> Flask:
         if save_or_flash(cfg):
             payloads.delete_file(kind, entry)
             flash(f"Removed '{entry['name']}'. Anything already applied on the PCs stays as it is.", "ok")
-        return redirect(url_for("resources_page", kind=kind))
+        return redirect(url_for("resources_page", group=payloads.GROUP_OF[kind]))
 
     @app.route("/<kind>/<rid>/download")
     def resource_download(kind, rid):
@@ -670,7 +690,7 @@ def create_app(start_background: bool = True) -> Flask:
             job_id = jobs.start(kind_job, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
         except (jobs.JobBusy, ValueError) as exc:
             flash(str(exc), "error")
-            return redirect(url_for("resources_page", kind=kind))
+            return redirect(url_for("resources_page", group=payloads.GROUP_OF[kind]))
         return redirect(url_for("job_view", job_id=job_id))
 
     # ---- PCs -----------------------------------------------------------------------

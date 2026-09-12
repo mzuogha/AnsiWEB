@@ -4,6 +4,20 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.6.1"
+  date: "2026-09-12"
+  summary: >-
+    Scripts and registry files now share one page, since both are simply things
+    to run on a PC.
+  changed:
+    - "Scripts & registry is a single page. Upload either kind there and AnsiWEB
+       works out which it is from the file; each row shows its type."
+    - Apply now on that page runs scripts and merges registry files in one job.
+    - The old /registry address redirects to the merged page, so saved links
+       still work.
+    - Nothing changed on the PCs, and existing scripts and registry files are
+      untouched.
+
 - version: "1.6.0"
   date: "2026-09-12"
   summary: >-
