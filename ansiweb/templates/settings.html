@@ -29,6 +29,8 @@
   <p class="muted small">The web interface is reached over
     {% if https %}HTTPS. PCs still download installers over plain HTTP, because they trust no certificate of yours.
     {% else %}plain HTTP. See docs/INSTALL.md to switch the dashboard to HTTPS.{% endif %}</p>
+  <label class="check"><input type="checkbox" name="collect_inventory" {{ 'checked' if cfg.settings.collect_inventory }}>
+    Read the full list of installed programs from each PC for the inventory</label>
   <label class="check"><input type="checkbox" name="allow_reboot" {{ 'checked' if cfg.settings.allow_reboot }}>
     Reboot PCs automatically when an installer requires it (otherwise the job lists PCs needing a reboot)</label>
 

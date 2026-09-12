@@ -24,6 +24,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW,
+    "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
@@ -97,7 +98,8 @@ def create_app(start_background: bool = True) -> Flask:
                 "perms": {"view": users.VIEW, "run": users.RUN_JOBS,
                           "content": users.MANAGE_CONTENT, "pcs": users.MANAGE_PCS,
                           "admin": users.ADMIN},
-                "role_label": users.ROLES.get(session.get("role", ""), {}).get("label", "")}
+                "role_label": users.ROLES.get(session.get("role", ""), {}).get("label", ""),
+                "my_scope": my_scope(), "scope_label": users.scope_label(my_scope())}
 
     @app.before_request
     def protect():
@@ -180,6 +182,35 @@ def create_app(start_background: bool = True) -> Flask:
             resp.headers["Strict-Transport-Security"] = "max-age=31536000"
         return resp
 
+    def my_scope() -> list:
+        return users.scope_of(users.get(session.get("user", "")))
+
+    def visible_pcs(cfg: dict) -> list:
+        """The PCs this user may see, in their configured order."""
+        scope = my_scope()
+        return [pc for pc in cfg.get("pcs", []) if users.pc_in_scope(pc, scope)]
+
+    def pc_allowed(cfg: dict, name: str) -> bool:
+        scope = my_scope()
+        if not scope:
+            return True
+        for pc in cfg.get("pcs", []):
+            if pc["name"] == name:
+                return users.pc_in_scope(pc, scope)
+        return False
+
+    def scoped_target(cfg: dict, requested: str) -> str:
+        """Narrow a requested job target to what this user is allowed to touch.
+
+        Unscoped users get their request unchanged. For a scoped user the target
+        is turned into an explicit list of PCs, so a job can never reach a PC
+        outside their sites or groups - even if the form was tampered with.
+        """
+        try:
+            return users.narrow_target(cfg.get("pcs", []), my_scope(), requested)
+        except users.UserError as exc:
+            raise store.ValidationError(str(exc))
+
     def save_or_flash(cfg) -> bool:
         try:
             store.save(cfg)
@@ -221,10 +252,11 @@ def create_app(start_background: bool = True) -> Flask:
         p = store.read_json(paths.PLAN_FILE, {})
         reports = load_reports()
         app_rows = app_status_rows(cfg, manifest)
-        stale = report_state.summarise(cfg.get("pcs", []), reports,
+        mine = visible_pcs(cfg)
+        stale = report_state.summarise(mine, reports,
                                        cfg["settings"].get("stale_after_days", 14))
         stats = {
-            "pcs": len(cfg.get("pcs", [])),
+            "pcs": len(mine),
             "apps": len([a for a in cfg["apps"] if a.get("enabled", True)]),
             "cached": sum(1 for r in app_rows if r["state"] in ("ok", "pinned")),
             "problems": sum(1 for r in app_rows if r["state"] in ("error", "stale", "missing")),
@@ -494,8 +526,13 @@ def create_app(start_background: bool = True) -> Flask:
         return redirect(url_for("uninstalls_page"))
 
     def _start_uninstall(kind, uid):
-        _, entry = find_uninstall(store.load(), uid)
-        target = request.form.get("target", "") or "all"
+        cfg = store.load()
+        _, entry = find_uninstall(cfg, uid)
+        try:
+            target = scoped_target(cfg, request.form.get("target", "") or "all")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("uninstalls_page"))
         try:
             job_id = jobs.start(kind, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
         except (jobs.JobBusy, ValueError) as exc:
@@ -624,7 +661,11 @@ def create_app(start_background: bool = True) -> Flask:
         _, entry = find_resource(store.load(), kind, rid)
         kind_job = {"drivers": "deploy_drivers", "scripts": "deploy_scripts",
                     "registry": "deploy_registry"}[kind]
-        target = request.form.get("target", "") or "all"
+        try:
+            target = scoped_target(store.load(), request.form.get("target", "") or "all")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("resources_page", kind=kind))
         try:
             job_id = jobs.start(kind_job, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
         except (jobs.JobBusy, ValueError) as exc:
@@ -636,7 +677,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/pcs")
     def pcs_page():
         cfg = store.load()
-        return render_template("pcs.html", cfg=cfg, reports=load_reports(),
+        return render_template("pcs.html", cfg=cfg, reports=load_reports(), visible=visible_pcs(cfg),
                                plan=store.read_json(paths.PLAN_FILE, {}),
                                secrets=vault.secret_status())
 
@@ -661,6 +702,8 @@ def create_app(start_background: bool = True) -> Flask:
         idx = next((i for i, pc in enumerate(cfg["pcs"]) if pc["name"] == name), None)
         if idx is None:
             abort(404)
+        if not pc_allowed(cfg, name):
+            abort(403)
         if request.method == "POST":
             new = pc_from_form()
             renamed = new["name"] != name
@@ -684,6 +727,8 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/pcs/<name>/delete", methods=["POST"])
     def pc_delete(name):
         cfg = store.load()
+        if not pc_allowed(cfg, name):
+            abort(403)
         cfg["pcs"] = [pc for pc in cfg["pcs"] if pc["name"] != name]
         if save_or_flash(cfg):
             (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
@@ -768,7 +813,7 @@ def create_app(start_background: bool = True) -> Flask:
         p = store.read_json(paths.PLAN_FILE, {})
         threshold = cfg["settings"].get("stale_after_days", 14)
         rows = []
-        for pc in cfg.get("pcs", []):
+        for pc in visible_pcs(cfg):
             r = reports.get(pc["name"], {})
             apps = r.get("apps", [])
             results = r.get("results") or r.get("items") or []
@@ -786,7 +831,7 @@ def create_app(start_background: bool = True) -> Flask:
             })
         return render_template("reports.html", cfg=cfg, rows=rows, plan=p,
                                jobs=jobs.list_jobs(25), counts=jobs.job_counts(30),
-                               stale=report_state.summarise(cfg.get("pcs", []), reports, threshold),
+                               stale=report_state.summarise(visible_pcs(cfg), reports, threshold),
                                stale_days=threshold,
                                only=request.args.get("only", ""))
 
@@ -799,7 +844,7 @@ def create_app(start_background: bool = True) -> Flask:
         w.writerow(["pc", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
                     "activated", "reboot_pending", "freshness", "days_since_report",
                     "kind", "item", "installed", "target", "status"])
-        for pc in cfg.get("pcs", []):
+        for pc in visible_pcs(cfg):
             r = reports.get(pc["name"], {})
             facts = r.get("facts") or {}
             base = [pc["name"], pc.get("site", ""), ";".join(pc.get("groups", [])), pc.get("ip", ""),
@@ -823,11 +868,65 @@ def create_app(start_background: bool = True) -> Flask:
     def report_delete(name):
         if not store.NAME_RE.match(name):
             abort(400)
+        if not pc_allowed(store.load(), name):
+            abort(403)
         (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
         flash(f"Cleared the stored report for {name}.", "ok")
         return redirect(url_for("reports_page"))
 
     # ---- jobs ----------------------------------------------------------------------------
+    # ---- software inventory -------------------------------------------------------------
+    def inventory_rows(cfg, query: str = "", pc_filter: str = ""):
+        """Every program reported by the visible PCs, grouped by name and version."""
+        reports = load_reports()
+        needle = query.strip().lower()
+        grouped = {}
+        pcs_with_data = 0
+        for pc in visible_pcs(cfg):
+            report = reports.get(pc["name"], {})
+            apps = report.get("inventory") or []
+            if apps:
+                pcs_with_data += 1
+            if pc_filter and pc["name"] != pc_filter:
+                continue
+            for app in apps:
+                name = str(app.get("name", ""))
+                version = str(app.get("version", ""))
+                publisher = str(app.get("publisher", ""))
+                if needle and needle not in f"{name} {version} {publisher}".lower():
+                    continue
+                key = (name.lower(), version)
+                row = grouped.setdefault(key, {"name": name, "version": version,
+                                               "publisher": publisher, "arch": app.get("arch", ""),
+                                               "pcs": []})
+                row["pcs"].append(pc["name"])
+        rows = sorted(grouped.values(), key=lambda r: (r["name"].lower(), r["version"]))
+        return rows, pcs_with_data
+
+    @app.route("/inventory")
+    def inventory_page():
+        cfg = store.load()
+        query = request.args.get("q", "")
+        pc_filter = request.args.get("pc", "")
+        rows, with_data = inventory_rows(cfg, query, pc_filter)
+        return render_template("inventory.html", cfg=cfg, rows=rows[:1000], total=len(rows),
+                               query=query, pc_filter=pc_filter, pcs=visible_pcs(cfg),
+                               with_data=with_data,
+                               collect=cfg["settings"].get("collect_inventory", True))
+
+    @app.route("/inventory/export.csv")
+    def inventory_export():
+        cfg = store.load()
+        rows, _ = inventory_rows(cfg, request.args.get("q", ""), request.args.get("pc", ""))
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["program", "version", "publisher", "architecture", "pc_count", "pcs"])
+        for r in rows:
+            w.writerow([r["name"], r["version"], r["publisher"], r["arch"],
+                        len(r["pcs"]), ";".join(sorted(r["pcs"]))])
+        return Response(out.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=ansiweb-inventory.csv"})
+
     # ---- audit log ---------------------------------------------------------------------
     @app.route("/audit")
     def audit_page():
@@ -866,14 +965,18 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- users and roles ---------------------------------------------------------------
     @app.route("/users")
     def users_page():
+        cfg = store.load()
         return render_template("users.html", users=users.all_users(), roles=users.ROLES,
-                               me=session.get("user"), min_password=users.MIN_PASSWORD)
+                               me=session.get("user"), min_password=users.MIN_PASSWORD,
+                               scope_choices=[t for t in store.target_choices(cfg) if t != "all"],
+                               scope_label=users.scope_label)
 
     @app.route("/users/add", methods=["POST"])
     def user_add():
         f = request.form
         try:
-            users.create(f.get("username", ""), f.get("password", ""), f.get("role", users.DEFAULT_ROLE))
+            users.create(f.get("username", ""), f.get("password", ""), f.get("role", users.DEFAULT_ROLE),
+                         request.form.getlist("scope"))
             flash(f"Added {f.get('username')} as {users.ROLES[f.get('role')]['label']}.", "ok")
         except (users.UserError, KeyError) as exc:
             flash(str(exc) if isinstance(exc, users.UserError) else "Unknown role.", "error")
@@ -886,6 +989,18 @@ def create_app(start_background: bool = True) -> Flask:
             flash(f"{username} is now a {users.ROLES[request.form['role']]['label']}.", "ok")
         except (users.UserError, KeyError) as exc:
             flash(str(exc) if isinstance(exc, users.UserError) else "Unknown role.", "error")
+        return redirect(url_for("users_page"))
+
+    @app.route("/users/<username>/scope", methods=["POST"])
+    def user_scope(username):
+        try:
+            users.set_scope(username, request.form.getlist("scope"))
+            scope = users.scope_of(users.get(username))
+            flash(f"{username} can now manage {users.scope_label(scope)}."
+                  if users.get(username).get("role") != "admin" else
+                  f"{username} is an administrator, so scopes do not apply.", "ok")
+        except users.UserError as exc:
+            flash(str(exc), "error")
         return redirect(url_for("users_page"))
 
     @app.route("/users/<username>/password", methods=["POST"])
@@ -945,7 +1060,8 @@ def create_app(start_background: bool = True) -> Flask:
         target = request.form.get("target", "")
         if kind in jobs.DEPLOY_TAGS or kind == "ping":
             try:
-                store.limit_for(target or "all")
+                target = scoped_target(store.load(), target)
+                store.limit_for(target)
             except store.ValidationError as exc:
                 flash(str(exc), "error")
                 return back()
@@ -991,6 +1107,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "log_retention_days": max(1, min(3650, int(f.get("log_retention_days", 60)))),
                     "session_timeout_minutes": int(f.get("session_timeout_minutes", 60)),
                     "stale_after_days": int(f.get("stale_after_days", 14)),
+                    "collect_inventory": f.get("collect_inventory") == "on",
                 })
                 cfg["schedules"]["cache_check"] = {"enabled": f.get("cc_enabled") == "on",
                                                    "every_hours": max(1, int(f.get("cc_hours", 24)))}

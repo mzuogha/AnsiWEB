@@ -21,6 +21,7 @@ KINDS = {
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
     "updates": "Install Windows updates",
+    "inventory": "Collect inventory from PCs",
     "uninstall_preview": "Preview an uninstall",
     "uninstall_run": "Uninstall apps from PCs",
     "ping": "Connection test",
@@ -37,6 +38,7 @@ DEPLOY_TAGS = {
     "activate": "activation",
     "set_time": "time",
     "updates": "updates",
+    "inventory": "inventory",
     "uninstall_preview": "uninstall",
     "uninstall_run": "uninstall",
 }

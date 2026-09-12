@@ -61,7 +61,7 @@
 
 - name: Check installed app versions
   ansible.builtin.include_tasks: detect.yml
-  tags: [apps]
+  tags: [apps, inventory]
 
 - name: Show what will be done
   ansible.builtin.debug:
@@ -153,7 +153,16 @@
   ansible.builtin.include_tasks: detect.yml
   when: aw_todo | length > 0
 
+- name: List every installed program for the inventory
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'inventory.ps1') }}"
+  register: aw_inventory
+  changed_when: false
+  when: aw_plan.collect_inventory | default(true) | bool
+  tags: [inventory]
+
 - name: Collect facts for the report
+  tags: [inventory]
   ansible.windows.win_powershell:
     script: |
       $os = Get-CimInstance Win32_OperatingSystem
@@ -178,6 +187,7 @@
   changed_when: false
 
 - name: Save the report for the AnsiWEB dashboard
+  tags: [inventory]
   ansible.builtin.copy:
     dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
     mode: "0644"
@@ -187,5 +197,8 @@
           'facts': aw_facts.result,
           'reboot_pending': aw_reboot_needed | bool,
           'apps': aw_detect.result,
+          'inventory': (aw_inventory.result.apps | default([])),
+          'inventory_count': (aw_inventory.result.count | default(0)),
+          'inventory_truncated': (aw_inventory.result.truncated | default(false)),
           'results': aw_results} | to_nice_json }}
   delegate_to: localhost

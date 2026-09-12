@@ -157,6 +157,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "server_ip": (cfg.get("settings") or {}).get("server_ip", ""),
         "allow_reboot": bool((cfg.get("settings") or {}).get("allow_reboot")),
         "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),
+        "collect_inventory": bool((cfg.get("settings") or {}).get("collect_inventory", True)),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
         "uninstalls": uninstalls,

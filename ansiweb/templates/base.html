@@ -21,6 +21,7 @@
     <a href="{{ url_for('resources_page', kind='drivers') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'drivers' }}">Drivers</a>
     <a href="{{ url_for('resources_page', kind='scripts') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'scripts' }}">Scripts</a>
     <a href="{{ url_for('resources_page', kind='registry') }}" class="{{ 'active' if request.view_args and request.view_args.get('kind') == 'registry' }}">Registry</a>
+    <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory</a>
     <a href="{{ url_for('reports_page') }}" class="{{ 'active' if ep.startswith('report') }}">Reports</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>
@@ -34,7 +35,7 @@
   <form method="post" action="{{ url_for('logout') }}" class="logout">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="link">Sign out {{ session.user }}</button>
-    {% if role_label %}<div class="rolebadge">{{ role_label }}</div>{% endif %}
+    {% if role_label %}<div class="rolebadge">{{ role_label }}{% if my_scope %} · {{ scope_label }}{% endif %}</div>{% endif %}
   </form>
   <div class="ver"><a href="{{ url_for('release_notes') }}">v{{ version }} - what's new</a></div>
 </aside>

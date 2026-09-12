@@ -22,6 +22,11 @@ MANAGE_CONTENT = "manage_content"  # apps, drivers, scripts, registry files
 MANAGE_PCS = "manage_pcs"          # add, edit, rename and remove PCs and sites
 ADMIN = "admin"                    # settings, secrets, backup/restore, users
 
+# A scope limits a non-administrator to certain sites or groups. An empty scope
+# means every PC. Administrators ignore scopes entirely - they manage the whole
+# installation by definition.
+SCOPABLE_ROLES = ("operator", "helpdesk", "viewer")
+
 ROLES = {
     "admin": {
         "label": "Administrator",
@@ -115,7 +120,7 @@ def check_password_rules(password: str) -> None:
         raise UserError(f"The password must be at least {MIN_PASSWORD} characters.")
 
 
-def create(username: str, password: str, role: str) -> None:
+def create(username: str, password: str, role: str, scope: list | None = None) -> None:
     name = validate_username(username)
     check_password_rules(password)
     if role not in ROLES:
@@ -125,8 +130,73 @@ def create(username: str, password: str, role: str) -> None:
         if name.lower() in users:
             raise UserError(f"A user called '{name}' already exists.")
         users[name.lower()] = {"username": name, "password_hash": generate_password_hash(password),
-                              "role": role, "created": _now(), "disabled": False}
+                              "role": role, "created": _now(), "disabled": False,
+                              "scope": clean_scope(role, scope)}
         _write(users)
+
+
+def clean_scope(role: str, scope: list | None) -> list:
+    """Only site: and group: entries mean anything, and only for lesser roles."""
+    if role == "admin":
+        return []
+    out = []
+    for item in scope or []:
+        item = str(item).strip()
+        if item.startswith(("site:", "group:")) and item not in out:
+            out.append(item)
+    return out
+
+
+def set_scope(username: str, scope: list) -> None:
+    with _lock:
+        users = _read()
+        key = (username or "").lower()
+        if key not in users:
+            raise UserError("No such user.")
+        users[key]["scope"] = clean_scope(users[key]["role"], scope)
+        _write(users)
+
+
+def scope_of(user: dict) -> list:
+    """The sites and groups this user is limited to; empty means everything."""
+    if not user or user.get("role") == "admin":
+        return []
+    return user.get("scope") or []
+
+
+def pc_in_scope(pc: dict, scope: list) -> bool:
+    if not scope:
+        return True
+    for item in scope:
+        if item.startswith("site:") and pc.get("site") == item[5:]:
+            return True
+        if item.startswith("group:") and item[6:] in (pc.get("groups") or []):
+            return True
+    return False
+
+
+def narrow_target(pcs: list, scope: list, requested: str) -> str:
+    """Narrow a requested job target to the PCs this scope allows.
+
+    An unscoped user gets their request unchanged. For a scoped user the target
+    becomes an explicit list of PC names, so a job can never reach a PC outside
+    their sites or groups, even if the form was tampered with. Raises UserError
+    when nothing in the target is theirs.
+    """
+    from . import plan
+    wanted = requested or "all"
+    if not scope:
+        return wanted
+    allowed = [pc["name"] for pc in pcs if pc_in_scope(pc, scope) and plan.pc_matches(pc, [wanted])]
+    if not allowed:
+        raise UserError(f"None of the PCs you can manage ({scope_label(scope)}) are in that target.")
+    return "list:" + ",".join(allowed)
+
+
+def scope_label(scope: list) -> str:
+    if not scope:
+        return "all PCs"
+    return ", ".join(s.replace("site:", "Site: ").replace("group:", "Group: ") for s in scope)
 
 
 def set_password(username: str, password: str) -> None:
@@ -152,6 +222,8 @@ def set_role(username: str, role: str) -> None:
         if users[key]["role"] == "admin" and role != "admin" and count_admins(exclude=username) == 0:
             raise UserError("This is the only administrator left. Promote someone else first.")
         users[key]["role"] = role
+        # An administrator has no scope; dropping to a lesser role keeps any it had
+        users[key]["scope"] = clean_scope(role, users[key].get("scope"))
         _write(users)
 
 

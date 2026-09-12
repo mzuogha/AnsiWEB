@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.6.0 - 2026-09-12
+
+A searchable inventory of everything installed on the PCs, and roles that can be limited to particular sites or groups.
+
+
+### New
+
+- An Inventory page listing every program Windows reports on each PC, not just the ones AnsiWEB manages. Search by program or publisher, see which PCs and versions have it, and export the lot as CSV.
+- An inventory-only job that collects the list without deploying anything.
+- Scopes - a non-administrator can be limited to certain sites or groups. They see only those PCs, and any job they start is narrowed to them, so it cannot reach a PC outside the scope even if the form is tampered with.
+
+
+### Changed
+
+- Inventory collection can be turned off in Settings, and is capped per PC so an unusual machine cannot bloat its report.
+- Promoting someone to administrator clears any scope they had.
+
+
 ## 1.5.0 - 2026-09-12
 
 Uninstalling apps from the PCs, an audit log, and PCs that have stopped reporting are now flagged instead of quietly disappearing.

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import job_button with context %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Software inventory</h1>
+  <div class="actions">
+    {% if can(perms.run) %}{{ job_button('inventory', 'Collect from all PCs', 'all') }}{% endif %}
+    <a class="btn" href="{{ url_for('inventory_export', q=query, pc=pc_filter) }}">Download CSV</a>
+  </div>
+</div>
+
+{% if not collect %}
+<div class="flash warn">Inventory collection is switched off in Settings, so this list only shows what was
+  captured before it was turned off.</div>
+{% endif %}
+
+<p class="muted">Every program the PCs report under Windows "Installed apps", not just the ones AnsiWEB manages.
+Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s) have reported an inventory.</p>
+
+<form method="get" class="panel row">
+  <label>Search<input name="q" value="{{ query }}" placeholder="program, version or publisher"></label>
+  <label>PC<select name="pc">
+    <option value="">all PCs I can see</option>
+    {% for pc in pcs %}<option value="{{ pc.name }}" {{ 'selected' if pc.name == pc_filter }}>{{ pc.name }}</option>{% endfor %}
+  </select></label>
+  <div><button class="btn">Search</button>
+    {% if query or pc_filter %}<a class="btn" href="{{ url_for('inventory_page') }}">Clear</a>{% endif %}</div>
+</form>
+
+<p class="muted small">{{ total }} program/version combination(s){% if total > rows|length %}, showing the first
+  {{ rows|length }}{% endif %}.</p>
+
+<table class="list">
+  <tr><th>Program</th><th>Version</th><th>Publisher</th><th>Type</th><th>PCs</th><th>Which</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><b>{{ r.name }}</b></td>
+    <td class="small">{{ r.version or '—' }}</td>
+    <td class="small">{{ r.publisher or '—' }}</td>
+    <td class="small">{{ r.arch }}</td>
+    <td>{{ r.pcs | length }}</td>
+    <td class="small muted">{{ r.pcs[:8] | join(', ') }}{% if r.pcs|length > 8 %} and {{ r.pcs|length - 8 }} more{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">
+    {% if query or pc_filter %}Nothing matched that search.
+    {% else %}No inventory yet. It is collected at the end of each deployment.{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

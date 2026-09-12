@@ -9,7 +9,7 @@ person's next click. AnsiWEB always keeps at least one administrator, so the las
 disabled or removed.</p>
 
 <table class="list">
-  <tr><th>User</th><th>Role</th><th>Added</th><th>Status</th><th>Reset password</th><th></th></tr>
+  <tr><th>User</th><th>Role</th><th>Can manage</th><th>Status</th><th>Reset password</th><th></th></tr>
   {% for u in users %}
   <tr class="{{ 'dim' if u.disabled }}">
     <td><b>{{ u.username }}</b>{% if u.username == me %} <span class="pill">you</span>{% endif %}</td>
@@ -21,7 +21,17 @@ disabled or removed.</p>
         <button class="btn small">Change</button>
       </form>
     </td>
-    <td class="small">{{ u.created }}</td>
+    <td class="small">
+      {% if u.role == 'admin' %}<span class="muted">everything</span>
+      {% else %}
+      <form method="post" action="{{ url_for('user_scope', username=u.username) }}" class="inline row tight">{{ csrf() }}
+        <select name="scope" multiple size="3">
+          {% for t in scope_choices %}<option value="{{ t }}" {{ 'selected' if t in (u.scope or []) }}>{{ t }}</option>{% endfor %}
+        </select>
+        <button class="btn small">Set</button>
+      </form>
+      <span class="muted small">{{ scope_label(u.scope or []) }}</span>
+      {% endif %}</td>
     <td>{% if u.disabled %}<span class="pill failed">disabled</span>{% else %}<span class="pill success">active</span>{% endif %}</td>
     <td>
       <form method="post" action="{{ url_for('user_password', username=u.username) }}" class="inline row tight">{{ csrf() }}
@@ -52,6 +62,9 @@ disabled or removed.</p>
     <label>Role<select name="role">
       {% for key, role in roles.items() %}<option value="{{ key }}" {{ 'selected' if key == 'helpdesk' }}>{{ role.label }}</option>{% endfor %}
     </select></label>
+    <label>Limit to (optional)<select name="scope" multiple size="4">
+      {% for t in scope_choices %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+    </select><small>Nothing selected means every PC. Ignored for administrators.</small></label>
     <div><button class="btn primary">Add user</button></div>
   </form>
 </section>
@@ -64,6 +77,8 @@ disabled or removed.</p>
     <tr><td><b>{{ role.label }}</b></td><td>{{ role.description }}</td></tr>
     {% endfor %}
   </table>
+  <p class="muted small">A <b>scope</b> limits someone to certain sites or groups: they only see those PCs, and a
+  job they start can never reach a PC outside them, whatever the form says. Administrators are never scoped.</p>
   <p class="muted small">Anyone who can manage apps, drivers, scripts or registry files can cause code to run on
   every PC they target, so treat Operator as a trusted role. Helpdesk and Viewer cannot change what gets deployed.</p>
 </section>

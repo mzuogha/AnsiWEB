@@ -4,6 +4,24 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.6.0"
+  date: "2026-09-12"
+  summary: >-
+    A searchable inventory of everything installed on the PCs, and roles that
+    can be limited to particular sites or groups.
+  added:
+    - An Inventory page listing every program Windows reports on each PC, not
+      just the ones AnsiWEB manages. Search by program or publisher, see which
+      PCs and versions have it, and export the lot as CSV.
+    - An inventory-only job that collects the list without deploying anything.
+    - Scopes - a non-administrator can be limited to certain sites or groups.
+      They see only those PCs, and any job they start is narrowed to them, so
+      it cannot reach a PC outside the scope even if the form is tampered with.
+  changed:
+    - Inventory collection can be turned off in Settings, and is capped per PC
+      so an unusual machine cannot bloat its report.
+    - Promoting someone to administrator clears any scope they had.
+
 - version: "1.5.0"
   date: "2026-09-12"
   summary: >-

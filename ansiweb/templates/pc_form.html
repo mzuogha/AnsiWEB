@@ -58,6 +58,24 @@
   </table>
   {% else %}<p class="muted">This PC hasn't reported yet. It reports after each deployment.</p>{% endif %}
 
+  {% if report and report.inventory %}
+  <h3>Everything installed ({{ report.inventory_count }} program(s))</h3>
+  <p class="muted small">As last reported.
+    <a href="{{ url_for('inventory_page', pc=pc.name) }}">Search the inventory for this PC</a>.
+    {% if report.inventory_truncated %}The list was long, so only the first entries were kept.{% endif %}</p>
+  <table>
+    <tr><th>Program</th><th>Version</th><th>Publisher</th></tr>
+    {% for app in report.inventory[:60] %}
+    <tr><td>{{ app.name }}</td><td class="small">{{ app.version }}</td>
+      <td class="small muted">{{ app.publisher }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if report.inventory | length > 60 %}
+  <p class="muted small">Showing 60 of {{ report.inventory | length }}.
+    <a href="{{ url_for('inventory_page', pc=pc.name) }}">See all</a>.</p>
+  {% endif %}
+  {% endif %}
+
   {% set res = report['results'] if report else [] %}
   {% if res %}
   <h3>Drivers, scripts and registry files</h3>

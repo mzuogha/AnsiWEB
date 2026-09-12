@@ -620,6 +620,127 @@ ok(removed >= 1, "old audit entries are pruned")
 ok(not audit.entries(limit=10, user="olduser"), "the pruned entry is gone")
 ok(audit.entries(limit=10), "recent entries survive pruning")
 
+# ---------------------------------------------------------------- software inventory
+# the fixture report gains a full inventory, as the role would write it
+_rep = os.path.join(DATA, "reports/PC-HQ-001.json")
+_data = json.load(open(_rep))
+_data["inventory_count"] = 4
+_data["inventory_truncated"] = False
+_data["inventory"] = [
+    {"name": "7-Zip 24.09 (x64)", "version": "24.09", "publisher": "Igor Pavlov", "arch": "x64"},
+    {"name": "Google Chrome", "version": "153.0.8010.37", "publisher": "Google LLC", "arch": "x64"},
+    {"name": "Ancient Toolbar", "version": "2.1", "publisher": "Nobody Ltd", "arch": "x86"},
+    {"name": "VLC media player", "version": "3.0.21", "publisher": "VideoLAN", "arch": "x86"}]
+json.dump(_data, open(_rep, "w"))
+json.dump({"host": "PC-BR1-009", "time": "2026-09-12 09:30:00", "facts": {"hostname": "PC-BR1-009"},
+           "apps": [], "results": [], "inventory_count": 2, "inventory_truncated": False,
+           "inventory": [{"name": "7-Zip 24.09 (x64)", "version": "24.09", "publisher": "Igor Pavlov",
+                          "arch": "x64"},
+                         {"name": "Ancient Toolbar", "version": "1.0", "publisher": "Nobody Ltd",
+                          "arch": "x86"}]},
+          open(os.path.join(DATA, "reports/PC-BR1-009.json"), "w"))
+
+r = c.get("/inventory")
+ok(r.status_code == 200 and "Software inventory" in r.text, "the inventory page renders")
+ok("Ancient Toolbar" in r.text and "Google Chrome" in r.text, "programs from all PCs are listed")
+ok("2 PC(s) have reported an inventory" in r.text, "it says how many PCs have reported")
+# the same program and version on two PCs is one row counting both
+r = c.get("/inventory?q=7-Zip")
+ok("PC-HQ-001" in r.text and "PC-BR1-009" in r.text, "one row lists every PC that has it")
+ok("Google Chrome" not in r.text, "the search filters out everything else")
+ok("VideoLAN" in c.get("/inventory?q=videolan").text, "search matches the publisher, case-insensitively")
+ok("3.0.21" in c.get("/inventory?q=3.0.21").text, "search matches the version")
+# two versions of the same program stay separate rows
+r = c.get("/inventory?q=Ancient")
+ok("2.1" in r.text and "1.0" in r.text, "different versions are listed separately")
+r = c.get("/inventory?pc=PC-BR1-009")
+ok("Ancient Toolbar" in r.text and "Google Chrome" not in r.text, "the list can be limited to one PC")
+csv_inv = c.get("/inventory/export.csv").text
+ok("program,version,publisher,architecture,pc_count,pcs" in csv_inv.splitlines()[0], "inventory CSV header")
+ok("Ancient Toolbar" in csv_inv and "PC-HQ-001;PC-BR1-009" in csv_inv.replace("PC-BR1-009;PC-HQ-001",
+                                                                              "PC-HQ-001;PC-BR1-009"),
+   "the CSV lists the PCs per program")
+ok("Ancient Toolbar" in c.get("/pcs/PC-HQ-001/edit").text, "a PC's page shows its installed programs")
+SETTINGS_BASE = {"server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
+                 "log_retention_days": "45", "session_timeout_minutes": "60",
+                 "stale_after_days": "14", "cc_hours": "24", "dep_time": "19:00"}
+ok(store.load()["settings"]["collect_inventory"] in (True, False), "the collection setting exists")
+c.post("/settings", data={"csrf": tok, "collect_inventory": "on", **SETTINGS_BASE}, follow_redirects=True)
+ok(json.load(open(os.path.join(DATA, "deploy_plan.json")))["collect_inventory"] is True,
+   "collection can be switched on and reaches the plan")
+# unticking the box in the form switches it off
+r = c.post("/settings", data={"csrf": tok, **SETTINGS_BASE}, follow_redirects=True)
+ok(json.load(open(os.path.join(DATA, "deploy_plan.json")))["collect_inventory"] is False,
+   "collection can be switched off")
+ok("switched off in Settings" in c.get("/inventory").text, "the page says when collection is off")
+c.post("/settings", data={"csrf": tok, "collect_inventory": "on", **SETTINGS_BASE}, follow_redirects=True)
+ok(store.load()["settings"]["collect_inventory"] is True, "and back on again")
+
+# ---------------------------------------------------------------- per-role scoping
+# PC-HQ-001 is in site HQ; PC-BR1-009 is in Branch1; PC-BR2-001 is in Branch2 with group finance
+users.create("sam", "sam-pass-12345", "helpdesk", ["site:Branch1"])
+sc = app.test_client()
+t = csrf(sc.get("/login").text)
+r = sc.post("/login", data={"username": "sam", "password": "sam-pass-12345", "csrf": t},
+            follow_redirects=True)
+ok("Dashboard" in r.text, "a scoped user can sign in")
+ok("Site: Branch1" in r.text, "the scope is shown in the interface")
+t = csrf(sc.get("/").text)
+body = sc.get("/pcs").text
+ok("PC-BR1-009" in body and "PC-HQ-001" not in body, "only in-scope PCs are listed")
+ok("PC-BR1-009" in sc.get("/reports").text and "PC-HQ-001" not in sc.get("/reports").text,
+   "reports are limited to the scope")
+ok("PC-HQ-001" not in sc.get("/inventory").text, "the inventory is limited to the scope")
+ok("Google Chrome" not in sc.get("/inventory").text, "out-of-scope programs are not shown")
+ok(sc.get("/pcs/PC-BR1-009/edit").status_code == 200, "an in-scope PC page opens")
+ok(sc.get("/pcs/PC-HQ-001/edit").status_code == 403, "an out-of-scope PC page is refused")
+# a scoped job is narrowed to the PCs allowed, whatever was asked for
+r = sc.post("/jobs/start", data={"csrf": t, "kind": "ping", "target": "all"}, follow_redirects=True)
+job = jobs.last_job("ping")
+ok(job["target"] == "list:PC-BR1-009", "asking for all PCs is narrowed to the scope")
+ok(store.limit_for(job["target"]) == "PC-BR1-009", "the limit passed to Ansible names only that PC")
+r = sc.post("/jobs/start", data={"csrf": t, "kind": "ping", "target": "pc:PC-HQ-001"},
+            follow_redirects=True)
+ok("None of the PCs you can manage" in r.text, "targeting an out-of-scope PC is refused")
+ok(jobs.last_job("ping")["target"] == "list:PC-BR1-009", "and no job ran for it")
+r = sc.post("/jobs/start", data={"csrf": t, "kind": "ping", "target": "site:Branch2"},
+            follow_redirects=True)
+ok("None of the PCs you can manage" in r.text, "targeting another site is refused")
+# an admin is never scoped
+ok(users.scope_of(users.get("admin")) == [], "administrators have no scope")
+_pcs = store.load()["pcs"]
+ok(users.narrow_target(_pcs, [], "all") == "all", "an admin's target is left alone")
+ok(users.narrow_target(_pcs, [], "site:HQ") == "site:HQ", "an admin's site target is left alone")
+ok(users.narrow_target(_pcs, ["site:Branch1"], "all") == "list:PC-BR1-009",
+   "a scoped target is narrowed to that site's PCs")
+ok(users.narrow_target(_pcs, ["site:Branch1"], "site:Branch1") == "list:PC-BR1-009",
+   "asking for your own site gives the same list")
+try:
+    users.narrow_target(_pcs, ["site:Branch1"], "pc:PC-HQ-001")
+    ok(False, "targeting a PC outside the scope raises")
+except users.UserError as exc:
+    ok("None of the PCs you can manage" in str(exc), "targeting a PC outside the scope raises")
+try:
+    users.narrow_target(_pcs, ["group:nosuchgroup"], "all")
+    ok(False, "a scope matching no PC raises")
+except users.UserError:
+    ok(True, "a scope matching no PC raises")
+# scopes can be changed, and are dropped on promotion to admin
+r = c.post("/users/sam/scope", data={"csrf": tok, "scope": ["site:Branch1", "group:finance"]},
+           follow_redirects=True)
+ok("Site: Branch1, Group: finance" in r.text, "a scope can be widened")
+body = sc.get("/pcs").text
+ok("PC-BR2-001" in body, "the widened scope takes effect on an open session")
+c.post("/users/sam/role", data={"csrf": tok, "role": "admin"}, follow_redirects=True)
+ok(users.get("sam")["scope"] == [], "promotion to administrator clears the scope")
+c.post("/users/sam/role", data={"csrf": tok, "role": "viewer"}, follow_redirects=True)
+c.post("/users/sam/scope", data={"csrf": tok, "scope": ["bogus:x"]}, follow_redirects=True)
+ok(users.get("sam")["scope"] == [], "a meaningless scope entry is dropped")
+c.post("/users/sam/delete", data={"csrf": tok}, follow_redirects=True)
+
+ok(jobs.DEPLOY_TAGS.get("inventory") == "inventory", "an inventory-only job exists")
+ok("Collect from all PCs" in c.get("/inventory").text, "the inventory page offers a collect button")
+
 # ---------------------------------------------------------------- roles and permissions
 ok([u["username"] for u in users.all_users()] == ["admin"], "the old single admin was migrated")
 ok(users.get("admin")["role"] == "admin", "the migrated account is an administrator")

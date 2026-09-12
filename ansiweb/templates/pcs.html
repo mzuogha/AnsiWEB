@@ -10,6 +10,10 @@
     {% if can(perms.run) %}{{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}{% endif %}
   </div>
 </div>
+{% if my_scope %}
+<div class="flash">You can manage {{ scope_label }}. Other PCs are hidden, and jobs you start only reach these.</div>
+{% endif %}
+
 <p class="muted">Run the prep script once on each PC (PowerShell as Administrator), then add the PC here. The script
 already contains this server's IP{% if not cfg.settings.server_ip %} <b>once you set it in Settings</b>{% endif %}
 and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
@@ -32,7 +36,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 
 <table class="list">
   <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
-  {% for pc in cfg.pcs %}
+  {% for pc in visible %}
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
   <tr>
@@ -63,7 +67,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="muted">No PCs yet. Add one below or import a list.</td></tr>
+  <tr><td colspan="8" class="muted">{% if my_scope %}No PCs in {{ scope_label }}.{% else %}No PCs yet. Add one below or import a list.{% endif %}</td></tr>
   {% endfor %}
 </table>
 

@@ -45,6 +45,8 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Pages: Dashboard, Apps & cache, PCs (including CSV import), Drivers, Scripts, Registry, Reports, Jobs, Settings.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
+- **Scoped roles.** Limit someone to particular sites or groups.
 - **Uninstall from PCs.** Remove an app from the PCs it was installed on, with a preview first and a typed confirmation before anything goes.
 - **Audit log.** Every change through the web interface, with the account that made it.
 - **Stale PC detection.** PCs that stop reporting are counted and flagged rather than quietly disappearing.
@@ -121,6 +123,14 @@ Each of these has its own page and works the same way: upload the file once, cho
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
 
+## Software inventory
+
+AnsiWEB already reads each PC's installed-programs registry to work out what to install. The **Inventory** page keeps the whole list, not just the managed apps.
+
+Search by program or publisher and you get every matching program, which PCs have it and at which versions — the question worth answering the morning a vulnerability is announced. The list exports to CSV for an asset register, and a PC's own page shows everything on that machine.
+
+The inventory is refreshed at the end of every deployment, or on its own with the **Collect inventory** job, which reads the PCs without changing anything. Collection can be switched off in Settings, and the list is capped per PC so one unusual machine cannot bloat its report.
+
 ## Uninstalling apps from the PCs
 
 Removing an app from the standard set stops AnsiWEB installing it, but leaves it on the PCs. The **Uninstall** page removes it from them.
@@ -158,6 +168,8 @@ AnsiWEB has four roles, so you can hand out what someone actually needs. Manage 
 | **Operator** | Manage apps, drivers, scripts, registry files and PCs, and run any job. No settings, secrets or accounts. |
 | **Helpdesk** | Run deployments and connection tests against PCs, and read reports. Cannot change what is deployed. |
 | **Viewer** | Read-only: dashboard, apps, PCs, reports and job logs. |
+
+**Scopes.** A non-administrator can be limited to particular sites or groups. They see only those PCs on every page, and any job they start is narrowed to that set before it runs, so it cannot reach a PC outside the scope even if the form is tampered with. Administrators are never scoped, and promoting someone clears any scope they had.
 
 Everyone can change their own password. Controls a role cannot use are hidden rather than failing when pressed, and a role change or a disabled account takes effect on that person's next click. AnsiWEB always keeps at least one administrator, so the last one cannot be demoted, disabled or removed.
 

@@ -8,6 +8,7 @@ settings:
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
   session_timeout_minutes: 60   # sign the web session out after this much inactivity
+  collect_inventory: true  # read every installed program from each PC for the inventory
   stale_after_days: 14     # treat a PC as stale if it has not reported for this long
 
 # Windows updates installed on the PCs.

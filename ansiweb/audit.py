@@ -51,6 +51,7 @@ ACTIONS = {
     "user_password": "Reset a user's password",
     "user_disable": "Enabled or disabled a user",
     "user_delete": "Removed a user",
+    "user_scope": "Changed what a user can manage",
     "report_delete": "Cleared a PC report",
 }
 

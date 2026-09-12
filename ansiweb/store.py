@@ -304,6 +304,11 @@ def limit_for(target: str) -> str:
         return "grp_" + slug(target[6:])
     if target.startswith("pc:"):
         return target[3:]
+    if target.startswith("list:"):
+        names = [n for n in target[5:].split(",") if n]
+        if not names:
+            raise ValidationError("No PCs are in range for you.")
+        return ",".join(names)
     raise ValidationError(f"Unknown target {target}")
 
 
