@@ -160,18 +160,6 @@ GitHub allows 60 unauthenticated catalogue lookups per hour, which is plenty for
 
 **Software not in winget:** choose **Uploaded file** as the source and upload the installer on the app's page.
 
-## Pinned Firefox 65
-
-Firefox is pinned to **65.0.2**, the last 65.x release and the first Firefox version Mozilla published as an MSI. AnsiWEB:
-
-- installs it only on PCs without Firefox, and never upgrades it
-- writes `distribution\policies.json` with `DisableAppUpdate`, so Firefox doesn't update itself
-- flags PCs that already have a *different* Firefox version as **version mismatch** in the PC reports, and leaves them unchanged (downgrading Firefox can damage user profiles)
-
-To upgrade later, edit the app: untick **Pin**, or change the URL and version.
-
-> Firefox 65 dates from 2019 and no longer receives security fixes. Where possible, limit its use to the application that requires it.
-
 ## Troubleshooting
 
 | Symptom | Fix |
