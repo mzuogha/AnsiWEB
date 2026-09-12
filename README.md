@@ -48,28 +48,6 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - The web interface requires a login and has CSRF protection.
   - WinRM on each PC only accepts connections from the server.
 
-## Default app set
-
-| App | Source | Policy |
-|---|---|---|
-| Microsoft Visual C++ 2015-2022 Redistributable (x64) | winget `Microsoft.VCRedist.2015+.x64` | auto-update |
-| 7-Zip | winget `7zip.7zip` | auto-update |
-| Adobe Acrobat Reader (64-bit) | winget `Adobe.Acrobat.Reader.64-bit` | auto-update |
-| Google Chrome | winget `Google.Chrome` (enterprise MSI) | auto-update |
-| Mozilla Firefox **65.0.2** | fixed URL from Mozilla's release archive | **pinned**, Firefox's own updater disabled |
-| Java 8 Runtime (Oracle, 64-bit) | winget `Oracle.JavaRuntimeEnvironment` | auto-update |
-| VLC media player | winget `VideoLAN.VLC` | auto-update |
-
-Everything is editable in the web interface.
-
-Microsoft Office is not deployed by AnsiWEB and is installed separately.
-
-Alongside apps you can upload drivers, scripts and registry files, each targeted at all PCs, a site or a group.
-
-> **Licensing note:** Oracle Java 8 updates released after early 2019 require a paid Oracle Java SE subscription for commercial use. Confirm your licensing, or switch the Java app to Eclipse Temurin (`EclipseAdoptium.Temurin.8.JRE`) if your application supports OpenJDK.
-
----
-
 ## Installation
 
 **Full step-by-step guide, including WSL: [docs/INSTALL.md](docs/INSTALL.md).**
