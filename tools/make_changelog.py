@@ -48,3 +48,5 @@ if __name__ == "__main__":
 #   2. bump __version__ in ansiweb/__init__.py to match
 #   3. run this script to refresh CHANGELOG.md
 #   4. commit both, and the notes appear in the web interface after an upgrade
+#   5. publish them on GitHub:
+#        GITHUB_TOKEN=... python3 tools/publish_release.py

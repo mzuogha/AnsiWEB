@@ -84,7 +84,7 @@ It asks you to choose the web admin password, then prints the address to open. S
 
 **Running under WSL?** Two extra steps are needed: enable systemd inside WSL, and forward port 80 from Windows into WSL so your PCs can reach the cache. The installer detects WSL and prints the commands; [docs/INSTALL.md](docs/INSTALL.md#option-b-wsl-on-a-windows-pc) has the full procedure, including keeping it working after a reboot.
 
-To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept. After an upgrade the dashboard says which version you came from and links to the **Release notes** page; [CHANGELOG.md](CHANGELOG.md) has the same list.
+To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept. After an upgrade the dashboard says which version you came from and links to the **Release notes** page; [CHANGELOG.md](CHANGELOG.md) and the [GitHub releases](https://github.com/mzuogha/AnsiWEB/releases) have the same list.
 
 > Upgrading from v1.0, which deployed Office: the installer deletes the unused Office cache (about 4 GB), and the Office settings are dropped from your configuration. PCs that already have Office keep it; they simply stop being managed by AnsiWEB. Office then updates itself from Microsoft again, unless you removed that setting. To re-enable AnsiWEB's Office support, check out commit `5df483f`.
 
@@ -312,6 +312,7 @@ docs/INSTALL.md     installation guide (Ubuntu Server and WSL)
 deploy/             systemd unit, nginx site, certificate script
 tests/smoke_test.py offline test of the web interface
 tools/make_changelog.py  regenerates CHANGELOG.md from the release notes
+tools/publish_release.py publishes a version's notes as a GitHub Release
 install.sh          Ubuntu installer
 ```
 
