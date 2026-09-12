@@ -209,11 +209,55 @@ c.post("/scripts/set-power-plan/edit", data={"csrf": tok, "name": "Set power pla
 plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(plan["scripts"][0]["state_key"] != old_key, "replacing the file changes the state key")
 
+# ---------------------------------------------------------------- Windows activation
+r = c.get("/settings")
+ok("Windows activation" in r.text and "XXXXX-XXXXX" in r.text, "Settings offers an activation panel with a key field")
+ok(not vault.secret_status()["vault_windows_product_key"], "no key stored to begin with")
+r = c.post("/settings/activation", data={"csrf": tok, "enabled": "on", "mode": "mak",
+                                         "product_key": "aaaaa-bbbbb-ccccc-ddddd-eeeee",
+                                         "kms_port": "1688", "skip_if_activated": "on",
+                                         "targets": ["all"]}, follow_redirects=True)
+ok("Activation settings saved" in r.text, "activation settings save")
+ok(vault.ansible_secrets()["vault_windows_product_key"] == "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
+   "the key is stored upper-cased in the vault")
+ok("AAAAA-BBBBB" not in c.get("/settings").text, "the stored key is never shown again")
+plan_act = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_act["activation"]["enabled"] and plan_act["activation"]["mode"] == "mak", "activation reaches the plan")
+ok("AAAAA-BBBBB" not in open(os.path.join(DATA, "deploy_plan.json")).read(),
+   "the key is NOT written to the world-readable plan file")
+ok(plan_act["hosts"]["PC-HQ-001"]["activate"] is True, "targeted PCs are marked for activation")
+ok("looks like XXXXX" in c.post("/settings/activation", data={"csrf": tok, "mode": "mak",
+                                                              "product_key": "not-a-key", "kms_port": "1688"},
+                                follow_redirects=True).text, "a malformed key is rejected")
+ok(vault.ansible_secrets()["vault_windows_product_key"] == "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
+   "a rejected key does not overwrite the stored one")
+# KMS mode
+r = c.post("/settings/activation", data={"csrf": tok, "enabled": "on", "mode": "kms",
+                                         "kms_host": "kms.example.local", "kms_port": "1688",
+                                         "targets": ["site:HQ"]}, follow_redirects=True)
+ok("Activation settings saved" in r.text, "KMS settings save")
+plan_act = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_act["activation"]["kms_host"] == "kms.example.local", "KMS host reaches the plan")
+ok(plan_act["hosts"]["PC-BR1-009"]["activate"] is False, "PCs outside the target are not activated")
+ok("Enter the KMS host" in c.post("/settings/activation", data={"csrf": tok, "enabled": "on", "mode": "kms",
+                                                                "kms_host": "", "kms_port": "1688"},
+                                  follow_redirects=True).text, "KMS mode needs a host")
+ok("must be a number" in c.post("/settings/activation", data={"csrf": tok, "mode": "mak", "kms_port": "abc"},
+                                follow_redirects=True).text, "a bad KMS port is rejected")
+r = c.post("/settings/activation/clear-key", data={"csrf": tok}, follow_redirects=True)
+ok("product key removed" in r.text and not vault.secret_status()["vault_windows_product_key"],
+   "the stored key can be removed")
+ok("activate" in jobs.DEPLOY_TAGS and jobs.DEPLOY_TAGS["activate"] == "activation",
+   "an activation-only job exists")
+# leave activation off for the rest of the test
+c.post("/settings/activation", data={"csrf": tok, "mode": "mak", "kms_port": "1688", "targets": ["all"]},
+       follow_redirects=True)
+
 # ---------------------------------------------------------------- reports
 os.makedirs(os.path.join(DATA, "reports"), exist_ok=True)
 json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending": True,
            "facts": {"hostname": "PC-HQ-001", "os": "Windows 11 Pro", "build": "26100",
-                     "model": "Dell OptiPlex", "ram_gb": 16, "serial": "ABC123", "boot": "2026-09-12 07:00:00"},
+                     "model": "Dell OptiPlex", "ram_gb": 16, "serial": "ABC123", "boot": "2026-09-12 07:00:00", "activated": False},
            "apps": [{"id": "7zip", "name": "7-Zip", "installed": "22.01", "target": "26.03",
                      "needed": True, "mismatch": False, "reason": "update 22.01 -> 26.03"},
                     {"id": "vlc", "name": "VLC", "installed": "3.0.23", "target": "3.0.23",
@@ -229,6 +273,8 @@ ok("reboot pending" in r.text, "pending reboot is visible")
 ok("Intel NIC" in r.text, "driver result is visible")
 csv_text = c.get("/reports/export.csv").text
 ok("PC-HQ-001" in csv_text and "7-Zip" in csv_text and "Dell OptiPlex" in csv_text, "CSV export")
+ok("activated" in csv_text.splitlines()[0], "CSV has an activation column")
+ok("not activated" in c.get("/reports").text, "reports flag PCs that are not activated")
 ok(csv_text.count("\n") > 3, "CSV has a row per item")
 ok("Dell OptiPlex" in c.get("/pcs/PC-HQ-001/edit").text, "PC page shows the report")
 

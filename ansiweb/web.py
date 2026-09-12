@@ -583,13 +583,14 @@ def create_app(start_background: bool = True) -> Flask:
         out = io.StringIO()
         w = csv.writer(out)
         w.writerow(["pc", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
-                    "reboot_pending", "kind", "item", "installed", "target", "status"])
+                    "activated", "reboot_pending", "kind", "item", "installed", "target", "status"])
         for pc in cfg.get("pcs", []):
             r = reports.get(pc["name"], {})
             facts = r.get("facts") or {}
             base = [pc["name"], pc.get("site", ""), ";".join(pc.get("groups", [])), pc.get("ip", ""),
                     r.get("time", ""), facts.get("os", ""), facts.get("build", ""),
-                    facts.get("model", ""), facts.get("serial", ""), r.get("reboot_pending", "")]
+                    facts.get("model", ""), facts.get("serial", ""),
+                    facts.get("activated", ""), r.get("reboot_pending", "")]
             if not r:
                 w.writerow(base + ["", "", "", "", "no report yet"])
                 continue
@@ -678,7 +679,44 @@ def create_app(start_background: bool = True) -> Flask:
                 flash("Settings saved.", "ok")
             return redirect(url_for("settings_page"))
         return render_template("settings.html", cfg=cfg, days=DAY_LABELS, secrets=vault.secret_status(),
-                               secret_names=vault.ANSIBLE_SECRET_NAMES, https=https)
+                               secret_names=vault.ANSIBLE_SECRET_NAMES, https=https,
+                               targets=store.target_choices(cfg))
+
+    @app.route("/settings/activation", methods=["POST"])
+    def settings_activation():
+        cfg = store.load()
+        f = request.form
+        try:
+            cfg["activation"].update({
+                "enabled": f.get("enabled") == "on",
+                "mode": f.get("mode", "mak"),
+                "kms_host": f.get("kms_host", "").strip(),
+                "kms_port": int(f.get("kms_port") or 1688),
+                "skip_if_activated": f.get("skip_if_activated") == "on",
+                "targets": request.form.getlist("targets") or ["all"],
+            })
+        except ValueError:
+            flash("The KMS port must be a number.", "error")
+            return redirect(url_for("settings_page"))
+        key = f.get("product_key", "").strip().upper()
+        if key:
+            if not store.PRODUCT_KEY_RE.match(key):
+                flash("A product key looks like XXXXX-XXXXX-XXXXX-XXXXX-XXXXX.", "error")
+                return redirect(url_for("settings_page"))
+            vault.set_ansible_secret("vault_windows_product_key", key)
+        if save_or_flash(cfg):
+            if cfg["activation"]["enabled"] and not vault.secret_status()["vault_windows_product_key"] \
+                    and cfg["activation"]["mode"] == "mak":
+                flash("Activation settings saved, but no product key is stored yet.", "error")
+            else:
+                flash("Activation settings saved." + (" Key updated." if key else ""), "ok")
+        return redirect(url_for("settings_page"))
+
+    @app.route("/settings/activation/clear-key", methods=["POST"])
+    def settings_activation_clear():
+        vault.set_ansible_secret("vault_windows_product_key", "")
+        flash("Stored product key removed.", "ok")
+        return redirect(url_for("settings_page"))
 
     @app.route("/settings/secret", methods=["POST"])
     def settings_secret():
@@ -787,4 +825,7 @@ def setup_warnings(cfg: dict) -> list:
                   "pcs_page"))
     if not cfg.get("pcs"):
         w.append(("Add your PCs on the PCs page.", "pcs_page"))
+    act = cfg.get("activation") or {}
+    if act.get("enabled") and act.get("mode") == "mak" and not s.get("vault_windows_product_key"):
+        w.append(("Windows activation is on but no product key is stored.", "settings_page"))
     return w

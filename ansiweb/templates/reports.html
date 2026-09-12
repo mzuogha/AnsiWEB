@@ -34,7 +34,9 @@
         <span class="muted">{{ row.assigned.drivers|default([])|length }} / {{ row.assigned.scripts|default([])|length }} / {{ row.assigned.registry|default([])|length }} assigned</span>
       {% endfor %}
     </td>
-    <td class="small">{% if row.report.facts %}{{ row.report.facts.os }}<br>
+    <td class="small">{% if row.report.facts %}{{ row.report.facts.os }}
+      {% if row.report.facts.activated is defined and not row.report.facts.activated %}
+        <span class="pill warning">not activated</span>{% endif %}<br>
       <span class="muted">build {{ row.report.facts.build }} · {{ row.report.facts.model }} · {{ row.report.facts.ram_gb }} GB</span>{% else %}—{% endif %}</td>
     <td class="nowrap">{% if row.report %}
       <form method="post" action="{{ url_for('report_delete', name=row.pc.name) }}" class="inline"

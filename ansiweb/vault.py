@@ -18,7 +18,8 @@ from . import paths
 _lock = threading.Lock()
 
 ANSIBLE_SECRET_NAMES = {
-    "vault_ansible_svc_password": "Password of the ansible_svc account on the PCs",
+    "vault_ansible_svc_password": "Password of the local account on the PCs",
+    "vault_windows_product_key": "Windows product key used for activation",
 }
 
 

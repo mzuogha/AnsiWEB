@@ -40,6 +40,14 @@
   when: (aw_host.hostname | default('')) | length > 0
   tags: [hostname]
 
+- name: Activate Windows
+  ansible.builtin.include_tasks:
+    file: activation.yml
+    apply:
+      tags: [activation]
+  when: aw_host.activate | default(false) | bool
+  tags: [activation]
+
 - name: Check installed app versions
   ansible.builtin.include_tasks: detect.yml
   tags: [apps]
@@ -120,8 +128,12 @@
     script: |
       $os = Get-CimInstance Win32_OperatingSystem
       $cs = Get-CimInstance Win32_ComputerSystem
+      $lic = Get-CimInstance SoftwareLicensingProduct `
+             -Filter "ApplicationId = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
+             -ErrorAction SilentlyContinue | Select-Object -First 1
       $Ansible.Result = [ordered]@{
         hostname = $env:COMPUTERNAME
+        activated = if ($lic) { [int]$lic.LicenseStatus -eq 1 } else { $false }
         os       = $os.Caption
         build    = $os.BuildNumber
         model    = "$($cs.Manufacturer) $($cs.Model)".Trim()

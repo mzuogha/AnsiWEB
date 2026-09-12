@@ -104,12 +104,23 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    act = cfg.get("activation") or {}
+    activation = {
+        "enabled": bool(act.get("enabled")),
+        "mode": act.get("mode", "mak"),
+        "kms_host": act.get("kms_host", ""),
+        "kms_port": int(act.get("kms_port") or 1688),
+        "skip_if_activated": bool(act.get("skip_if_activated", True)),
+        "targets": act.get("targets") or ["all"],
+    }
+
     hosts = {}
     for pc in cfg.get("pcs", []):
         entry = {"apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])]}
         for kind, items in payload_sets.items():
             entry[kind] = [i["id"] for i in items if pc_matches(pc, i["targets"])]
         entry["hostname"] = pc["name"] if pc.get("sync_hostname") else ""
+        entry["activate"] = activation["enabled"] and pc_matches(pc, activation["targets"])
         hosts[pc["name"]] = entry
 
     return {
@@ -120,6 +131,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
+        "activation": activation,
         "apps": apps,
         "drivers": payload_sets["drivers"],
         "scripts": payload_sets["scripts"],

@@ -371,7 +371,20 @@ the target.
 > Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
 > on one PC before pointing it at a site.
 
-### 8. Turn on the schedules
+### 8. Activate Windows (optional)
+
+If you want AnsiWEB to handle Windows licensing, go to **Settings → Windows activation**:
+
+1. Tick **Activate Windows during deployments**.
+2. Choose **Product key** and paste your MAK or retail key, or choose **KMS host** and enter the host name.
+3. Pick which PCs it applies to, and leave **Skip PCs that are already activated** ticked.
+4. Save, then press **Activate Windows now** to try it on the targeted PCs.
+
+The key is stored encrypted and never appears in the deployment plan or job logs. A MAK or retail key must reach
+Microsoft, so those PCs need internet access at least once; KMS activation stays on your own network. The Reports
+page shows each PC's licence state afterwards.
+
+### 9. Turn on the schedules
 
 In **Settings**, enable:
 
@@ -380,7 +393,7 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 9. Download a backup
+### 10. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
@@ -490,6 +503,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | `credentials were rejected` | The password in Settings differs from the one used on that PC. Re-run the prep script there. |
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
+| Activation leaves a PC unactivated | The job log shows what Windows reported. MAK and retail keys need internet access from the PC; KMS needs the host reachable on port 1688. |
 | A script is marked failed | Its exit code isn't in the success list for that script. Add the code on the script's page, or fix the script; its output is on the Reports page. |
 | Cache update fails with a GitHub rate limit | Add a read-only GitHub token in Settings. |
 | An app shows a SHA256 mismatch | The vendor published a new build before the catalogue caught up. It retries on the next check; the previous version stays in use. |

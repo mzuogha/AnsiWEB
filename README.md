@@ -34,6 +34,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Device drivers.** Upload a .zip containing the .inf files; PCs unpack it and add it to the Windows driver store with pnputil.
 - **Scripts.** Upload .ps1, .cmd or .bat files and run them on chosen PCs, once, on change, or at every deployment, with exit codes and output captured.
 - **Registry files.** Upload .reg files and have them merged on chosen PCs.
+- **Windows activation.** Store a product key once and have AnsiWEB install and activate it on the PCs it manages, either with your own key or against a KMS host.
 - **Rename PCs.** Rename a PC in AnsiWEB, and optionally have Windows renamed to match at the next deployment.
 - **Version-aware deployment.**
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
@@ -111,6 +112,20 @@ Each of these has its own page and works the same way: upload the file once, cho
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
 
+## Windows activation
+
+Optional, and off by default. **Settings → Windows activation** takes:
+
+- **How to activate** — a product key (MAK or retail) that you own, or a **KMS host** on your network.
+- **Product key** — stored encrypted with Ansible Vault, never shown again, and never written to the deployment plan or the job logs.
+- **KMS host and port** — for KMS mode; the default port is 1688.
+- **Skip PCs that are already activated** — on by default, so activated PCs are left alone.
+- **Activate on** — all PCs, a site, or a group.
+
+Activation then runs as part of a deployment, or on its own with **Activate Windows now**. Each PC reports the licence state before and after, and the Reports page flags any PC Windows does not consider activated.
+
+A MAK or retail key has to reach Microsoft to activate, so those PCs need internet access at least once. KMS activation stays inside your network. Each MAK activation uses one of the activations your key allows.
+
 ## Renaming PCs
 
 Changing a PC's name on its page renames it inside AnsiWEB. Tick **Keep the Windows computer name in sync** and the next deployment (or the **Apply computer names** job) renames Windows to match, which requires a reboot to finish. The PCs page flags any PC whose reported Windows name differs from its AnsiWEB name.
@@ -151,6 +166,8 @@ GitHub allows 60 unauthenticated catalogue lookups per hour, which is plenty for
 | A driver install fails | The `.zip` must contain the `.inf` files themselves, not a vendor setup program. The job log shows the `pnputil` exit code. |
 | A script is reported as failed | Its exit code isn't in the success list. Add the code on the script's page, or fix the script. Output is on the Reports page. |
 | Changing the PC account locked AnsiWEB out | The account must exist on the PCs first. Download the prep script again and run it on each PC, or set the old name back. |
+| Activation reports "still in notification mode" | Windows accepted the key but could not activate. For a MAK key the PC needs internet access; for KMS check the host name, port 1688 and that the PC has a KMS client key. |
+| Activation says no product key is stored | Add one in Settings, or switch to KMS mode. |
 | Service logs | `journalctl -u ansiweb -f` |
 
 More, including backup, uninstall and WSL networking: [docs/INSTALL.md](docs/INSTALL.md#troubleshooting).

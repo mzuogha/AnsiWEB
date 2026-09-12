@@ -8,6 +8,15 @@ settings:
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
 
+# Windows activation. The product key itself is stored encrypted, not here.
+activation:
+  enabled: false
+  mode: mak               # mak = a key you own, kms = a KMS host on your network
+  kms_host: ""            # e.g. kms.example.local (KMS mode only)
+  kms_port: 1688
+  skip_if_activated: true # leave PCs alone that Windows already reports as activated
+  targets: [all]
+
 schedules:
   cache_check:
     enabled: true

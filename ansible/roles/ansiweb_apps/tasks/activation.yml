@@ -1,0 +1,31 @@
+---
+- name: Check the activation settings
+  ansible.builtin.assert:
+    that:
+      - aw_plan.activation.mode == 'kms' or (vault_windows_product_key | default('')) | length > 0
+    fail_msg: >-
+      Windows activation is on, but no product key is stored. Add one in
+      Settings, or switch to KMS mode.
+    quiet: true
+
+- name: Activate Windows
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'activate_windows.ps1') }}"
+    parameters:
+      Key: "{{ vault_windows_product_key | default('') }}"
+      Mode: "{{ aw_plan.activation.mode }}"
+      KmsHost: "{{ aw_plan.activation.kms_host }}"
+      KmsPort: "{{ aw_plan.activation.kms_port | int }}"
+      SkipIfActivated: "{{ aw_plan.activation.skip_if_activated | bool }}"
+  register: aw_activate
+  no_log: true              # keeps the product key out of the job log
+
+- name: Record the activation result
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "activation", "id": "windows", "name": "Windows activation",
+                                   "status": aw_activate.result.after,
+                                   "detail": aw_activate.result.edition ~ " - " ~ aw_activate.result.detail}] }}'
+
+- name: Show the activation result
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: Windows is {{ aw_activate.result.after }} ({{ aw_activate.result.detail }})"

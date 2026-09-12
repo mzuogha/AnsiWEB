@@ -18,6 +18,7 @@ KINDS = {
     "deploy_scripts": "Run scripts",
     "deploy_registry": "Merge registry files",
     "rename": "Apply computer names",
+    "activate": "Activate Windows",
     "ping": "Connection test",
 }
 
@@ -29,6 +30,7 @@ DEPLOY_TAGS = {
     "deploy_scripts": "scripts",
     "deploy_registry": "registry",
     "rename": "hostname",
+    "activate": "activation",
 }
 
 _db_lock = threading.Lock()

@@ -17,6 +17,19 @@ document.addEventListener('submit', function (e) {
   update();
 })();
 
+// Settings: show the KMS fields only when KMS activation is selected
+(function () {
+  var mode = document.getElementById('actmode');
+  if (!mode) return;
+  function update() {
+    document.querySelectorAll('.kms').forEach(function (el) {
+      el.style.display = mode.value === 'kms' ? '' : 'none';
+    });
+  }
+  mode.addEventListener('change', update);
+  update();
+})();
+
 // Live job log
 (function () {
   var pre = document.getElementById('log');

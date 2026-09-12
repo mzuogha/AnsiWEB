@@ -14,6 +14,8 @@ _lock = threading.RLock()
 
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,14}$")   # NetBIOS computer name rules
 ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$")
+HOSTNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,253}$")
+PRODUCT_KEY_RE = re.compile(r"^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 SOURCES = ["winget", "url", "upload"]
@@ -142,6 +144,20 @@ def validate(cfg: dict) -> None:
             raise ValidationError(f"{pc['name']}: '{pc.get('ip')}' is not a valid IP address")
         if pc.get("site") not in cfg.get("sites", []):
             raise ValidationError(f"{pc['name']}: site '{pc.get('site')}' does not exist")
+    act = cfg.get("activation") or {}
+    if act.get("mode") not in ("mak", "kms"):
+        raise ValidationError("Activation mode must be either MAK or KMS.")
+    try:
+        port = int(act.get("kms_port") or 1688)
+    except (TypeError, ValueError):
+        raise ValidationError("The KMS port must be a number.")
+    if not 1 <= port <= 65535:
+        raise ValidationError("The KMS port must be between 1 and 65535.")
+    if act.get("enabled") and act.get("mode") == "kms" and not act.get("kms_host"):
+        raise ValidationError("Enter the KMS host name to activate against.")
+    if act.get("kms_host") and not HOSTNAME_RE.match(act["kms_host"]):
+        raise ValidationError("The KMS host must be a host name or IP address.")
+
     t = cfg.get("schedules", {}).get("deploy", {}).get("time", "00:00")
     if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t):
         raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")

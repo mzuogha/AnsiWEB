@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf with context %}
+{% from "_macros.html" import csrf, job_button, target_label with context %}
 {% block title %}Settings{% endblock %}
 {% block content %}
 <div class="head"><h1>Settings</h1></div>
@@ -35,11 +35,58 @@
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 
+<section class="panel" id="activation">
+  <h2>Windows activation</h2>
+  <p class="muted small">Optional. AnsiWEB can install a product key and activate Windows on the PCs it manages.
+  A PC that Windows already reports as activated is left alone unless you untick the box below.</p>
+  <form method="post" action="{{ url_for('settings_activation') }}" class="form">{{ csrf() }}
+    {% set act = cfg.activation %}
+    <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if act.enabled }}>
+      Activate Windows during deployments</label>
+    <div class="row">
+      <label>How to activate<select name="mode" id="actmode">
+        <option value="mak" {{ 'selected' if act.mode == 'mak' }}>Product key (MAK or retail)</option>
+        <option value="kms" {{ 'selected' if act.mode == 'kms' }}>KMS host on your network</option>
+      </select></label>
+      <label>Product key
+        <input name="product_key" placeholder="{{ 'stored - leave empty to keep' if secrets.vault_windows_product_key else 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX' }}"
+               autocomplete="off" spellcheck="false" maxlength="29">
+        <small>Stored encrypted and never shown again.
+          {{ 'A key is stored.' if secrets.vault_windows_product_key else 'No key stored yet.' }}
+          For KMS, leave empty unless the PCs need the public KMS client key.</small></label>
+    </div>
+    <div class="row kms">
+      <label>KMS host<input name="kms_host" value="{{ act.kms_host }}" placeholder="kms.example.local"></label>
+      <label>KMS port<input name="kms_port" type="number" min="1" max="65535" value="{{ act.kms_port }}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="skip_if_activated" {{ 'checked' if act.skip_if_activated }}>
+      Skip PCs that are already activated</label>
+    <h3>Activate on</h3>
+    <div class="checks">
+      {% for t in targets %}
+      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t in act.targets }}> {{ target_label(t) }}</label>
+      {% endfor %}
+    </div>
+    <div class="formactions"><button class="btn primary">Save activation settings</button></div>
+  </form>
+  <div class="row">
+    {{ job_button('activate', 'Activate Windows now', 'all', 'btn',
+       'Install the key and activate Windows on the targeted PCs now?') }}
+    {% if secrets.vault_windows_product_key %}
+    <form method="post" action="{{ url_for('settings_activation_clear') }}" class="inline"
+          data-confirm="Remove the stored product key?">{{ csrf() }}
+      <button class="btn small danger">Remove the stored key</button></form>
+    {% endif %}
+  </div>
+  <p class="muted small">A MAK or retail key has to reach Microsoft to activate, so those PCs need internet
+  access at least once. KMS activation stays on your own network.</p>
+</section>
+
 <section class="panel" id="secrets">
   <h2>Secrets</h2>
   <p class="muted small">Stored encrypted with Ansible Vault. Values are never shown again after saving.</p>
   <table class="kv">
-    {% for name, label in secret_names.items() %}
+    {% for name, label in secret_names.items() if name != 'vault_windows_product_key' %}
     <tr><th>{{ label }}</th><td>{{ 'set' if secrets[name] else 'not set' }}</td>
       <td><form method="post" action="{{ url_for('settings_secret') }}" class="row tight">{{ csrf() }}
         <input type="hidden" name="name" value="{{ name }}">
