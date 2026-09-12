@@ -10,6 +10,11 @@
   </div>
 </div>
 
+{% if upgraded_from %}
+<div class="flash ok">AnsiWEB was upgraded from {{ upgraded_from }} to {{ version }}.
+  <a href="{{ url_for('release_notes') }}">See what changed</a>.</div>
+{% endif %}
+
 {% for text, ep in warnings %}
 <div class="flash warn"><a href="{{ url_for(ep) }}">{{ text }}</a></div>
 {% endfor %}

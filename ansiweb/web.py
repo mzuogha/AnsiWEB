@@ -12,7 +12,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
                    send_file, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import __version__, backup, cache, jobs, paths, payloads, plan, store, vault
+from . import __version__, backup, cache, jobs, paths, payloads, plan, release, store, vault
 
 DAY_LABELS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
               ("fri", "Fri"), ("sat", "Sat"), ("sun", "Sun")]
@@ -156,8 +156,13 @@ def create_app(start_background: bool = True) -> Flask:
             "payloads": sum(len([e for e in cfg.get(k, []) if e.get("enabled", True)])
                             for k in payloads.KINDS),
         }
+        seen = jobs.kv_get("acknowledged_version")
+        if not seen:                      # first run: nothing to announce
+            jobs.kv_set("acknowledged_version", __version__)
+        upgraded_from = seen if seen and seen != __version__ else ""
         return render_template("dashboard.html", cfg=cfg, stats=stats, apps=app_rows, plan=p,
                                recent=jobs.list_jobs(8), warnings=setup_warnings(cfg),
+                               upgraded_from=upgraded_from,
                                last_cache=jobs.last_job("cache_update"),
                                last_deploy=jobs.last_job("deploy"))
 
@@ -642,6 +647,18 @@ def create_app(start_background: bool = True) -> Flask:
         return redirect(url_for("reports_page"))
 
     # ---- jobs ----------------------------------------------------------------------------
+    # ---- release notes -----------------------------------------------------------------
+    @app.route("/release-notes")
+    def release_notes():
+        notes = release.all_notes()
+        seen = jobs.kv_get("acknowledged_version")
+        new_since = release.since(seen) if seen and seen != __version__ else []
+        # Opening the page counts as having read what changed
+        jobs.kv_set("acknowledged_version", __version__)
+        return render_template("release_notes.html", notes=notes, sections=release.SECTIONS,
+                               current=__version__, new_since=[n["version"] for n in new_since],
+                               previous=seen)
+
     @app.route("/jobs")
     def jobs_page():
         return render_template("jobs.html", jobs=jobs.list_jobs(200), cfg=store.load(),

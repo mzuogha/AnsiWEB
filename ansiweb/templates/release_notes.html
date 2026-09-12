@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Release notes{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Release notes</h1>
+  <div class="actions"><span class="pill st-ok">running {{ current }}</span></div>
+</div>
+
+{% if new_since %}
+<div class="flash ok">AnsiWEB was upgraded from {{ previous }} to {{ current }}. What changed in
+  {{ new_since | join(', ') }} is marked below.</div>
+{% endif %}
+
+{% if not notes %}
+<p class="muted">No release notes are available in this copy.</p>
+{% endif %}
+
+{% for note in notes %}
+<section class="panel {{ 'dim' if note.version != current and note.version not in new_since }}">
+  <h2>{{ note.version }}
+    {% if note.version == current %}<span class="pill st-ok">this version</span>
+    {% elif note.version in new_since %}<span class="pill st-pinned">new to you</span>{% endif %}
+    <span class="muted small">{{ note.date }}</span></h2>
+  {% if note.summary %}<p>{{ note.summary }}</p>{% endif %}
+  {% for key, label in sections %}
+    {% if note[key] %}
+    <h3>{{ label }}</h3>
+    <ul>{% for item in note[key] %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+  {% endfor %}
+</section>
+{% endfor %}
+
+<p class="muted small">Upgrading is <code>git pull &amp;&amp; sudo ./install.sh</code>; your configuration and
+cache are kept.</p>
+{% endblock %}

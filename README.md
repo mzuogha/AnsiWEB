@@ -45,6 +45,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Pages: Dashboard, Apps & cache, PCs (including CSV import), Drivers, Scripts, Registry, Reports, Jobs, Settings.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Release notes.** The web interface shows what changed in each version, and says so on the dashboard after an upgrade.
 - **Session timeout.** The web session signs itself out after a period of inactivity, set in Settings.
 - **Backup and restore.** One click to download your configuration, secrets and uploaded files; restore them into a fresh install from the same page.
 - **Security.**
@@ -76,7 +77,7 @@ It asks you to choose the web admin password, then prints the address to open. S
 
 **Running under WSL?** Two extra steps are needed: enable systemd inside WSL, and forward port 80 from Windows into WSL so your PCs can reach the cache. The installer detects WSL and prints the commands; [docs/INSTALL.md](docs/INSTALL.md#option-b-wsl-on-a-windows-pc) has the full procedure, including keeping it working after a reboot.
 
-To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept.
+To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are kept. After an upgrade the dashboard says which version you came from and links to the **Release notes** page; [CHANGELOG.md](CHANGELOG.md) has the same list.
 
 > Upgrading from v1.0, which deployed Office: the installer deletes the unused Office cache (about 4 GB), and the Office settings are dropped from your configuration. PCs that already have Office keep it; they simply stop being managed by AnsiWEB. Office then updates itself from Microsoft again, unless you removed that setting. To re-enable AnsiWEB's Office support, check out commit `5df483f`.
 
@@ -225,6 +226,8 @@ Targeted deployments and single items are run from the web interface (Jobs page,
 ```
 ansiweb/            Flask web app, cache manager, job runner, scheduler
   defaults/config.yml  initial configuration (your standard app list)
+  defaults/release_notes.yml  release notes, rendered in the web interface
+  release.py        reads the release notes
   payloads.py       uploaded drivers, scripts and registry files
   backup.py         backup and restore
   templates/ static/
@@ -235,6 +238,7 @@ scripts/            Prepare-AnsibleHost.ps1 (one-time PC setup)
 docs/INSTALL.md     installation guide (Ubuntu Server and WSL)
 deploy/             systemd unit, nginx site, certificate script
 tests/smoke_test.py offline test of the web interface
+tools/make_changelog.py  regenerates CHANGELOG.md from the release notes
 install.sh          Ubuntu installer
 ```
 

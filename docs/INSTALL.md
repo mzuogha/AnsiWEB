@@ -470,6 +470,9 @@ sudo ./install.sh
 
 Your configuration, secrets and cache live in `/var/lib/ansiweb` and are kept.
 
+After the upgrade the dashboard shows which version you came from, with a link to the **Release notes** page listing
+what changed. The same list is in `CHANGELOG.md`.
+
 ## Backup
 
 The simplest route is **Settings → Download backup** in the web interface, which covers the configuration, secrets

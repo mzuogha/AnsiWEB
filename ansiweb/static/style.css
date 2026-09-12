@@ -16,7 +16,8 @@ h1 { font-size: 22px; margin: 0; } h2 { font-size: 16px; margin: 0 0 12px; } h3 
 .sidebar nav a:hover { background: #1f2937; text-decoration: none; }
 .sidebar nav a.active { background: var(--brand); color: #fff; }
 .sidebar .logout { margin-top: auto; } .sidebar .logout .link { color: #94a3b8; }
-.sidebar .ver { color: #475569; font-size: 11px; padding: 4px 8px; }
+.sidebar .ver { font-size: 11px; padding: 4px 8px; }
+.sidebar .ver a { color: #64748b; }
 
 main { padding: 24px 28px; max-width: 1400px; } main.with-sidebar { margin-left: 210px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -78,3 +79,7 @@ input.short, select.short { width: 90px; }
   .sidebar { position: static; width: auto; } main.with-sidebar { margin-left: 0; }
   .grid2 { grid-template-columns: 1fr; }
 }
+
+.panel ul { margin: 6px 0 12px; padding-left: 22px; }
+.panel ul li { margin-bottom: 4px; }
+.panel h2 .pill { vertical-align: middle; margin-left: 6px; }

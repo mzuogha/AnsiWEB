@@ -13,7 +13,7 @@ os.environ["ANSIWEB_HTTPS"] = "0"          # test client speaks plain HTTP
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from werkzeug.security import generate_password_hash            # noqa: E402
-from ansiweb import backup, cache, jobs, payloads, store, vault, web   # noqa: E402
+from ansiweb import __version__, backup, cache, jobs, payloads, release, store, vault, web  # noqa: E402
 
 PW = "correct-horse-1"
 vault.set_admin("admin", generate_password_hash(PW))
@@ -482,11 +482,39 @@ ok("no AnsiWEB data" in c.post("/settings/restore", data={"csrf": tok, "confirm"
    "path traversal in an archive is refused")
 ok(not os.path.exists("/etc/evil"), "nothing escaped the data folder")
 
+# ---------------------------------------------------------------- release notes
+notes = release.all_notes()
+ok(len(notes) >= 2, "release notes are available")
+ok([n["version"] for n in notes] == sorted([n["version"] for n in notes],
+                                           key=release.version_key, reverse=True),
+   "releases are listed newest first")
+ok(release.current().get("version") == __version__, "the running version has an entry")
+ok([n["version"] for n in release.since(notes[-1]["version"])] == [n["version"] for n in notes[:-1]],
+   "'since' returns only newer releases")
+ok(release.since("") == [], "no previous version means nothing to announce")
+ok(release.version_key("1.10.0") > release.version_key("1.9.0"),
+   "versions compare numerically, not as text")
+r = c.get("/release-notes")
+ok(r.status_code == 200 and __version__ in r.text, "the release notes page renders")
+ok("this version" in r.text, "the running version is marked")
+ok(notes[-1]["version"] in r.text, "older releases are listed too")
+ok("what's new" in c.get("/").text, "the sidebar links to the notes")
+
+# after an upgrade the dashboard says so, until the notes are opened
+jobs.kv_set("acknowledged_version", "1.0.0")
+r = c.get("/")
+ok("upgraded from 1.0.0" in r.text and "See what changed" in r.text,
+   "the dashboard announces an upgrade")
+r = c.get("/release-notes")
+ok("new to you" in r.text, "releases new since the upgrade are marked")
+ok(jobs.kv_get("acknowledged_version") == __version__, "opening the page acknowledges the version")
+ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
+
 # ---------------------------------------------------------------- every page renders
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/drivers", "/scripts", "/registry", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
-            "/settings"]:
+            "/settings", "/release-notes"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")

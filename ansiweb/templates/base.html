@@ -29,7 +29,7 @@
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="link">Sign out {{ session.user }}</button>
   </form>
-  <div class="ver">v{{ version }}</div>
+  <div class="ver"><a href="{{ url_for('release_notes') }}">v{{ version }} - what's new</a></div>
 </aside>
 {% endif %}
 <main class="{{ 'with-sidebar' if session.user }}">
