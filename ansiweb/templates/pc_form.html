@@ -35,6 +35,8 @@
     <tr><th>Windows name</th><td>{{ report.facts.hostname }}</td></tr>
     <tr><th>Operating system</th><td>{{ report.facts.os }} (build {{ report.facts.build }})</td></tr>
     <tr><th>Model</th><td>{{ report.facts.model }} · {{ report.facts.ram_gb }} GB RAM · serial {{ report.facts.serial }}</td></tr>
+    <tr><th>Clock</th><td>{{ report.facts.local_time or '—' }}
+      {% if report.facts.timezone %}<span class="muted">({{ report.facts.timezone }})</span>{% endif %}</td></tr>
     <tr><th>Windows activation</th><td>{% if report.facts.activated is defined %}
       {% if report.facts.activated %}<span class="pill success">activated</span>
       {% else %}<span class="pill warning">not activated</span>{% endif %}

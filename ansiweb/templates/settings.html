@@ -35,6 +35,41 @@
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 
+<section class="panel" id="time">
+  <h2>Time and time zone</h2>
+  <p class="muted small">Optional. Pushes a time zone to the PCs and points them at your time servers, then forces a
+  resync. Clocks matter more than they look: a PC more than a few minutes out fails certificate checks and
+  some authentication.</p>
+  {% set tm = cfg.time %}
+  <form method="post" action="{{ url_for('settings_time') }}" class="form">{{ csrf() }}
+    <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if tm.enabled }}>
+      Apply these clock settings during deployments</label>
+    <div class="row">
+      <label>Time zone<select name="timezone">
+        <option value="">— leave the PCs' time zone alone —</option>
+        {% for tz in timezones %}<option value="{{ tz }}" {{ 'selected' if tz == tm.timezone }}>{{ tz }}</option>{% endfor %}
+        {% if tm.timezone and tm.timezone not in timezones %}<option value="{{ tm.timezone }}" selected>{{ tm.timezone }}</option>{% endif %}
+      </select><small>Windows time zone IDs. Run <code>tzutil /l</code> on a PC for the full list.</small></label>
+      <label>Or type an ID<input name="timezone_custom" placeholder="W. Europe Standard Time">
+        <small>Overrides the dropdown when filled in.</small></label>
+    </div>
+    <label>Time servers<input name="ntp_servers" value="{{ tm.ntp_servers | join(', ') }}"
+      placeholder="10.0.0.1, time.windows.com">
+      <small>Comma-separated, in order of preference. Leave empty to keep whatever the PCs use now.</small></label>
+    <label class="check"><input type="checkbox" name="sync_now" {{ 'checked' if tm.sync_now }}>
+      Force a clock resync each time this runs</label>
+    <h3>Apply to</h3>
+    <div class="checks">
+      {% for t in targets %}
+      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t in tm.targets }}> {{ target_label(t) }}</label>
+      {% endfor %}
+    </div>
+    <div class="formactions"><button class="btn primary">Save time settings</button></div>
+  </form>
+  {{ job_button('set_time', 'Set the time now', 'all', 'btn',
+     'Apply the time zone and time source to the targeted PCs now?') }}
+</section>
+
 <section class="panel" id="activation">
   <h2>Windows activation</h2>
   <p class="muted small">Optional. AnsiWEB can install a product key and activate Windows on the PCs it manages.

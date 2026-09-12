@@ -8,6 +8,14 @@ settings:
   batch_size: 20           # PCs per batch during a deployment
   log_retention_days: 60   # how long job logs are kept
 
+# Clock settings pushed to the PCs: time zone and where they get the time from.
+time:
+  enabled: false
+  timezone: ""             # Windows time zone ID, e.g. W. Europe Standard Time
+  ntp_servers: []          # time sources, e.g. [10.0.0.1, time.windows.com]
+  sync_now: true           # force a resync each time this runs
+  targets: [all]
+
 # Windows activation. The product key itself is stored encrypted, not here.
 activation:
   enabled: false

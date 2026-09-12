@@ -16,6 +16,24 @@ NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,14}$")   # NetBIOS computer na
 ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$")
 HOSTNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,253}$")
 PRODUCT_KEY_RE = re.compile(r"^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$")
+TIMEZONE_RE = re.compile(r"^[A-Za-z0-9 .,'()+/-]{3,80}$")
+
+# A short list for the dropdown. Any valid Windows ID can be typed in;
+# run "tzutil /l" on a PC to see them all.
+COMMON_TIMEZONES = [
+    "GMT Standard Time", "Greenwich Standard Time", "W. Europe Standard Time",
+    "Central Europe Standard Time", "Romance Standard Time", "E. Europe Standard Time",
+    "FLE Standard Time", "Turkey Standard Time", "Israel Standard Time",
+    "Arabian Standard Time", "Arab Standard Time", "W. Central Africa Standard Time",
+    "South Africa Standard Time", "E. Africa Standard Time", "India Standard Time",
+    "Pakistan Standard Time", "China Standard Time", "Singapore Standard Time",
+    "Tokyo Standard Time", "Korea Standard Time", "AUS Eastern Standard Time",
+    "New Zealand Standard Time", "UTC", "Azores Standard Time",
+    "E. South America Standard Time", "Argentina Standard Time", "SA Pacific Standard Time",
+    "Eastern Standard Time", "Central Standard Time", "Mountain Standard Time",
+    "US Mountain Standard Time", "Pacific Standard Time", "Alaskan Standard Time",
+    "Hawaiian Standard Time",
+]
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 SOURCES = ["winget", "url", "upload"]
@@ -144,6 +162,16 @@ def validate(cfg: dict) -> None:
             raise ValidationError(f"{pc['name']}: '{pc.get('ip')}' is not a valid IP address")
         if pc.get("site") not in cfg.get("sites", []):
             raise ValidationError(f"{pc['name']}: site '{pc.get('site')}' does not exist")
+    tm = cfg.get("time") or {}
+    if tm.get("timezone") and not TIMEZONE_RE.match(tm["timezone"]):
+        raise ValidationError("That does not look like a Windows time zone ID, e.g. "
+                              "W. Europe Standard Time")
+    for server in tm.get("ntp_servers") or []:
+        if not HOSTNAME_RE.match(server):
+            raise ValidationError(f"'{server}' is not a valid time server name or IP address")
+    if tm.get("enabled") and not tm.get("timezone") and not (tm.get("ntp_servers") or []):
+        raise ValidationError("Set a time zone or at least one time server before turning this on.")
+
     act = cfg.get("activation") or {}
     if act.get("mode") not in ("mak", "kms"):
         raise ValidationError("Activation mode must be either MAK or KMS.")

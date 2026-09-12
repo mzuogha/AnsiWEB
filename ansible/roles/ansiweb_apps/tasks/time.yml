@@ -1,0 +1,25 @@
+---
+- name: Set the time zone and time source
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'set_time.ps1') }}"
+    parameters:
+      TimeZone: "{{ aw_plan.time.timezone }}"
+      NtpServers: "{{ aw_plan.time.ntp_servers | join(',') }}"
+      SyncNow: "{{ aw_plan.time.sync_now | bool }}"
+      ServerTime: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+  register: aw_clock
+
+- name: Record the clock result
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "time", "id": "clock", "name": "Time and time zone",
+                                   "status": aw_clock.result.timezone ~ " - " ~ aw_clock.result.local_time,
+                                   "detail": aw_clock.result.detail}] }}'
+
+- name: Warn about PCs whose clock is more than two minutes out
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} is {{ aw_clock.result.drift }} seconds away from the AnsiWEB
+      server's clock. Kerberos and certificate checks fail beyond about five minutes.
+  when:
+    - aw_clock.result.drift is not none
+    - (aw_clock.result.drift | abs) > 120

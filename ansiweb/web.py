@@ -680,7 +680,23 @@ def create_app(start_background: bool = True) -> Flask:
             return redirect(url_for("settings_page"))
         return render_template("settings.html", cfg=cfg, days=DAY_LABELS, secrets=vault.secret_status(),
                                secret_names=vault.ANSIBLE_SECRET_NAMES, https=https,
-                               targets=store.target_choices(cfg))
+                               targets=store.target_choices(cfg),
+                               timezones=store.COMMON_TIMEZONES)
+
+    @app.route("/settings/time", methods=["POST"])
+    def settings_time():
+        cfg = store.load()
+        f = request.form
+        cfg["time"].update({
+            "enabled": f.get("enabled") == "on",
+            "timezone": (f.get("timezone_custom", "").strip() or f.get("timezone", "").strip()),
+            "ntp_servers": [x.strip() for x in re.split(r"[,\s]+", f.get("ntp_servers", "")) if x.strip()],
+            "sync_now": f.get("sync_now") == "on",
+            "targets": request.form.getlist("targets") or ["all"],
+        })
+        if save_or_flash(cfg):
+            flash("Time settings saved.", "ok")
+        return redirect(url_for("settings_page"))
 
     @app.route("/settings/activation", methods=["POST"])
     def settings_activation():

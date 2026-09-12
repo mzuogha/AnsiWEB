@@ -19,6 +19,7 @@ KINDS = {
     "deploy_registry": "Merge registry files",
     "rename": "Apply computer names",
     "activate": "Activate Windows",
+    "set_time": "Set the time and time zone",
     "ping": "Connection test",
 }
 
@@ -31,6 +32,7 @@ DEPLOY_TAGS = {
     "deploy_registry": "registry",
     "rename": "hostname",
     "activate": "activation",
+    "set_time": "time",
 }
 
 _db_lock = threading.Lock()

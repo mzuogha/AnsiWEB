@@ -40,6 +40,14 @@
   when: (aw_host.hostname | default('')) | length > 0
   tags: [hostname]
 
+- name: Set the time zone and clock
+  ansible.builtin.include_tasks:
+    file: time.yml
+    apply:
+      tags: [time]
+  when: aw_host.set_time | default(false) | bool
+  tags: [time]
+
 - name: Activate Windows
   ansible.builtin.include_tasks:
     file: activation.yml
@@ -133,6 +141,8 @@
              -ErrorAction SilentlyContinue | Select-Object -First 1
       $Ansible.Result = [ordered]@{
         hostname = $env:COMPUTERNAME
+        timezone = (Get-TimeZone).Id
+        local_time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
         activated = if ($lic) { [int]$lic.LicenseStatus -eq 1 } else { $false }
         os       = $os.Caption
         build    = $os.BuildNumber

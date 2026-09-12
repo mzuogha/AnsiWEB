@@ -104,6 +104,15 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    tm = cfg.get("time") or {}
+    clock = {
+        "enabled": bool(tm.get("enabled")),
+        "timezone": tm.get("timezone", ""),
+        "ntp_servers": [str(x) for x in (tm.get("ntp_servers") or [])],
+        "sync_now": bool(tm.get("sync_now", True)),
+        "targets": tm.get("targets") or ["all"],
+    }
+
     act = cfg.get("activation") or {}
     activation = {
         "enabled": bool(act.get("enabled")),
@@ -121,6 +130,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             entry[kind] = [i["id"] for i in items if pc_matches(pc, i["targets"])]
         entry["hostname"] = pc["name"] if pc.get("sync_hostname") else ""
         entry["activate"] = activation["enabled"] and pc_matches(pc, activation["targets"])
+        entry["set_time"] = clock["enabled"] and pc_matches(pc, clock["targets"])
         hosts[pc["name"]] = entry
 
     return {
@@ -131,6 +141,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
+        "time": clock,
         "activation": activation,
         "apps": apps,
         "drivers": payload_sets["drivers"],

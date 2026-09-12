@@ -34,6 +34,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Device drivers.** Upload a .zip containing the .inf files; PCs unpack it and add it to the Windows driver store with pnputil.
 - **Scripts.** Upload .ps1, .cmd or .bat files and run them on chosen PCs, once, on change, or at every deployment, with exit codes and output captured.
 - **Registry files.** Upload .reg files and have them merged on chosen PCs.
+- **Time and time zone.** Push a time zone and your own time servers to the PCs, and force a clock resync.
 - **Windows activation.** Store a product key once and have AnsiWEB install and activate it on the PCs it manages, either with your own key or against a KMS host.
 - **Rename PCs.** Rename a PC in AnsiWEB, and optionally have Windows renamed to match at the next deployment.
 - **Version-aware deployment.**
@@ -112,6 +113,19 @@ Each of these has its own page and works the same way: upload the file once, cho
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
 
+## Time and time zone
+
+Optional, and off by default. **Settings → Time and time zone** takes:
+
+- **Time zone** — picked from a list of common Windows time zone IDs, or typed in. Run `tzutil /l` on a PC for the full list. Leave it empty to leave the PCs' zone alone.
+- **Time servers** — one or more, comma- or space-separated, in order of preference. Windows is pointed at them with `w32tm` and set to sync from them only.
+- **Force a clock resync** — runs `w32tm /resync` each time.
+- **Apply to** — all PCs, a site, or a group.
+
+It runs as part of a deployment, or on its own with **Set the time now**. Each PC reports its resulting time zone, local time and time source, and the job flags any PC whose clock is more than two minutes away from the server's. A PC that cannot reach a time source is reported rather than failing the run.
+
+Clocks are worth keeping straight: a PC more than a few minutes out starts failing certificate checks and some authentication.
+
 ## Windows activation
 
 Optional, and off by default. **Settings → Windows activation** takes:
@@ -166,6 +180,7 @@ GitHub allows 60 unauthenticated catalogue lookups per hour, which is plenty for
 | A driver install fails | The `.zip` must contain the `.inf` files themselves, not a vendor setup program. The job log shows the `pnputil` exit code. |
 | A script is reported as failed | Its exit code isn't in the success list. Add the code on the script's page, or fix the script. Output is on the Reports page. |
 | Changing the PC account locked AnsiWEB out | The account must exist on the PCs first. Download the prep script again and run it on each PC, or set the old name back. |
+| A PC reports "resync did not succeed" | It cannot reach the time servers. Check the names and that UDP 123 is open to them. |
 | Activation reports "still in notification mode" | Windows accepted the key but could not activate. For a MAK key the PC needs internet access; for KMS check the host name, port 1688 and that the PC has a KMS client key. |
 | Activation says no product key is stored | Add one in Settings, or switch to KMS mode. |
 | Service logs | `journalctl -u ansiweb -f` |

@@ -371,7 +371,19 @@ the target.
 > Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
 > on one PC before pointing it at a site.
 
-### 8. Activate Windows (optional)
+### 8. Set the time zone and clock (optional)
+
+**Settings → Time and time zone** pushes clock settings to the PCs:
+
+1. Tick **Apply these clock settings during deployments**.
+2. Choose a **time zone** from the list, or type a Windows time zone ID. `tzutil /l` on any PC lists them all.
+3. Enter your **time servers** — your domain controllers, a local appliance, or `time.windows.com`.
+4. Pick which PCs it applies to, save, then press **Set the time now**.
+
+Each PC reports its time zone, local time and time source afterwards, and the job log flags any PC whose clock is
+more than two minutes off the server's. PCs need UDP 123 open to whatever time servers you name.
+
+### 9. Activate Windows (optional)
 
 If you want AnsiWEB to handle Windows licensing, go to **Settings → Windows activation**:
 
@@ -384,7 +396,7 @@ The key is stored encrypted and never appears in the deployment plan or job logs
 Microsoft, so those PCs need internet access at least once; KMS activation stays on your own network. The Reports
 page shows each PC's licence state afterwards.
 
-### 9. Turn on the schedules
+### 10. Turn on the schedules
 
 In **Settings**, enable:
 
@@ -393,7 +405,7 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 10. Download a backup
+### 11. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
@@ -503,6 +515,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | `credentials were rejected` | The password in Settings differs from the one used on that PC. Re-run the prep script there. |
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
+| A PC reports that the resync did not succeed | It could not reach the time servers you named. Check the names and that UDP 123 is open. |
 | Activation leaves a PC unactivated | The job log shows what Windows reported. MAK and retail keys need internet access from the PC; KMS needs the host reachable on port 1688. |
 | A script is marked failed | Its exit code isn't in the success list for that script. Add the code on the script's page, or fix the script; its output is on the Reports page. |
 | Cache update fails with a GitHub rate limit | Add a read-only GitHub token in Settings. |

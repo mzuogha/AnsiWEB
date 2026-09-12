@@ -209,6 +209,45 @@ c.post("/scripts/set-power-plan/edit", data={"csrf": tok, "name": "Set power pla
 plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(plan["scripts"][0]["state_key"] != old_key, "replacing the file changes the state key")
 
+# ---------------------------------------------------------------- time and time zone
+r = c.get("/settings")
+ok("Time and time zone" in r.text and "W. Europe Standard Time" in r.text,
+   "Settings offers a time panel with time zone choices")
+r = c.post("/settings/time", data={"csrf": tok, "enabled": "on", "timezone": "W. Central Africa Standard Time",
+                                   "ntp_servers": "10.0.0.1, time.windows.com", "sync_now": "on",
+                                   "targets": ["site:HQ"]}, follow_redirects=True)
+ok("Time settings saved" in r.text, "time settings save")
+tm = store.load()["time"]
+ok(tm["timezone"] == "W. Central Africa Standard Time", "time zone stored")
+ok(tm["ntp_servers"] == ["10.0.0.1", "time.windows.com"], "time servers split into a list")
+plan_tm = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_tm["time"]["enabled"] and plan_tm["time"]["sync_now"], "time settings reach the plan")
+ok(plan_tm["hosts"]["PC-HQ-001"]["set_time"] is True, "targeted PCs get the clock settings")
+ok(plan_tm["hosts"]["PC-BR1-009"]["set_time"] is False, "PCs outside the target do not")
+# a typed ID overrides the dropdown
+r = c.post("/settings/time", data={"csrf": tok, "enabled": "on", "timezone": "UTC",
+                                   "timezone_custom": "Tokyo Standard Time",
+                                   "ntp_servers": "", "targets": ["all"]}, follow_redirects=True)
+ok(store.load()["time"]["timezone"] == "Tokyo Standard Time", "a typed time zone wins over the dropdown")
+ok(c.get("/settings").text.count("Tokyo Standard Time") >= 1, "the stored zone is shown as selected")
+ok("does not look like a Windows time zone" in
+   c.post("/settings/time", data={"csrf": tok, "timezone_custom": "!!nope!!", "targets": ["all"]},
+          follow_redirects=True).text, "a malformed time zone ID is rejected")
+ok("not a valid time server" in
+   c.post("/settings/time", data={"csrf": tok, "ntp_servers": "time.ok.local, nope!!", "targets": ["all"]},
+          follow_redirects=True).text, "a malformed time server is rejected")
+r = c.post("/settings/time", data={"csrf": tok, "ntp_servers": "10.0.0.1 10.0.0.2", "targets": ["all"]},
+           follow_redirects=True)
+ok(store.load()["time"]["ntp_servers"] == ["10.0.0.1", "10.0.0.2"],
+   "time servers can also be separated by spaces")
+ok("Set a time zone or at least one time server" in
+   c.post("/settings/time", data={"csrf": tok, "enabled": "on", "ntp_servers": "", "targets": ["all"]},
+          follow_redirects=True).text, "turning it on with nothing set is refused")
+ok(jobs.DEPLOY_TAGS.get("set_time") == "time", "a time-only job exists")
+# leave it off for the rest of the test
+c.post("/settings/time", data={"csrf": tok, "timezone": "", "ntp_servers": "", "targets": ["all"]},
+       follow_redirects=True)
+
 # ---------------------------------------------------------------- Windows activation
 r = c.get("/settings")
 ok("Windows activation" in r.text and "XXXXX-XXXXX" in r.text, "Settings offers an activation panel with a key field")
@@ -257,7 +296,8 @@ c.post("/settings/activation", data={"csrf": tok, "mode": "mak", "kms_port": "16
 os.makedirs(os.path.join(DATA, "reports"), exist_ok=True)
 json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending": True,
            "facts": {"hostname": "PC-HQ-001", "os": "Windows 11 Pro", "build": "26100",
-                     "model": "Dell OptiPlex", "ram_gb": 16, "serial": "ABC123", "boot": "2026-09-12 07:00:00", "activated": False},
+                     "model": "Dell OptiPlex", "ram_gb": 16, "serial": "ABC123", "boot": "2026-09-12 07:00:00", "activated": False, "timezone": "W. Central Africa Standard Time",
+                     "local_time": "2026-09-12 10:05:00"},
            "apps": [{"id": "7zip", "name": "7-Zip", "installed": "22.01", "target": "26.03",
                      "needed": True, "mismatch": False, "reason": "update 22.01 -> 26.03"},
                     {"id": "vlc", "name": "VLC", "installed": "3.0.23", "target": "3.0.23",
@@ -277,6 +317,8 @@ ok("activated" in csv_text.splitlines()[0], "CSV has an activation column")
 ok("not activated" in c.get("/reports").text, "reports flag PCs that are not activated")
 ok(csv_text.count("\n") > 3, "CSV has a row per item")
 ok("Dell OptiPlex" in c.get("/pcs/PC-HQ-001/edit").text, "PC page shows the report")
+ok("W. Central Africa Standard Time" in c.get("/pcs/PC-HQ-001/edit").text,
+   "PC page shows the reported time zone")
 
 # ---------------------------------------------------------------- jobs
 ok(c.get("/jobs").status_code == 200, "jobs page")
