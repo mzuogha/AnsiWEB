@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.7.1 - 2026-09-12
+
+Internal tidy-up. Nothing changes in how AnsiWEB behaves.
+
+
+### Changed
+
+- Dead constants, unused imports and permission entries for routes that no longer exist were removed, and the three copies of the timestamp helper became one.
+- Reports written before version 1.2 are no longer read; every PC has reported in the current format since.
+
+
+### Removed
+
+- The 'Run scripts and merge registry files' job, which the per-kind Apply buttons and Apply all replaced. Scripts and registry files can still be applied separately or together from that page.
+
+
 ## 1.7.0 - 2026-09-12
 
 Your own logo on the sign-in page, separate apply buttons for each kind of upload, and the audit log folded into the Reports page.

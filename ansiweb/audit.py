@@ -6,7 +6,7 @@ for the same number of days as job logs.
 """
 import datetime as dt
 
-from . import jobs
+from . import jobs, util
 
 # Form fields that must never be written to the log
 SECRET_FIELDS = {"password", "new", "confirm", "current", "value", "product_key", "csrf",
@@ -92,7 +92,7 @@ def summarise(form, files=None, view_args=None) -> str:
 def record(user: str, role: str, action: str, detail: str = "", outcome: str = "ok") -> None:
     with jobs._db_lock, jobs._conn() as c:
         c.execute("INSERT INTO audit(time,user,role,action,detail,outcome) VALUES(?,?,?,?,?,?)",
-                  (dt.datetime.now().replace(microsecond=0).isoformat(sep=" "),
+                  (util.now(),
                    user or "-", role or "-", action, detail, outcome))
 
 

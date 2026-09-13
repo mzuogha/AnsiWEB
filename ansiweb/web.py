@@ -11,7 +11,7 @@ from datetime import timedelta
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_file, send_from_directory, session, url_for)
 
-from . import (__version__, audit, backup, cache, jobs, paths, payloads, plan, release,
+from . import (__version__, audit, backup, cache, jobs, paths, payloads, release,
                report_state, store, users, vault)
 
 # What each route needs. Anything not listed here requires an administrator,
@@ -33,15 +33,14 @@ ENDPOINT_PERMISSIONS = {
     # running things
     "job_start": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
     # what gets deployed
-    "app_save": users.MANAGE_CONTENT, "app_delete": users.MANAGE_CONTENT,
+    "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
     "uninstall_add": users.MANAGE_CONTENT, "uninstall_delete": users.MANAGE_CONTENT,
     "uninstall_toggle": users.MANAGE_CONTENT, "uninstall_preview": users.MANAGE_CONTENT,
-    "uninstall_run": users.MANAGE_CONTENT,
-    "resource_save": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
+    "uninstall_run": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
     # the PC list
-    "pc_add": users.MANAGE_PCS, "pc_save": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS,
+    "pc_add": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS,
     "pc_import": users.MANAGE_PCS, "sites": users.MANAGE_PCS, "report_delete": users.MANAGE_PCS,
 }
 # POSTs to these endpoints need more than the GET does
@@ -857,7 +856,7 @@ def create_app(start_background: bool = True) -> Flask:
         for pc in visible_pcs(cfg):
             r = reports.get(pc["name"], {})
             apps = r.get("apps", [])
-            results = r.get("results") or r.get("items") or []
+            results = r.get("results") or []
             rows.append({
                 "pc": pc,
                 "report": r,
@@ -914,7 +913,7 @@ def create_app(start_background: bool = True) -> Flask:
             for a in r.get("apps", []):
                 w.writerow(base + ["app", a.get("name", ""), a.get("installed") or "",
                                    a.get("target", ""), a.get("reason", "")])
-            for i in (r.get("results") or r.get("items") or []):
+            for i in r.get("results", []):
                 w.writerow(base + [i.get("kind", ""), i.get("name", ""), "", "", i.get("status", "")])
         return Response(out.getvalue(), mimetype="text/csv",
                         headers={"Content-Disposition": "attachment; filename=ansiweb-report.csv"})

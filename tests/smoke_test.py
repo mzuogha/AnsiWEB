@@ -13,7 +13,7 @@ os.environ["ANSIWEB_HTTPS"] = "0"          # test client speaks plain HTTP
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from werkzeug.security import generate_password_hash            # noqa: E402
-from ansiweb import (__version__, audit, backup, cache, jobs, payloads, release,  # noqa: E402
+from ansiweb import (__version__, audit, backup, cache, jobs, release,  # noqa: E402
                      report_state, store, users, vault, web)
 
 PW = "correct-horse-1"
@@ -199,7 +199,6 @@ ok("Choose the installer file" in c.post("/apps/new", data={"csrf": tok, "id": "
    "uploaded app without a file is refused")
 
 # ---------------------------------------------------------------- remove an app from the Apps page
-import glob as _glob
 cached_file = cache.load_manifest()["vendor-app"]["file"]
 cached_path = os.path.join(DATA, "cache/apps", cached_file)
 ok(os.path.exists(cached_path), "uploaded installer is on disk before removal")

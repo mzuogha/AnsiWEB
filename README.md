@@ -308,6 +308,7 @@ ansiweb/            Flask web app, cache manager, job runner, scheduler
   defaults/config.yml  initial configuration (your standard app list)
   defaults/release_notes.yml  release notes, rendered in the web interface
   release.py        reads the release notes
+  util.py           small shared helpers
   payloads.py       uploaded drivers, scripts and registry files
   backup.py         backup and restore
   templates/ static/

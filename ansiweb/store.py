@@ -53,7 +53,6 @@ COMMON_TIMEZONES = [
     "Hawaiian Standard Time",
 ]
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
-DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 SOURCES = ["winget", "url", "upload"]
 
 

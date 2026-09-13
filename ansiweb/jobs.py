@@ -8,7 +8,7 @@ import threading
 import time
 import traceback
 
-from . import cache, paths, store
+from . import cache, paths, store, util
 
 KINDS = {
     "cache_update": "Check for updates & refresh cache",
@@ -17,7 +17,6 @@ KINDS = {
     "deploy_drivers": "Install drivers",
     "deploy_scripts": "Run scripts",
     "deploy_registry": "Merge registry files",
-    "deploy_automation": "Run scripts and merge registry files",
     "deploy_files": "Apply drivers, scripts and registry files",
     "rename": "Apply computer names",
     "activate": "Activate Windows",
@@ -36,7 +35,6 @@ DEPLOY_TAGS = {
     "deploy_drivers": "drivers",
     "deploy_scripts": "scripts",
     "deploy_registry": "registry",
-    "deploy_automation": "scripts,registry",
     "deploy_files": "drivers,scripts,registry",
     "rename": "hostname",
     "activate": "activation",
@@ -120,7 +118,7 @@ def read_log(job_id: int, offset: int = 0):
 
 
 def _stamp() -> str:
-    return dt.datetime.now().replace(microsecond=0).isoformat(sep=" ")
+    return util.now()
 
 
 # ---- running ---------------------------------------------------------------

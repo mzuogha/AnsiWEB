@@ -9,7 +9,6 @@ Sources:
   url     - a fixed download URL for a fixed version (used for pinned apps).
   upload  - an installer file uploaded through the web interface.
 """
-import datetime as dt
 import hashlib
 import json
 import os
@@ -23,6 +22,7 @@ import urllib.request
 import yaml
 
 from . import paths, store, vault
+from .util import now   # re-exported: callers use cache.now()
 
 GITHUB_API = "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/"
 GITHUB_RAW = "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/"
@@ -35,10 +35,6 @@ _manifest_lock = threading.RLock()
 
 class CacheError(Exception):
     pass
-
-
-def now() -> str:
-    return dt.datetime.now().replace(microsecond=0).isoformat(sep=" ")
 
 
 def version_key(v: str):

@@ -13,20 +13,17 @@ from . import cache, paths, store
 KINDS = {
     "drivers": {
         "label": "Device driver",
-        "plural": "Device drivers",
         "extensions": (".zip",),
         "hint": "A .zip containing the driver's .inf file (and its .cat/.sys files). "
                 "AnsiWEB unpacks it on the PC and installs it with pnputil.",
     },
     "scripts": {
         "label": "Script",
-        "plural": "Scripts",
         "extensions": (".ps1", ".cmd", ".bat"),
         "hint": "A PowerShell (.ps1) or command (.cmd/.bat) script. It runs as SYSTEM on the PC.",
     },
     "registry": {
         "label": "Registry file",
-        "plural": "Registry files",
         "extensions": (".reg",),
         "hint": "A .reg file exported from Registry Editor. It is merged with reg import.",
     },
@@ -44,8 +41,6 @@ GROUPS = {
                 "works out which it is from the file.",
     },
 }
-# Where the old per-kind pages now live
-OLD_PAGES = {"drivers": "files", "scripts": "files", "registry": "files"}
 # Which page a kind is managed on
 GROUP_OF = {kind: group for group, meta in GROUPS.items() for kind in meta["kinds"]}
 

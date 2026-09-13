@@ -4,6 +4,21 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.7.1"
+  date: "2026-09-12"
+  summary: >-
+    Internal tidy-up. Nothing changes in how AnsiWEB behaves.
+  removed:
+    - "The 'Run scripts and merge registry files' job, which the per-kind Apply
+       buttons and Apply all replaced. Scripts and registry files can still be
+       applied separately or together from that page."
+  changed:
+    - Dead constants, unused imports and permission entries for routes that no
+      longer exist were removed, and the three copies of the timestamp helper
+      became one.
+    - Reports written before version 1.2 are no longer read; every PC has
+      reported in the current format since.
+
 - version: "1.7.0"
   date: "2026-09-12"
   summary: >-

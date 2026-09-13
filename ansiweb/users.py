@@ -5,13 +5,12 @@ stored as hashes. Roles grant permissions; every route is mapped to a
 permission in web.py, and anything unmapped requires an admin, so a new
 feature is never accidentally exposed to a lesser role.
 """
-import datetime as dt
 import json
 import threading
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import paths, vault
+from . import paths, util, vault
 
 _lock = threading.RLock()
 
@@ -25,7 +24,6 @@ ADMIN = "admin"                    # settings, secrets, backup/restore, users
 # A scope limits a non-administrator to certain sites or groups. An empty scope
 # means every PC. Administrators ignore scopes entirely - they manage the whole
 # installation by definition.
-SCOPABLE_ROLES = ("operator", "helpdesk", "viewer")
 
 ROLES = {
     "admin": {
@@ -61,7 +59,7 @@ class UserError(Exception):
 
 
 def _now() -> str:
-    return dt.datetime.now().replace(microsecond=0).isoformat(sep=" ")
+    return util.now()
 
 
 def _read() -> dict:
