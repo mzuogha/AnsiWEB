@@ -1,0 +1,24 @@
+---
+- name: "Shared folder {{ item_def.name }}"
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'manage_share.ps1') }}"
+    parameters:
+      Name: "{{ item_def.name }}"
+      Path: "{{ item_def.path }}"
+      Description: "{{ item_def.description }}"
+      ReadAccess: "{{ item_def.read | join(',') }}"
+      ChangeAccess: "{{ item_def.change | join(',') }}"
+      FullAccess: "{{ item_def.full | join(',') }}"
+      Remove: "{{ item_def.remove | bool }}"
+  register: aw_share
+
+- name: "Record the result for {{ item_def.name }}"
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "shares", "id": item_def.id, "name": item_def.name,
+                                   "status": aw_share.result.state
+                                             ~ (" at " ~ aw_share.result.path if aw_share.result.path else ""),
+                                   "detail": aw_share.result.detail}] }}'
+
+- name: "Show what happened to {{ item_def.name }}"
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ item_def.name }} - {{ aw_share.result.detail }}"

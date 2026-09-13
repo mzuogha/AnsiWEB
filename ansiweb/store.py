@@ -242,6 +242,19 @@ def validate(cfg: dict) -> None:
             raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")
 
     seen = set()
+    for sh in cfg.get("shares", []):
+        if not ID_RE.match(sh.get("id", "")):
+            raise ValidationError(f"shares: '{sh.get('id')}' is not a valid ID")
+        if sh["id"] in seen:
+            raise ValidationError(f"shares: duplicate ID '{sh['id']}'")
+        seen.add(sh["id"])
+        if not re.match(r"^[^\\/:*?\"<>|]{1,80}$", sh.get("name", "")):
+            raise ValidationError("A share name cannot contain \\ / : * ? \" < > or |")
+        if not sh.get("remove") and not re.match(r"^[A-Za-z]:\\", sh.get("path", "")):
+            raise ValidationError(f"{sh['name']}: the folder must be a full path on the PC, "
+                                  "e.g. D:\\Shared\\Team")
+
+    seen = set()
     for pr in cfg.get("printers", []):
         if not ID_RE.match(pr.get("id", "")):
             raise ValidationError(f"printers: '{pr.get('id')}' is not a valid ID")

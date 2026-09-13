@@ -4,6 +4,28 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.9.0"
+  date: "2026-09-12"
+  summary: >-
+    Shared folders, a switch for Windows file sharing, a hardened PC prep
+    script, and the release notes in the sidebar for everyone.
+  added:
+    - "A Shared folders page: create a folder on the PCs you choose and share
+       it, with the accounts you name given read, change or full access. An
+       entry can instead take a share down, leaving the folder alone."
+    - A switch for Windows file and printer sharing, which is off by default
+      and needed before any share is reachable, with network discovery as an
+      option.
+  changed:
+    - "The PC prep script now checks its own work: it confirms the account,
+       the WinRM service, the HTTPS listener and the firewall rule, and reports
+       exactly what is wrong instead of finishing quietly."
+    - The prep script addresses the Administrators group by SID and removes
+      old listeners by path, both of which are more reliable on real Windows,
+      and it refuses to run on PowerShell older than 5.1.
+    - The release notes have their own sidebar entry, so everyone can find
+      them whatever their role.
+
 - version: "1.8.0"
   date: "2026-09-12"
   summary: >-

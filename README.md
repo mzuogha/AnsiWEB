@@ -42,9 +42,10 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
 - **Web interface over HTTPS.**
-  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Printers, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
+  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Shared folders, Printers, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Shared folders.** Create and share a folder on the PCs you choose, with the access you specify, and turn Windows file sharing on.
 - **Printers.** Push network printers or shared queues to the PCs you choose, including which is the default.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
 - **Scoped roles.** Limit someone to particular sites or groups.
@@ -126,6 +127,17 @@ Each kind has its own **Apply** button on that page, plus **Apply all** to do th
 - **Every deployment** — runs each time, for anything that enforces a setting.
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
+
+## Shared folders
+
+The **Shared folders** page creates a folder on the PCs you choose and shares it. You give the share name, the folder path, and which accounts get read, change or full access. The folder is created if it isn't there, and setting one up again does nothing when it's already correct.
+
+Two things worth knowing:
+
+- **File and printer sharing has to be on**, and Windows blocks it by default. The switch at the top of the page opens the right firewall rules and makes sure the Server service is running, optionally with network discovery too. Nothing is reachable until this is on.
+- **Access is enforced, not just granted.** Anyone given access by hand who isn't on your list is removed, so the share matches what AnsiWEB says it should be. Leave all three access fields empty to accept whatever Windows sets by default.
+
+An entry can also **take a share down** instead of creating it; the folder and its contents are left alone.
 
 ## Printers
 

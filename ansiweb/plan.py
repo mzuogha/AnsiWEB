@@ -104,6 +104,21 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    shares = [{
+        "id": sh["id"], "name": sh["name"], "path": sh.get("path", ""),
+        "description": sh.get("description", ""),
+        "read": sh.get("read") or [], "change": sh.get("change") or [],
+        "full": sh.get("full") or [], "remove": bool(sh.get("remove")),
+        "targets": sh.get("targets") or ["all"],
+    } for sh in cfg.get("shares", []) if sh.get("enabled", True)]
+
+    fs = cfg.get("file_sharing") or {}
+    file_sharing = {
+        "enabled": bool(fs.get("enabled")),
+        "network_discovery": bool(fs.get("network_discovery")),
+        "targets": fs.get("targets") or ["all"],
+    }
+
     printers = [{
         "id": p["id"], "name": p["name"], "kind": p.get("kind", "tcpip"),
         "driver": p.get("driver", ""), "host": p.get("host", ""),
@@ -159,6 +174,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry["update"] = updates["enabled"] and pc_matches(pc, updates["targets"])
         entry["uninstalls"] = [u["id"] for u in uninstalls if pc_matches(pc, u["targets"])]
         entry["printers"] = [pr["id"] for pr in printers if pc_matches(pc, pr["targets"])]
+        entry["shares"] = [sh["id"] for sh in shares if pc_matches(pc, sh["targets"])]
+        entry["file_sharing"] = file_sharing["enabled"] and pc_matches(pc, file_sharing["targets"])
         hosts[pc["name"]] = entry
 
     return {
@@ -170,6 +187,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "collect_inventory": bool((cfg.get("settings") or {}).get("collect_inventory", True)),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
+        "shares": shares,
+        "file_sharing": file_sharing,
         "printers": printers,
         "uninstalls": uninstalls,
         "time": clock,

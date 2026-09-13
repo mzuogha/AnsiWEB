@@ -1,0 +1,13 @@
+---
+- name: Turn file and printer sharing on
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'file_sharing.ps1') }}"
+    parameters:
+      Enable: "{{ aw_plan.file_sharing.enabled | bool }}"
+      NetworkDiscovery: "{{ aw_plan.file_sharing.network_discovery | bool }}"
+  register: aw_sharing
+
+- name: Record the file sharing result
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "shares", "id": "file-sharing", "name": "File and printer sharing",
+                                   "status": aw_sharing.result.state, "detail": aw_sharing.result.detail}] }}'

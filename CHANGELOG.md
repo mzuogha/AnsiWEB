@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.9.0 - 2026-09-12
+
+Shared folders, a switch for Windows file sharing, a hardened PC prep script, and the release notes in the sidebar for everyone.
+
+
+### New
+
+- A Shared folders page: create a folder on the PCs you choose and share it, with the accounts you name given read, change or full access. An entry can instead take a share down, leaving the folder alone.
+- A switch for Windows file and printer sharing, which is off by default and needed before any share is reachable, with network discovery as an option.
+
+
+### Changed
+
+- The PC prep script now checks its own work: it confirms the account, the WinRM service, the HTTPS listener and the firewall rule, and reports exactly what is wrong instead of finishing quietly.
+- The prep script addresses the Administrators group by SID and removes old listeners by path, both of which are more reliable on real Windows, and it refuses to run on PowerShell older than 5.1.
+- The release notes have their own sidebar entry, so everyone can find them whatever their role.
+
+
 ## 1.8.0 - 2026-09-12
 
 Printers, uninstalling straight from the inventory, and the scripts plus registry job is back.

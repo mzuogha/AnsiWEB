@@ -785,6 +785,45 @@ c.post("/users/sam/delete", data={"csrf": tok}, follow_redirects=True)
 ok(jobs.DEPLOY_TAGS.get("inventory") == "inventory", "an inventory-only job exists")
 ok("Collect from all PCs" in c.get("/inventory").text, "the inventory page offers a collect button")
 
+# ---------------------------------------------------------------- shared folders
+r = c.get("/shares")
+ok(r.status_code == 200 and "No shared folders yet" in r.text, "the shares page starts empty")
+ok("Currently off" in r.text, "it warns that file sharing is off")
+r = c.post("/shares/file-sharing", data={"csrf": tok, "enabled": "on", "targets": ["all"]},
+           follow_redirects=True)
+ok("settings saved" in r.text, "file sharing can be turned on")
+ok(store.load()["file_sharing"]["enabled"] is True, "the setting is stored")
+r = c.post("/shares/add", data={"csrf": tok, "name": "Team", "path": r"D:\Shared\Team",
+                                "description": "Team files", "change": r"CORP\Team, PC-A\Users",
+                                "read": "Everyone", "targets": ["site:HQ"]}, follow_redirects=True)
+ok("Team" in r.text and "added" in r.text, "a shared folder is added")
+sh = store.load()["shares"][0]
+ok(sh["change"] == [r"CORP\Team", r"PC-A\Users"] and sh["read"] == ["Everyone"],
+   "accounts are split into a list")
+plan_sh = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_sh["shares"][0]["path"].endswith("Team"), "the share reaches the plan")
+ok(plan_sh["file_sharing"]["enabled"] is True, "so does the sharing setting")
+ok(plan_sh["hosts"]["PC-HQ-001"]["shares"] == [sh["id"]], "an HQ PC gets the share")
+ok(plan_sh["hosts"]["PC-BR1-009"]["shares"] == [], "a branch PC does not")
+ok(plan_sh["hosts"]["PC-BR1-009"]["file_sharing"] is True, "but does get file sharing, targeted at all")
+for bad, label in [({"name": "bad/name", "path": r"D:\X"}, "a share name with a slash"),
+                   ({"name": "Ok", "path": "not-a-path"}, "a folder that is not a full path"),
+                   ({"name": "", "path": r"D:\X"}, "a nameless share")]:
+    resp = c.post("/shares/add", data={"csrf": tok, "targets": ["all"], **bad}, follow_redirects=True)
+    ok("flash error" in resp.text, f"{label} is refused")
+ok(len(store.load()["shares"]) == 1, "nothing invalid was stored")
+r = c.post(f"/shares/{sh['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+ok(len(json.load(open(os.path.join(DATA, "deploy_plan.json")))["shares"]) == 0,
+   "a disabled share is left out of the plan")
+c.post(f"/shares/{sh['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+wait_for_jobs()
+r = c.post(f"/shares/{sh['id']}/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("shares") is not None, "a share can be set up on its own")
+ok(jobs.DEPLOY_TAGS.get("shares") == "shares", "shares have their own job tag")
+r = c.post(f"/shares/{sh['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok("stay on the PCs" in r.text, "deleting explains the share stays on the PCs")
+
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
 ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")
@@ -971,6 +1010,9 @@ for role, expected in MATRIX.items():
         ok("Audit log" in rc.get("/reports").text, "an admin sees the audit log there")
     # everyone can reach help and change their own password
     ok(rc.get("/help").status_code == 200, f"{role} can open the help page")
+    ok(rc.get("/release-notes").status_code == 200, f"{role} can read the release notes")
+    ok("What&#39;s new" in rc.get("/").text or "What's new" in rc.get("/").text,
+       f"{role} has the release notes in the sidebar")
     ok(rc.get("/settings").status_code == 200, f"{role} can open settings")
     if role != "admin":
         ok("shown read-only" in rc.get("/settings").text, f"{role} sees settings as read-only")

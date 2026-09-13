@@ -35,6 +35,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Windows PowerShell 5.1 or PowerShell 7 on Windows are both fine; anything
+# older is missing the cmdlets used below.
+if ($PSVersionTable.PSVersion.Major -lt 5) {
+    throw "This needs PowerShell 5.1 or newer. This PC has $($PSVersionTable.PSVersion)."
+}
+
+function Step {
+    param([string]$Name, [scriptblock]$Action)
+    try {
+        & $Action
+    } catch {
+        throw "Step '$Name' failed: $($_.Exception.Message)"
+    }
+}
+
 if (-not $ControlNodeIP -or $ControlNodeIP -eq ('__CONTROL' + '_NODE_IP__')) {
     throw 'Specify the AnsiWEB server IP: -ControlNodeIP 192.168.1.10 (or download this script from the AnsiWEB PCs page).'
 }
@@ -82,9 +97,11 @@ New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
     -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWord -Force | Out-Null
 
 # --- 4. HTTPS listener with a self-signed certificate ----------------------
-Get-ChildItem WSMan:\localhost\Listener |
-    Where-Object { $_.Keys -contains 'Transport=HTTPS' } |
-    Remove-Item -Recurse -Force
+foreach ($listener in @(Get-ChildItem WSMan:\localhost\Listener -ErrorAction SilentlyContinue)) {
+    if ($listener.Keys -contains 'Transport=HTTPS') {
+        Remove-Item -Path "WSMan:\localhost\Listener\$($listener.Name)" -Recurse -Force
+    }
+}
 
 $cert = New-SelfSignedCertificate -DnsName $env:COMPUTERNAME `
     -CertStoreLocation 'Cert:\LocalMachine\My' `
@@ -111,7 +128,39 @@ $ip = (Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
     Select-Object -First 1).IPAddress
 
+# --- 6. Check it actually worked ------------------------------------------
+$problems = @()
+
+if (-not (Get-LocalGroupMember -SID $adminSid -ErrorAction SilentlyContinue |
+          Where-Object { $_.Name -like "*\$AccountName" })) {
+    $problems += "$AccountName is not in the Administrators group"
+}
+if ((Get-Service WinRM).Status -ne 'Running') {
+    $problems += 'the WinRM service is not running'
+}
+if (-not (@(Get-ChildItem WSMan:\localhost\Listener -ErrorAction SilentlyContinue) |
+          Where-Object { $_.Keys -contains 'Transport=HTTPS' })) {
+    $problems += 'there is no WinRM HTTPS listener'
+}
+if (-not (Get-NetFirewallRule -DisplayName 'Ansible WinRM HTTPS' -ErrorAction SilentlyContinue)) {
+    $problems += 'the firewall rule for port 5986 is missing'
+}
+try {
+    Test-WSMan -ComputerName localhost -UseSSL -ErrorAction Stop | Out-Null
+} catch {
+    $problems += "WinRM did not answer on HTTPS locally: $($_.Exception.Message)"
+}
+
+if ($problems) {
+    Write-Host ''
+    Write-Host 'Finished, but with problems:' -ForegroundColor Red
+    $problems | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+    Write-Host 'Fix these before adding the PC to AnsiWEB.' -ForegroundColor Red
+    exit 1
+}
+
 Write-Host ''
+Write-Host 'Checked: account, WinRM service, HTTPS listener and firewall rule are all in place.'
 Write-Host 'Done. Add this PC on the AnsiWEB PCs page:' -ForegroundColor Green
 Write-Host "  PC name:    $env:COMPUTERNAME"
 Write-Host "  IP address: $ip"

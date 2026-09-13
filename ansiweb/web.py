@@ -25,7 +25,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
-    "printers_page": users.VIEW,
+    "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
@@ -37,6 +37,9 @@ ENDPOINT_PERMISSIONS = {
     "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
+    "share_add": users.MANAGE_CONTENT, "share_delete": users.MANAGE_CONTENT,
+    "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
+    "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
     "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
     # An ad-hoc uninstall from the Inventory page is an operational action, so
@@ -526,6 +529,91 @@ def create_app(start_background: bool = True) -> Flask:
         if not apply_it:
             flash(f"Previewing what removing '{program}' would do. Nothing has been changed.", "ok")
         return redirect(url_for("job_view", job_id=job_id))
+
+    # ---- shared folders ------------------------------------------------------------
+    @app.route("/shares")
+    def shares_page():
+        cfg = store.load()
+        return render_template("shares.html", cfg=cfg, shares=cfg.get("shares", []),
+                               file_sharing=cfg.get("file_sharing", {}),
+                               targets=store.target_choices(cfg))
+
+    @app.route("/shares/add", methods=["POST"])
+    def share_add():
+        cfg = store.load()
+        f = request.form
+
+        def accounts(field):
+            return [a.strip() for a in re.split(r"[,\n]+", f.get(field, "")) if a.strip()]
+
+        try:
+            share = {
+                "name": f.get("name", "").strip(),
+                "path": f.get("path", "").strip(),
+                "description": f.get("description", "").strip(),
+                "enabled": True,
+                "read": accounts("read"), "change": accounts("change"), "full": accounts("full"),
+                "remove": f.get("remove") == "on",
+                "targets": request.form.getlist("targets") or ["all"],
+            }
+            if not share["name"]:
+                raise store.ValidationError("Enter a name for the share.")
+            share["id"] = payloads.new_id(cfg, "shares", share["name"])
+            cfg.setdefault("shares", []).append(share)
+            store.save(cfg)
+            flash(f"Shared folder '{share['name']}' added. Use 'Set up now' to create it on the PCs.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("shares_page"))
+
+    def find_share(cfg, sid):
+        for i, sh in enumerate(cfg.get("shares", [])):
+            if sh["id"] == sid:
+                return i, sh
+        abort(404)
+
+    @app.route("/shares/<sid>/toggle", methods=["POST"])
+    def share_toggle(sid):
+        cfg = store.load()
+        idx, share = find_share(cfg, sid)
+        cfg["shares"][idx]["enabled"] = not share.get("enabled", True)
+        if save_or_flash(cfg):
+            flash(f"'{share['name']}' {'enabled' if cfg['shares'][idx]['enabled'] else 'disabled'}.", "ok")
+        return redirect(url_for("shares_page"))
+
+    @app.route("/shares/<sid>/delete", methods=["POST"])
+    def share_delete(sid):
+        cfg = store.load()
+        idx, share = find_share(cfg, sid)
+        del cfg["shares"][idx]
+        if save_or_flash(cfg):
+            flash(f"Removed '{share['name']}' from AnsiWEB. The share and its folder stay on the PCs; "
+                  "tick 'Remove this share from the PCs' on an entry to take it down.", "ok")
+        return redirect(url_for("shares_page"))
+
+    @app.route("/shares/<sid>/run", methods=["POST"])
+    def share_run(sid):
+        _, share = find_share(store.load(), sid)
+        try:
+            cfg = store.load()
+            job_id = jobs.start("shares", scoped_target(cfg, request.form.get("target", "all")),
+                                trigger=f"manual ({session.get('user')})", only=share["id"])
+        except (jobs.JobBusy, ValueError, store.ValidationError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("shares_page"))
+        return redirect(url_for("job_view", job_id=job_id))
+
+    @app.route("/shares/file-sharing", methods=["POST"])
+    def file_sharing_save():
+        cfg = store.load()
+        cfg["file_sharing"] = {
+            "enabled": request.form.get("enabled") == "on",
+            "network_discovery": request.form.get("network_discovery") == "on",
+            "targets": request.form.getlist("targets") or ["all"],
+        }
+        if save_or_flash(cfg):
+            flash("File and printer sharing settings saved. Run 'Set up all' to apply them.", "ok")
+        return redirect(url_for("shares_page"))
 
     # ---- printers ------------------------------------------------------------------
     @app.route("/printers")

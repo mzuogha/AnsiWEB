@@ -311,7 +311,9 @@ Enter the password from step 1 when prompted. The script:
 - allows local administrator accounts to work remotely (`LocalAccountTokenFilterPolicy`)
 - opens TCP 5986 **only** to your AnsiWEB server, and closes the unencrypted WinRM port 5985
 
-It prints the PC name and IP to enter in AnsiWEB. It is safe to run again.
+It then checks its own work — the account, the WinRM service, the HTTPS listener and the firewall rule — and
+prints the PC name and IP to enter in AnsiWEB. If anything is wrong it says exactly what, and exits with an error
+rather than finishing quietly. It is safe to run again.
 
 You can also build this into your imaging process, so new PCs arrive ready.
 
@@ -443,7 +445,15 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 13. Add printers (optional)
+### 13. Add shared folders (optional)
+
+The **Shared folders** page creates a folder on the PCs you choose and shares it. Turn on **file and printer
+sharing** at the top of that page first — Windows blocks it by default, so a share is not reachable without it.
+
+Give the share name, the folder path and which accounts get read, change or full access. Accounts you do not list
+lose access, so the share ends up matching what AnsiWEB says it should be.
+
+### 14. Add printers (optional)
 
 The **Printers** page pushes printers to the PCs you choose — either a network printer with its own IP address, or a
 queue shared from a print server. For a network printer you give the Windows driver name, and the driver must already
@@ -451,7 +461,7 @@ be on the PC: upload the vendor's driver package on the drivers page and apply i
 
 Setting a printer up again does nothing when it is already correct, so run it whenever you add PCs.
 
-### 14. Removing an app from the PCs (when the time comes)
+### 15. Removing an app from the PCs (when the time comes)
 
 Taking an app out of the standard set stops AnsiWEB installing it, but leaves it on the PCs. To remove it from them,
 use the **Uninstall** page: add an entry with a pattern matching the program's name in Windows, press **Preview** to
@@ -463,7 +473,7 @@ on its row, preview, then type REMOVE. That creates no standing entry, and Helpd
 A normal deployment never uninstalls anything — it only reports what would go — so entries are safe to add and check
 before you commit to anything.
 
-### 15. Download a backup
+### 16. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers

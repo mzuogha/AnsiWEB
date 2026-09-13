@@ -19,6 +19,7 @@
     aw_registry: "{{ aw_plan.registry | selectattr('id', 'in', aw_host.registry | default([])) | list }}"
     aw_uninstalls: "{{ aw_plan.uninstalls | selectattr('id', 'in', aw_host.uninstalls | default([])) | list }}"
     aw_printers: "{{ aw_plan.printers | default([]) | selectattr('id', 'in', aw_host.printers | default([])) | list }}"
+    aw_shares: "{{ aw_plan.shares | default([]) | selectattr('id', 'in', aw_host.shares | default([])) | list }}"
     aw_apply: "{{ aw_uninstall_apply | default(false) }}"
 
 # An uninstall started from the Inventory page names the program directly,
@@ -40,6 +41,7 @@
     aw_registry: "{{ aw_registry | selectattr('id', 'equalto', aw_only) | list }}"
     aw_uninstalls: "{{ aw_uninstalls | selectattr('id', 'equalto', aw_only) | list }}"
     aw_printers: "{{ aw_printers | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_shares: "{{ aw_shares | selectattr('id', 'equalto', aw_only) | list }}"
   when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
 
 - name: Create the AnsiWEB working folders on the PC
@@ -131,6 +133,25 @@
     loop_var: item_def
     label: "{{ item_def.name }}"
   tags: [scripts]
+
+- name: Turn file and printer sharing on
+  ansible.builtin.include_tasks:
+    file: file_sharing.yml
+    apply:
+      tags: [shares]
+  when: aw_host.file_sharing | default(false) | bool
+  tags: [shares]
+
+- name: Set up shared folders
+  ansible.builtin.include_tasks:
+    file: shares.yml
+    apply:
+      tags: [shares]
+  loop: "{{ aw_shares }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.name }}"
+  tags: [shares]
 
 - name: Set up printers
   ansible.builtin.include_tasks:

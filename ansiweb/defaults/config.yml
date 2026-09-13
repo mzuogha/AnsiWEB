@@ -57,6 +57,17 @@ sites: [HQ]
 # {name, ip, site, groups: [], sync_hostname: false, notes: ""}
 pcs: []
 
+# Shared folders created on the PCs.
+# Each entry: {id, name, path, description, enabled, read, change, full,
+#              remove, targets}
+shares: []
+
+# Windows file and printer sharing, needed before a shared folder is reachable.
+file_sharing:
+  enabled: false
+  network_discovery: false   # also let the PC show up in Network
+  targets: [all]
+
 # Printers pushed to the PCs.
 # Each entry: {id, name, enabled, kind: tcpip|shared, driver, host, port,
 #              port_name, connection, comment, location, default, remove, targets}
