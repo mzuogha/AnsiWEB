@@ -74,6 +74,9 @@ input.short, select.short { width: 90px; }
 .log { background: #0d1117; color: #d1d9e0; padding: 14px; border-radius: 10px; min-height: 300px; max-height: 75vh; overflow: auto; font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .login-box { max-width: 380px; margin: 10vh auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 30px; }
 .login-box label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; margin-bottom: 12px; }
+/* Centre the heading, tagline and any logo; the form fields stay left-aligned. */
+.login-box .brand.big, .login-box > p.muted { text-align: center; }
+.login-box > p.muted { margin: 4px 0 20px; }
 
 @media (max-width: 800px) {
   .sidebar { position: static; width: auto; } main.with-sidebar { margin-left: 0; }
