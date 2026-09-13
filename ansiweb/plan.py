@@ -104,6 +104,15 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             items.append(item)
         payload_sets[kind] = items
 
+    printers = [{
+        "id": p["id"], "name": p["name"], "kind": p.get("kind", "tcpip"),
+        "driver": p.get("driver", ""), "host": p.get("host", ""),
+        "port": int(p.get("port") or 9100), "port_name": p.get("port_name", ""),
+        "connection": p.get("connection", ""), "comment": p.get("comment", ""),
+        "location": p.get("location", ""), "default": bool(p.get("default")),
+        "remove": bool(p.get("remove")), "targets": p.get("targets") or ["all"],
+    } for p in cfg.get("printers", []) if p.get("enabled", True)]
+
     uninstalls = [{
         "id": e["id"], "name": e["name"], "detect_pattern": e["detect_pattern"],
         "targets": e.get("targets") or ["all"],
@@ -149,6 +158,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry["set_time"] = clock["enabled"] and pc_matches(pc, clock["targets"])
         entry["update"] = updates["enabled"] and pc_matches(pc, updates["targets"])
         entry["uninstalls"] = [u["id"] for u in uninstalls if pc_matches(pc, u["targets"])]
+        entry["printers"] = [pr["id"] for pr in printers if pc_matches(pc, pr["targets"])]
         hosts[pc["name"]] = entry
 
     return {
@@ -160,6 +170,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "collect_inventory": bool((cfg.get("settings") or {}).get("collect_inventory", True)),
         "pc_cache": PC_CACHE,
         "pc_state": PC_STATE,
+        "printers": printers,
         "uninstalls": uninstalls,
         "time": clock,
         "updates": updates,

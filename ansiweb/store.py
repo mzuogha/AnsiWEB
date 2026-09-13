@@ -242,6 +242,33 @@ def validate(cfg: dict) -> None:
             raise ValidationError(f"Schedule time '{t}' must be HH:MM (24-hour)")
 
     seen = set()
+    for pr in cfg.get("printers", []):
+        if not ID_RE.match(pr.get("id", "")):
+            raise ValidationError(f"printers: '{pr.get('id')}' is not a valid ID")
+        if pr["id"] in seen:
+            raise ValidationError(f"printers: duplicate ID '{pr['id']}'")
+        seen.add(pr["id"])
+        if not pr.get("name"):
+            raise ValidationError("Every printer needs a name.")
+        if pr.get("kind") not in ("tcpip", "shared"):
+            raise ValidationError(f"{pr['name']}: choose a network printer or a shared queue.")
+        if pr["kind"] == "tcpip":
+            if not pr.get("host"):
+                raise ValidationError(f"{pr['name']}: enter the printer's IP address or host name.")
+            if not HOSTNAME_RE.match(pr["host"]):
+                raise ValidationError(f"{pr['name']}: '{pr['host']}' is not a valid address.")
+            if not pr.get("driver"):
+                raise ValidationError(f"{pr['name']}: enter the Windows driver name to use.")
+            try:
+                port = int(pr.get("port") or 9100)
+            except (TypeError, ValueError):
+                raise ValidationError(f"{pr['name']}: the port must be a number.")
+            if not 1 <= port <= 65535:
+                raise ValidationError(f"{pr['name']}: the port must be between 1 and 65535.")
+        elif not re.match(r"^\\\\[^\\]+\\[^\\]+", pr.get("connection", "")):
+            raise ValidationError(f"{pr['name']}: enter the shared queue as \\\\server\\queue")
+
+    seen = set()
     for entry in cfg.get("uninstalls", []):
         if not ID_RE.match(entry.get("id", "")):
             raise ValidationError(f"uninstalls: '{entry.get('id')}' is not a valid ID")

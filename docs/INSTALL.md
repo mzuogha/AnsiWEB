@@ -443,16 +443,27 @@ In **Settings**, enable:
 
 PCs that are switched off are picked up on the next run.
 
-### 13. Removing an app from the PCs (when the time comes)
+### 13. Add printers (optional)
+
+The **Printers** page pushes printers to the PCs you choose — either a network printer with its own IP address, or a
+queue shared from a print server. For a network printer you give the Windows driver name, and the driver must already
+be on the PC: upload the vendor's driver package on the drivers page and apply it first if it is not there.
+
+Setting a printer up again does nothing when it is already correct, so run it whenever you add PCs.
+
+### 14. Removing an app from the PCs (when the time comes)
 
 Taking an app out of the standard set stops AnsiWEB installing it, but leaves it on the PCs. To remove it from them,
 use the **Uninstall** page: add an entry with a pattern matching the program's name in Windows, press **Preview** to
 see exactly what would run on each PC, then type REMOVE and press **Uninstall**.
 
+For a one-off — taking a program off a single PC — the **Inventory** page is quicker: find the program, pick the PC
+on its row, preview, then type REMOVE. That creates no standing entry, and Helpdesk can do it.
+
 A normal deployment never uninstalls anything — it only reports what would go — so entries are safe to add and check
 before you commit to anything.
 
-### 14. Download a backup
+### 15. Download a backup
 
 Once the configuration is how you want it, go to **Settings → Download backup**. The archive holds your
 configuration, PC list, encrypted secrets and every uploaded driver, script and registry file. Cached app installers
@@ -567,6 +578,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
 | Updates time out | Expected on PCs that are far behind. Raise the timeout in Settings and run the job again. |
+| A printer fails with "the driver is not available" | The Windows driver is not on that PC. Upload the vendor's driver package on the drivers page, apply it, then set the printer up again. |
 | An uninstall reports "no silent uninstaller" | That program can only be removed interactively, so AnsiWEB left it alone. Remove it by hand, or use a script with the vendor's own switches. |
 | An uninstall matched nothing | The pattern does not match the name under Windows Settings → Apps → Installed apps on that PC. Check a PC's page in Reports for the exact names. |
 | A PC shows as not reporting | It has been off or unreachable since its last deployment. Test the connection from its page; the threshold is in Settings. |

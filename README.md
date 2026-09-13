@@ -42,9 +42,10 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
 - **Web interface over HTTPS.**
-  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
+  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Printers, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
+- **Printers.** Push network printers or shared queues to the PCs you choose, including which is the default.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
 - **Scoped roles.** Limit someone to particular sites or groups.
 - **Uninstall from PCs.** Remove an app from the PCs it was installed on, with a preview first and a typed confirmation before anything goes.
@@ -125,6 +126,15 @@ Each kind has its own **Apply** button on that page, plus **Apply all** to do th
 - **Every deployment** — runs each time, for anything that enforces a setting.
 
 Each PC keeps a marker file per item under `C:\ProgramData\AnsiWEB\state`, which is how "once" and "on change" survive reboots and re-runs. **Run now** on any item applies just that one item, so you don't have to wait for a full deployment. Scripts can be given extra success exit codes, a timeout, and a "reboot afterwards" flag.
+
+## Printers
+
+The **Printers** page pushes printers to the PCs you choose. Two kinds:
+
+- **A network printer with its own IP address** — AnsiWEB creates the port and the printer, using the Windows driver name you give. The driver has to be on the PC already; upload the vendor's driver package on the drivers page and apply it first if it isn't.
+- **A queue shared from a print server** — AnsiWEB connects the PC to `\\server\queue`.
+
+You can mark one as the default, add a location and comment, or tick **Remove this printer from the PCs** to take one off instead. Setting a printer up again does nothing when it's already correct, so it's safe to run after adding a PC. **Set up now** pushes a single printer; **Set up all** does the lot.
 
 ## Software inventory
 

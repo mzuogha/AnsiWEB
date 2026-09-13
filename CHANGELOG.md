@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.8.0 - 2026-09-12
+
+Printers, uninstalling straight from the inventory, and the scripts plus registry job is back.
+
+
+### New
+
+- A Printers page. Add a network printer with its own IP address, or a queue shared from a print server, and push it to the PCs you choose. Set one as the default, or use an entry to take a printer off the PCs. Setting a printer up again does nothing if it is already correct.
+- Uninstall straight from the Inventory page: pick a PC on a program's row, press Preview to see what would happen, then type REMOVE to do it. No standing entry is created, and it is available to Helpdesk as an operational action.
+
+
+### Changed
+
+- The 'Run scripts and merge registry files' job is back, as a Scripts + registry button on the drivers, scripts and registry page.
+- The test suite no longer calls Ansible for real, so it runs in seconds and jobs no longer overlap between checks.
+
+
 ## 1.7.1 - 2026-09-12
 
 Internal tidy-up. Nothing changes in how AnsiWEB behaves.

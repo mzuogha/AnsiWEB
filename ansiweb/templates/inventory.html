@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import job_button with context %}
+{% from "_macros.html" import csrf with context %}
 {% block title %}Inventory{% endblock %}
 {% block content %}
 <div class="head">
@@ -13,6 +14,12 @@
 {% if not collect %}
 <div class="flash warn">Inventory collection is switched off in Settings, so this list only shows what was
   captured before it was turned off.</div>
+{% endif %}
+
+{% if can(perms.run) %}
+<p class="muted small">To take a program off a PC, choose the PC on its row and press <b>Preview</b> to see what
+would happen, then type REMOVE and press <b>Uninstall</b>. For something you want gone everywhere and kept off,
+add an entry on the <a href="{{ url_for('uninstalls_page') }}">Uninstall</a> page instead.</p>
 {% endif %}
 
 <p class="muted">Every program the PCs report under Windows "Installed apps", not just the ones AnsiWEB manages.
@@ -32,7 +39,8 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
   {{ rows|length }}{% endif %}.</p>
 
 <table class="list">
-  <tr><th>Program</th><th>Version</th><th>Publisher</th><th>Type</th><th>PCs</th><th>Which</th></tr>
+  <tr><th>Program</th><th>Version</th><th>Publisher</th><th>Type</th><th>PCs</th><th>Which</th>
+    {% if can(perms.run) %}<th>Remove from</th>{% endif %}</tr>
   {% for r in rows %}
   <tr>
     <td><b>{{ r.name }}</b></td>
@@ -41,9 +49,26 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
     <td class="small">{{ r.arch }}</td>
     <td>{{ r.pcs | length }}</td>
     <td class="small muted">{{ r.pcs[:8] | join(', ') }}{% if r.pcs|length > 8 %} and {{ r.pcs|length - 8 }} more{% endif %}</td>
+    {% if can(perms.run) %}
+    <td class="nowrap">
+      <form method="post" action="{{ url_for('inventory_uninstall') }}" class="inline row tight"
+            data-confirm="Uninstall {{ r.name }}? Preview first unless you are sure.">{{ csrf() }}
+        <input type="hidden" name="program" value="{{ r.name }}">
+        <input type="hidden" name="q" value="{{ query }}">
+        <select name="target" class="short">
+          <option value="{{ 'pc:' ~ pc_filter if pc_filter else 'all' }}">
+            {{ pc_filter if pc_filter else 'all PCs' }}</option>
+          {% for pc in r.pcs %}<option value="pc:{{ pc }}">{{ pc }}</option>{% endfor %}
+        </select>
+        <button class="btn small" title="Report what would happen, changing nothing">Preview</button>
+        <input name="confirm" placeholder="REMOVE" size="8" autocomplete="off">
+        <button class="btn small danger" title="Uninstall it">Uninstall</button>
+      </form>
+    </td>
+    {% endif %}
   </tr>
   {% else %}
-  <tr><td colspan="6" class="muted">
+  <tr><td colspan="7" class="muted">
     {% if query or pc_filter %}Nothing matched that search.
     {% else %}No inventory yet. It is collected at the end of each deployment.{% endif %}</td></tr>
   {% endfor %}

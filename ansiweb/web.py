@@ -25,6 +25,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
+    "printers_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
@@ -36,6 +37,11 @@ ENDPOINT_PERMISSIONS = {
     "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
+    "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
+    "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
+    # An ad-hoc uninstall from the Inventory page is an operational action, so
+    # helpdesk can do it; adding a standing uninstall entry still needs more.
+    "inventory_uninstall": users.RUN_JOBS,
     "uninstall_add": users.MANAGE_CONTENT, "uninstall_delete": users.MANAGE_CONTENT,
     "uninstall_toggle": users.MANAGE_CONTENT, "uninstall_preview": users.MANAGE_CONTENT,
     "uninstall_run": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
@@ -487,6 +493,118 @@ def create_app(start_background: bool = True) -> Flask:
         else:
             flash(f"{existing['name']}: cached version {entry.get('version')}.", "ok")
         return redirect(url_for("apps_page"))
+
+    @app.route("/inventory/uninstall", methods=["POST"])
+    def inventory_uninstall():
+        """Uninstall one program straight from the inventory, without adding an entry.
+
+        This is an operational action rather than a change to what AnsiWEB
+        deploys, so Helpdesk can do it; the target is still narrowed to the PCs
+        the person is allowed to touch.
+        """
+        cfg = store.load()
+        program = request.form.get("program", "").strip()
+        target = request.form.get("target", "") or "all"
+        apply_it = request.form.get("confirm") == "REMOVE"
+        if not program:
+            flash("No program was chosen.", "error")
+            return redirect(url_for("inventory_page"))
+        try:
+            limit = scoped_target(cfg, target)
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("inventory_page", q=request.form.get("q", "")))
+        # Match this exact program name, nothing else
+        pattern = "^" + re.escape(program) + "$"
+        kind = "uninstall_run" if apply_it else "uninstall_preview"
+        try:
+            job_id = jobs.start(kind, limit, trigger=f"manual ({session.get('user')})",
+                                adhoc={"name": program, "pattern": pattern})
+        except (jobs.JobBusy, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("inventory_page", q=request.form.get("q", "")))
+        if not apply_it:
+            flash(f"Previewing what removing '{program}' would do. Nothing has been changed.", "ok")
+        return redirect(url_for("job_view", job_id=job_id))
+
+    # ---- printers ------------------------------------------------------------------
+    @app.route("/printers")
+    def printers_page():
+        cfg = store.load()
+        return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
+                               targets=store.target_choices(cfg))
+
+    def printer_from_form(existing=None):
+        f = request.form
+        p = dict(existing or {})
+        p.update({
+            "name": f.get("name", "").strip(),
+            "enabled": f.get("enabled", "on") == "on",
+            "kind": f.get("kind", "tcpip"),
+            "driver": f.get("driver", "").strip(),
+            "host": f.get("host", "").strip(),
+            "port": int(f.get("port") or 9100) if (f.get("port") or "9100").isdigit() else 0,
+            "port_name": f.get("port_name", "").strip(),
+            "connection": f.get("connection", "").strip(),
+            "comment": f.get("comment", "").strip(),
+            "location": f.get("location", "").strip(),
+            "default": f.get("default") == "on",
+            "remove": f.get("remove") == "on",
+            "targets": request.form.getlist("targets") or ["all"],
+        })
+        return p
+
+    @app.route("/printers/add", methods=["POST"])
+    def printer_add():
+        cfg = store.load()
+        try:
+            printer = printer_from_form()
+            if not printer["name"]:
+                raise store.ValidationError("Enter a name for the printer.")
+            printer["id"] = payloads.new_id(cfg, "printers", printer["name"])
+            cfg.setdefault("printers", []).append(printer)
+            store.save(cfg)
+            flash(f"Printer '{printer['name']}' added. Use 'Set up now' to push it to the PCs.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("printers_page"))
+
+    def find_printer(cfg, pid):
+        for i, p in enumerate(cfg.get("printers", [])):
+            if p["id"] == pid:
+                return i, p
+        abort(404)
+
+    @app.route("/printers/<pid>/toggle", methods=["POST"])
+    def printer_toggle(pid):
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        cfg["printers"][idx]["enabled"] = not printer.get("enabled", True)
+        if save_or_flash(cfg):
+            flash(f"'{printer['name']}' {'enabled' if cfg['printers'][idx]['enabled'] else 'disabled'}.", "ok")
+        return redirect(url_for("printers_page"))
+
+    @app.route("/printers/<pid>/delete", methods=["POST"])
+    def printer_delete(pid):
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        del cfg["printers"][idx]
+        if save_or_flash(cfg):
+            flash(f"Removed '{printer['name']}' from AnsiWEB. It stays installed on the PCs; tick "
+                  "'Remove this printer from the PCs' on an entry to take it off them.", "ok")
+        return redirect(url_for("printers_page"))
+
+    @app.route("/printers/<pid>/run", methods=["POST"])
+    def printer_run(pid):
+        _, printer = find_printer(store.load(), pid)
+        try:
+            cfg = store.load()
+            job_id = jobs.start("printers", scoped_target(cfg, request.form.get("target", "all")),
+                                trigger=f"manual ({session.get('user')})", only=printer["id"])
+        except (jobs.JobBusy, ValueError, store.ValidationError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("printers_page"))
+        return redirect(url_for("job_view", job_id=job_id))
 
     # ---- uninstalling apps from the PCs --------------------------------------------
     @app.route("/uninstalls")

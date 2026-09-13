@@ -57,6 +57,11 @@ sites: [HQ]
 # {name, ip, site, groups: [], sync_hostname: false, notes: ""}
 pcs: []
 
+# Printers pushed to the PCs.
+# Each entry: {id, name, enabled, kind: tcpip|shared, driver, host, port,
+#              port_name, connection, comment, location, default, remove, targets}
+printers: []
+
 # Apps to remove from the PCs. Nothing is removed until the Uninstall job is
 # run; a normal deployment only reports what would go.
 # Each entry: {id, name, detect_pattern, enabled, targets, notes}

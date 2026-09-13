@@ -17,11 +17,13 @@ KINDS = {
     "deploy_drivers": "Install drivers",
     "deploy_scripts": "Run scripts",
     "deploy_registry": "Merge registry files",
+    "deploy_automation": "Run scripts and merge registry files",
     "deploy_files": "Apply drivers, scripts and registry files",
     "rename": "Apply computer names",
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
     "updates": "Install Windows updates",
+    "printers": "Set up printers",
     "inventory": "Collect inventory from PCs",
     "uninstall_preview": "Preview an uninstall",
     "uninstall_run": "Uninstall apps from PCs",
@@ -35,11 +37,13 @@ DEPLOY_TAGS = {
     "deploy_drivers": "drivers",
     "deploy_scripts": "scripts",
     "deploy_registry": "registry",
+    "deploy_automation": "scripts,registry",
     "deploy_files": "drivers,scripts,registry",
     "rename": "hostname",
     "activate": "activation",
     "set_time": "time",
     "updates": "updates",
+    "printers": "printers",
     "inventory": "inventory",
     "uninstall_preview": "uninstall",
     "uninstall_run": "uninstall",
@@ -165,7 +169,8 @@ def run_command(cmd: list, log, env=None) -> int:
     return proc.wait()
 
 
-def start(kind: str, target: str = "", trigger: str = "manual", only: str = "") -> int:
+def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
+          adhoc: dict | None = None) -> int:
     """Start a job in the background. Raises JobBusy if one of this kind is running."""
     if kind not in KINDS:
         raise ValueError(kind)
@@ -182,12 +187,12 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "") 
                             (kind, target, "running", _stamp(), trigger))
             job_id = cur.lastrowid
         _running[kind] = job_id
-    threading.Thread(target=_run, args=(job_id, kind, target, only),
+    threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc),
                      daemon=True, name=f"job-{job_id}").start()
     return job_id
 
 
-def _run(job_id: int, kind: str, target: str, only: str = "") -> None:
+def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None = None) -> None:
     fh = open(log_path(job_id), "a", encoding="utf-8", buffering=1)
 
     def log(line: str) -> None:
@@ -204,6 +209,9 @@ def _run(job_id: int, kind: str, target: str, only: str = "") -> None:
             extra = {"aw_only": only} if only else {}
             if kind == "uninstall_run":
                 extra["aw_uninstall_apply"] = "true"   # nothing is removed without this
+            if adhoc:
+                extra["aw_adhoc_name"] = adhoc["name"]
+                extra["aw_adhoc_pattern"] = adhoc["pattern"]
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
                                           extra=extra, tags=DEPLOY_TAGS[kind]), log)
             store.regenerate_all()

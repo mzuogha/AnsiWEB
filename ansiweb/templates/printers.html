@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_select with context %}
+{% block title %}Printers{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Printers</h1>
+  <div class="actions">
+    {% if can(perms.run) %}
+    <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
+          data-confirm="Set up every enabled printer on the selected PCs now?">{{ csrf() }}
+      <input type="hidden" name="kind" value="printers">
+      {{ target_select('target', targets) }}
+      <button class="btn primary">Set up all</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<p class="muted">AnsiWEB can add printers to the PCs you choose: a network printer with its own IP address, or a
+queue shared from a print server. Setting one up again does nothing if it is already correct, so it is safe to run
+after adding a PC.</p>
+
+<table class="list">
+  <tr><th>Printer</th><th>Kind</th><th>Where</th><th>Driver</th><th>On</th><th>Status</th><th></th></tr>
+  {% for p in printers %}
+  <tr class="{{ 'dim' if not p.enabled }}">
+    <td><b>{{ p.name }}</b>
+      {% if p.default %}<span class="pill">default</span>{% endif %}
+      {% if p.remove %}<span class="pill failed">removes it</span>{% endif %}
+      {% if p.location or p.comment %}<br><span class="muted small">{{ p.location }} {{ p.comment }}</span>{% endif %}</td>
+    <td class="small">{{ 'Network (IP)' if p.kind == 'tcpip' else 'Shared queue' }}</td>
+    <td class="small">{% if p.kind == 'tcpip' %}{{ p.host }}:{{ p.port }}{% else %}<code>{{ p.connection }}</code>{% endif %}</td>
+    <td class="small">{{ p.driver or '—' }}</td>
+    <td class="small">{% for t in p.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{% if p.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
+    <td class="nowrap">
+      {% if can(perms.run) %}
+      <form method="post" action="{{ url_for('printer_run', pid=p.id) }}" class="inline row tight">{{ csrf() }}
+        {{ target_select('target', targets, cls='short') }}
+        <button class="btn small primary" {{ 'disabled' if not p.enabled }}>Set up now</button></form>
+      {% endif %}
+      {% if can(perms.content) %}
+      <form method="post" action="{{ url_for('printer_toggle', pid=p.id) }}" class="inline">{{ csrf() }}
+        <button class="btn small">{{ 'Disable' if p.enabled else 'Enable' }}</button></form>
+      <form method="post" action="{{ url_for('printer_delete', pid=p.id) }}" class="inline"
+            data-confirm="Remove {{ p.name }} from AnsiWEB? It stays on the PCs.">{{ csrf() }}
+        <button class="btn small danger">Delete</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No printers yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% if can(perms.content) %}
+<section class="panel">
+  <h2>Add a printer</h2>
+  <form method="post" action="{{ url_for('printer_add') }}" class="form">{{ csrf() }}
+    <div class="row">
+      <label>Name shown on the PCs<input name="name" required placeholder="HQ LaserJet"></label>
+      <label>Kind<select name="kind" id="printerkind">
+        <option value="tcpip">Network printer with its own IP address</option>
+        <option value="shared">Queue shared from a print server</option>
+      </select></label>
+    </div>
+    <div class="row tcpip">
+      <label>Printer address<input name="host" placeholder="10.0.0.9"></label>
+      <label>Port<input name="port" type="number" value="9100" min="1" max="65535"></label>
+      <label>Windows driver name<input name="driver" placeholder="HP Universal Printing PCL 6">
+        <small>Exactly as Windows names it. The driver must already be on the PC — upload the vendor's driver
+        package on the Drivers page and apply it first if it is not.</small></label>
+      <label>Port name (optional)<input name="port_name" placeholder="IP_10.0.0.9"></label>
+    </div>
+    <div class="row shared">
+      <label>Shared queue<input name="connection" placeholder="\\\\printserver\\HQ-LaserJet">
+        <small>The path people would use to connect by hand.</small></label>
+    </div>
+    <div class="row">
+      <label>Location (optional)<input name="location" placeholder="2nd floor, east"></label>
+      <label>Comment (optional)<input name="comment"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="default"> Make it the default printer</label>
+    <label class="check"><input type="checkbox" name="remove"> Remove this printer from the PCs instead of adding it</label>
+    <h3>Install on</h3>
+    <div class="checks">
+      {% for t in targets %}
+      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
+      {% endfor %}
+    </div>
+    <div class="formactions"><button class="btn primary">Add printer</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

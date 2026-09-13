@@ -16,6 +16,23 @@ from werkzeug.security import generate_password_hash            # noqa: E402
 from ansiweb import (__version__, audit, backup, cache, jobs, release,  # noqa: E402
                      report_state, store, users, vault, web)
 
+# Jobs run for real here would invoke Ansible against PCs that do not exist, which
+# is slow and leaves jobs running while later checks want to start their own.
+# The job machinery is still exercised; only the Ansible call itself is stubbed.
+def _fake_run(cmd, log, env=None):
+    log("[test] would run: " + " ".join(cmd))
+    return 0
+
+
+jobs.run_command = _fake_run
+
+
+def wait_for_jobs(seconds=10):
+    deadline = time.time() + seconds
+    while jobs.running() and time.time() < deadline:
+        time.sleep(0.05)
+
+
 PW = "correct-horse-1"
 vault.set_admin("admin", generate_password_hash(PW))   # the pre-roles single admin
 app = web.create_app(start_background=False)
@@ -266,6 +283,7 @@ for kind, label in [("deploy_drivers", "Apply drivers"), ("deploy_scripts", "App
     ok(f'value="{kind}"' in body, f"'{label}' starts the {kind} job")
 r = c.post("/jobs/start", data={"csrf": tok, "kind": "deploy_registry", "target": "all"},
            follow_redirects=True)
+wait_for_jobs()
 ok(jobs.last_job("deploy_registry") is not None, "applying one kind on its own starts that job")
 ok(c.get("/nonsense").status_code == 404, "an unknown page is still 404")
 
@@ -534,8 +552,10 @@ ok("Enter a name" in c.post("/uninstalls/add", data={"csrf": tok, "detect_patter
 r = c.post(f"/uninstalls/{u['id']}/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
 ok("Type REMOVE to confirm" in r.text, "uninstalling requires typed confirmation")
 ok(jobs.last_job("uninstall_run") is None, "no uninstall job ran without confirmation")
+wait_for_jobs()
 r = c.post(f"/uninstalls/{u['id']}/preview", data={"csrf": tok, "target": "all"}, follow_redirects=True)
 ok("Preview an uninstall" in r.text, "previewing starts a preview job")
+wait_for_jobs()
 ok(jobs.last_job("uninstall_preview") is not None, "the preview job was recorded")
 ok(jobs.DEPLOY_TAGS["uninstall_preview"] == "uninstall"
    and jobs.DEPLOY_TAGS["uninstall_run"] == "uninstall", "both uninstall jobs use the uninstall tag")
@@ -764,6 +784,75 @@ c.post("/users/sam/delete", data={"csrf": tok}, follow_redirects=True)
 
 ok(jobs.DEPLOY_TAGS.get("inventory") == "inventory", "an inventory-only job exists")
 ok("Collect from all PCs" in c.get("/inventory").text, "the inventory page offers a collect button")
+
+# ---------------------------------------------------------------- printers
+r = c.get("/printers")
+ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")
+r = c.post("/printers/add", data={"csrf": tok, "name": "HQ LaserJet", "kind": "tcpip",
+                                  "host": "10.0.0.9", "port": "9100",
+                                  "driver": "HP Universal Printing PCL 6", "default": "on",
+                                  "location": "2nd floor", "targets": ["site:HQ"]},
+           follow_redirects=True)
+ok("added" in r.text and "HQ LaserJet" in r.text, "a network printer is added")
+r = c.post("/printers/add", data={"csrf": tok, "name": "Finance queue", "kind": "shared",
+                                  "connection": r"\\printsrv\Finance", "targets": ["all"]},
+           follow_redirects=True)
+ok("Finance queue" in r.text, "a shared queue is added")
+pr = store.load()["printers"]
+ok(len(pr) == 2 and pr[0]["default"] is True and pr[0]["port"] == 9100, "printer settings stored")
+plan_pr = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok([p["id"] for p in plan_pr["printers"]] == [pr[0]["id"], pr[1]["id"]], "printers reach the plan")
+ok(pr[0]["id"] in plan_pr["hosts"]["PC-HQ-001"]["printers"], "an HQ PC gets the HQ printer")
+ok(pr[0]["id"] not in plan_pr["hosts"]["PC-BR1-009"]["printers"], "a branch PC does not")
+ok(pr[1]["id"] in plan_pr["hosts"]["PC-BR1-009"]["printers"], "but does get the shared queue")
+# what is refused
+for bad, label in [
+        ({"name": "", "kind": "tcpip", "host": "10.0.0.9", "driver": "d"}, "a nameless printer"),
+        ({"name": "X", "kind": "tcpip", "host": "", "driver": "d"}, "a network printer with no address"),
+        ({"name": "X", "kind": "tcpip", "host": "10.0.0.9", "driver": ""}, "one with no driver"),
+        ({"name": "X", "kind": "tcpip", "host": "10.0.0.9", "driver": "d", "port": "99999"}, "a silly port"),
+        ({"name": "X", "kind": "shared", "connection": "not-a-path"}, "a malformed queue path")]:
+    resp = c.post("/printers/add", data={"csrf": tok, "targets": ["all"], **bad}, follow_redirects=True)
+    ok("flash error" in resp.text or "error" in resp.text, f"{label} is refused")
+ok(len(store.load()["printers"]) == 2, "nothing invalid was stored")
+# disable, run and delete
+r = c.post(f"/printers/{pr[0]['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+ok("disabled" in r.text and store.load()["printers"][0]["enabled"] is False, "a printer can be disabled")
+ok(len(json.load(open(os.path.join(DATA, "deploy_plan.json")))["printers"]) == 1,
+   "a disabled printer is left out of the plan")
+c.post(f"/printers/{pr[0]['id']}/toggle", data={"csrf": tok}, follow_redirects=True)
+wait_for_jobs()
+r = c.post(f"/printers/{pr[1]['id']}/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("printers") is not None, "a printer can be pushed on its own")
+ok(jobs.DEPLOY_TAGS.get("printers") == "printers", "printers have their own job tag")
+r = c.post(f"/printers/{pr[1]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok("stays installed on the PCs" in r.text, "deleting explains it stays on the PCs")
+ok(len(store.load()["printers"]) == 1, "the printer list shrinks")
+
+# ---------------------------------------------------------------- uninstall from the inventory
+r = c.get("/inventory")
+ok("Remove from" in r.text, "the inventory offers an uninstall action")
+ok("REMOVE" in r.text, "it asks for typed confirmation")
+wait_for_jobs()
+r = c.post("/inventory/uninstall", data={"csrf": tok, "program": "7-Zip 24.09", "target": "all"},
+           follow_redirects=True)
+ok("Previewing what removing" in r.text, "without confirmation it only previews")
+ok(jobs.last_job("uninstall_preview") is not None, "a preview job ran")
+ok(not store.load()["uninstalls"], "previewing adds no standing uninstall entry")
+wait_for_jobs()
+r = c.post("/inventory/uninstall", data={"csrf": tok, "program": "7-Zip 24.09", "target": "pc:PC-HQ-001",
+                                         "confirm": "REMOVE"}, follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("uninstall_run") is not None, "typing REMOVE runs the uninstall")
+ok(not store.load()["uninstalls"], "and still adds no standing entry")
+r = c.post("/inventory/uninstall", data={"csrf": tok, "program": "", "target": "all"},
+           follow_redirects=True)
+ok("No program was chosen" in r.text, "an empty program is refused")
+ok(web.ENDPOINT_PERMISSIONS["inventory_uninstall"] == users.RUN_JOBS,
+   "an ad-hoc uninstall is an operational action, so helpdesk can do it")
+ok(web.ENDPOINT_PERMISSIONS["uninstall_add"] == users.MANAGE_CONTENT,
+   "but adding a standing uninstall entry still needs more")
 
 # ---------------------------------------------------------------- login page branding
 png = bytes.fromhex("89504e470d0a1a0a") + b"fake-but-png-enough"

@@ -1,0 +1,28 @@
+---
+- name: "Set up printer {{ item_def.name }}"
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'manage_printer.ps1') }}"
+    parameters:
+      Name: "{{ item_def.name }}"
+      Kind: "{{ item_def.kind }}"
+      DriverName: "{{ item_def.driver }}"
+      HostAddress: "{{ item_def.host }}"
+      PortNumber: "{{ item_def.port | int }}"
+      PortName: "{{ item_def.port_name }}"
+      ConnectionName: "{{ item_def.connection }}"
+      Comment: "{{ item_def.comment }}"
+      Location: "{{ item_def.location }}"
+      SetDefault: "{{ item_def.default | bool }}"
+      Remove: "{{ item_def.remove | bool }}"
+  register: aw_printer
+
+- name: "Record the result for {{ item_def.name }}"
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "printers", "id": item_def.id, "name": item_def.name,
+                                   "status": aw_printer.result.state
+                                             ~ (" (default)" if aw_printer.result.default else ""),
+                                   "detail": aw_printer.result.detail}] }}'
+
+- name: "Show what happened to {{ item_def.name }}"
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ item_def.name }} - {{ aw_printer.result.detail }}"
