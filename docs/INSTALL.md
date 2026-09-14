@@ -573,6 +573,12 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
   Leave `location /software/` open, or PCs cannot download installers. Then `sudo nginx -t && sudo systemctl reload nginx`.
 - **Change the management-account password periodically.** Re-run the prep script on the PCs with the new password, then update it on the PCs page.
 - **Keep the server patched:** `sudo apt update && sudo apt upgrade`.
+- **Limit who can reach the cache.** Everything under `/software/` is served without a sign-in, including uploaded scripts and registry files. In `/etc/nginx/sites-available/ansiweb`, inside `location /software/`, add your PC subnet:
+  ```nginx
+  allow 192.168.1.0/24;
+  deny all;
+  ```
+  Then `sudo nginx -t && sudo systemctl reload nginx`.
 - **Replace the self-signed certificate** with one from your own authority if you have one, so browsers stop warning: drop `server.crt` and `server.key` into `/etc/ssl/ansiweb/` and reload nginx.
 - **Scripts run as SYSTEM** on every PC they target, and anyone who can sign in to AnsiWEB can upload one. Treat the dashboard password as an administrative credential and keep the login restricted to your admin network.
 

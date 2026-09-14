@@ -245,8 +245,15 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
-            user = users.authenticate(request.form.get("username", ""), request.form.get("password", ""))
+            name = request.form.get("username", "")
+            source = request.headers.get("X-Forwarded-For", request.remote_addr or "-").split(",")[0].strip()
+            wait = users.locked_for(name, source)
+            if wait:
+                flash(f"Too many failed attempts. Try again in {wait // 60 + 1} minute(s).", "error")
+                return render_template("login.html", no_admin=not users.any_users(), branding=branding())
+            user = users.authenticate(name, request.form.get("password", ""))
             if user:
+                users.clear_failures(name, source)
                 session.clear()
                 session.permanent = True
                 session["user"] = user["username"]
@@ -254,6 +261,7 @@ def create_app(start_background: bool = True) -> Flask:
                 session["seen"] = time.time()
                 nxt = request.args.get("next", "/")
                 return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
+            users.record_failure(name, source)
             flash("Wrong user name or password, or the account is disabled.", "error")
         return render_template("login.html", no_admin=not users.any_users(), branding=branding())
 

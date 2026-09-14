@@ -4,6 +4,27 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.1"
+  date: "2026-09-14"
+  summary: >-
+    Hardening after a security review of the code and the deployment.
+  added:
+    - "Sign-in throttling: five failed attempts for one account from one
+       address lock it for five minutes, so a password cannot be guessed at
+       machine speed. A correct sign-in clears the count."
+    - A Security notes section in the README covering what is exposed and what
+      each role can reach.
+  changed:
+    - Restoring a backup now also applies Python's own archive filter, on top
+      of AnsiWEB's checks, so a crafted archive cannot write outside the data
+      folder.
+    - The deployment plan, cache manifest and reports are no longer
+      world-readable on the server; only the service account can read them.
+    - The service runs with more of systemd's protections enabled, and nginx no
+      longer advertises its version.
+    - The nginx site explains that everything under /software/ is served
+      without a sign-in, and shows how to limit it to your own PCs.
+
 - version: "1.11.0"
   date: "2026-09-12"
   summary: >-

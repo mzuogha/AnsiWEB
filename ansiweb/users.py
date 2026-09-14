@@ -7,6 +7,7 @@ feature is never accidentally exposed to a lesser role.
 """
 import json
 import threading
+import time
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -56,6 +57,40 @@ MIN_PASSWORD = 10
 
 class UserError(Exception):
     pass
+
+
+# Failed sign-ins, kept in memory per user and per source address. A short
+# lockout makes guessing a password impractical without locking anyone out for
+# long, and it is cleared as soon as a correct password arrives.
+MAX_FAILURES = 5
+LOCKOUT_SECONDS = 300
+_failures: dict = {}
+
+
+def _fail_key(username: str, source: str) -> tuple:
+    return ((username or "").lower(), source or "-")
+
+
+def locked_for(username: str, source: str) -> int:
+    """Seconds still to wait before this user and address may try again."""
+    with _lock:
+        count, until = _failures.get(_fail_key(username, source), (0, 0.0))
+        if count >= MAX_FAILURES and until > time.time():
+            return int(until - time.time()) + 1
+        return 0
+
+
+def record_failure(username: str, source: str) -> None:
+    with _lock:
+        key = _fail_key(username, source)
+        count, _ = _failures.get(key, (0, 0.0))
+        count += 1
+        _failures[key] = (count, time.time() + LOCKOUT_SECONDS if count >= MAX_FAILURES else 0.0)
+
+
+def clear_failures(username: str, source: str) -> None:
+    with _lock:
+        _failures.pop(_fail_key(username, source), None)
 
 
 def _now() -> str:

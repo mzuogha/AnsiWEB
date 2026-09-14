@@ -129,6 +129,25 @@ c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20
                           "log_retention_days": "45", "session_timeout_minutes": "60",
                           "cc_hours": "24", "dep_time": "19:00"}, follow_redirects=True)
 
+# ---------------------------------------------------------------- sign-in throttling
+tc = app.test_client()
+t = csrf(tc.get("/login").text)
+for n in range(users.MAX_FAILURES):
+    r = tc.post("/login", data={"username": "admin", "password": "wrong", "csrf": t})
+    ok("Wrong user name" in r.text, f"failed attempt {n + 1} is rejected")
+r = tc.post("/login", data={"username": "admin", "password": "wrong", "csrf": t})
+ok("Too many failed attempts" in r.text, "further attempts are locked out")
+r = tc.post("/login", data={"username": "admin", "password": PW, "csrf": t})
+ok("Too many failed attempts" in r.text, "even the correct password is refused while locked out")
+ok(users.locked_for("admin", "127.0.0.1") > 0, "the lockout is recorded for that user and address")
+ok(users.locked_for("someone-else", "127.0.0.1") == 0, "other accounts are unaffected")
+users.clear_failures("admin", "127.0.0.1")
+ok(users.locked_for("admin", "127.0.0.1") == 0, "a correct sign-in clears the count")
+tc2 = app.test_client()
+t2 = csrf(tc2.get("/login").text)
+r = tc2.post("/login", data={"username": "admin", "password": PW, "csrf": t2}, follow_redirects=True)
+ok("Dashboard" in r.text, "signing in works again afterwards")
+
 # ---------------------------------------------------------------- settings
 r = c.post("/settings", data={"csrf": tok, "server_ip": "192.168.1.10", "forks": "20", "batch_size": "20",
                               "log_retention_days": "45", "cc_enabled": "on", "cc_hours": "24",

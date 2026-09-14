@@ -71,7 +71,12 @@ def restore(fileobj) -> dict:
                 members = list(_safe_members(tar, INCLUDE + PAYLOAD_DIRS))
                 if not members:
                     raise store.ValidationError("That archive holds no AnsiWEB data.")
-                tar.extractall(tmp, members=members)
+                # Our own filter above already rejects anything outside the data
+                # folder; Python's data filter is a second, independent check.
+                try:
+                    tar.extractall(tmp, members=members, filter="data")
+                except TypeError:          # Python older than 3.12
+                    tar.extractall(tmp, members=members)
         except tarfile.TarError:
             raise store.ValidationError("That file is not a readable .tar.gz archive.")
 

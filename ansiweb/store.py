@@ -73,7 +73,9 @@ def _atomic_write(path, text: str, mode: int = 0o640) -> None:
 
 
 def write_json(path, data) -> None:
-    _atomic_write(path, json.dumps(data, indent=2, sort_keys=True), 0o644)
+    # Only the service reads these; nginx serves the cache, not the plan or
+    # the manifest, so they do not need to be world-readable.
+    _atomic_write(path, json.dumps(data, indent=2, sort_keys=True), 0o640)
 
 
 def read_json(path, default=None):

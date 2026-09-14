@@ -190,6 +190,18 @@ A PC writes a report at the end of every deployment. If one stops reporting it i
 
 Now the dashboard counts PCs that have not reported within **Treat a PC as not reporting after** days (14 by default, set in Settings) plus any that never have, and links straight to them. The Reports page shows each PC's freshness, filters to just the problem ones, and the CSV export carries both the state and the days since the last report.
 
+## Security notes
+
+Worth understanding before you deploy:
+
+- **The cache on port 80 is unauthenticated.** Anyone who can reach the server can download anything under `/software/` — not just installers, but uploaded scripts, `.reg` files and driver packages. Never put a password or key inside a script. To limit it to your own PCs, add `allow`/`deny` lines to the `location /software/` block in `/etc/nginx/sites-available/ansiweb`.
+- **Uploading a script, driver or app is equivalent to running code as SYSTEM on the PCs it targets.** That is what Operator means; Helpdesk and Viewer cannot do it.
+- **Every PC shares one management password.** The prep script limits WinRM to this server's address, which is the main protection. Change the password periodically.
+- **WinRM certificates are self-signed**, so traffic is encrypted but the PC's identity is not verified. Issue certificates from your own CA and tick "Verify each PC's WinRM certificate" if that matters to you.
+- **The dashboard certificate is self-signed too**, so browsers warn once. Replace it with your own in `/etc/ssl/ansiweb/`.
+- **Secrets are encrypted** with Ansible Vault and never appear in the deployment plan, job logs or the audit log. The vault key sits in `/var/lib/ansiweb/.vault_pass`, readable only by the service account, and is included in backups — so treat a backup file as a secret.
+- **Sign-ins are throttled**: five failures for a user from one address triggers a five-minute lockout.
+
 ## Roles
 
 AnsiWEB has four roles, so you can hand out what someone actually needs. Manage them on the **Users** page.

@@ -5,6 +5,25 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.1 - 2026-09-14
+
+Hardening after a security review of the code and the deployment.
+
+
+### New
+
+- Sign-in throttling: five failed attempts for one account from one address lock it for five minutes, so a password cannot be guessed at machine speed. A correct sign-in clears the count.
+- A Security notes section in the README covering what is exposed and what each role can reach.
+
+
+### Changed
+
+- Restoring a backup now also applies Python's own archive filter, on top of AnsiWEB's checks, so a crafted archive cannot write outside the data folder.
+- The deployment plan, cache manifest and reports are no longer world-readable on the server; only the service account can read them.
+- The service runs with more of systemd's protections enabled, and nginx no longer advertises its version.
+- The nginx site explains that everything under /software/ is served without a sign-in, and shows how to limit it to your own PCs.
+
+
 ## 1.11.0 - 2026-09-12
 
 Uninstalling is now part of the Inventory page, and drivers can be tied to particular PCs or to a printer.
