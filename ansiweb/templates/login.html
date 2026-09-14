@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Sign in{% endblock %}
 {% block content %}
+<div class="loginver">v{{ version }}</div>
 <div class="login-box">
   {% if branding.logo %}
   <img src="{{ url_for('logo') }}" alt="{{ branding.site_name or 'Logo' }}" class="loginlogo">

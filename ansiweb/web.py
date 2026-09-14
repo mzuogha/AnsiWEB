@@ -41,6 +41,7 @@ ENDPOINT_PERMISSIONS = {
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
     "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
+    "printer_driver": users.MANAGE_CONTENT,
     "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
     # An ad-hoc uninstall from the Inventory page is an operational action, so
     # helpdesk can do it; adding a standing uninstall entry still needs more.
@@ -620,7 +621,9 @@ def create_app(start_background: bool = True) -> Flask:
     def printers_page():
         cfg = store.load()
         return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
-                               targets=store.target_choices(cfg))
+                               targets=store.target_choices(cfg),
+                               pcs=[pc for pc in cfg.get("pcs", []) if pc_allowed(cfg, pc["name"])],
+                               driver_present=payloads.printer_driver_present)
 
     def printer_from_form(existing=None):
         f = request.form
@@ -628,16 +631,15 @@ def create_app(start_background: bool = True) -> Flask:
         p.update({
             "name": f.get("name", "").strip(),
             "enabled": f.get("enabled", "on") == "on",
-            "kind": f.get("kind", "tcpip"),
             "driver": f.get("driver", "").strip(),
             "host": f.get("host", "").strip(),
             "port": int(f.get("port") or 9100) if (f.get("port") or "9100").isdigit() else 0,
             "port_name": f.get("port_name", "").strip(),
-            "connection": f.get("connection", "").strip(),
             "comment": f.get("comment", "").strip(),
             "location": f.get("location", "").strip(),
             "default": f.get("default") == "on",
             "remove": f.get("remove") == "on",
+            # "targets" may hold all / site: / group: entries and individual pc: entries
             "targets": request.form.getlist("targets") or ["all"],
         })
         return p
@@ -650,9 +652,14 @@ def create_app(start_background: bool = True) -> Flask:
             if not printer["name"]:
                 raise store.ValidationError("Enter a name for the printer.")
             printer["id"] = payloads.new_id(cfg, "printers", printer["name"])
+            driver = request.files.get("driver_package")
+            if driver and driver.filename:
+                printer.update(payloads.store_printer_driver(printer["id"], driver))
             cfg.setdefault("printers", []).append(printer)
             store.save(cfg)
-            flash(f"Printer '{printer['name']}' added. Use 'Set up now' to push it to the PCs.", "ok")
+            staged = " The driver is staged and will be installed before the printer." \
+                if printer.get("driver_file") else ""
+            flash(f"Printer '{printer['name']}' added.{staged} Use 'Set up on' to push it to PCs.", "ok")
         except store.ValidationError as exc:
             flash(str(exc), "error")
         return redirect(url_for("printers_page"))
@@ -682,12 +689,30 @@ def create_app(start_background: bool = True) -> Flask:
                   "'Remove this printer from the PCs' on an entry to take it off them.", "ok")
         return redirect(url_for("printers_page"))
 
+    @app.route("/printers/<pid>/driver", methods=["POST"])
+    def printer_driver(pid):
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        f = request.files.get("driver_package")
+        try:
+            if not f or not f.filename:
+                raise store.ValidationError("Choose a driver package (.zip of the vendor's .inf files).")
+            cfg["printers"][idx].update(payloads.store_printer_driver(pid, f))
+            store.save(cfg)
+            flash(f"Driver staged for '{printer['name']}'. It is installed on each PC before the printer.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("printers_page"))
+
     @app.route("/printers/<pid>/run", methods=["POST"])
     def printer_run(pid):
-        _, printer = find_printer(store.load(), pid)
+        cfg = store.load()
+        _, printer = find_printer(cfg, pid)
+        # Either a group target, or individual PCs ticked on the page
+        chosen = [n for n in request.form.getlist("pcs") if n]
+        target = "list:" + ",".join(chosen) if chosen else request.form.get("target", "all")
         try:
-            cfg = store.load()
-            job_id = jobs.start("printers", scoped_target(cfg, request.form.get("target", "all")),
+            job_id = jobs.start("printers", scoped_target(cfg, target),
                                 trigger=f"manual ({session.get('user')})", only=printer["id"])
         except (jobs.JobBusy, ValueError, store.ValidationError) as exc:
             flash(str(exc), "error")

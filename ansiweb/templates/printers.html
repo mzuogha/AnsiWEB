@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select with context %}
+{% from "_macros.html" import csrf, target_label, target_select, size with context %}
 {% block title %}Printers{% endblock %}
 {% block content %}
 <div class="head">
@@ -16,30 +16,52 @@
   </div>
 </div>
 
-<p class="muted">AnsiWEB can add printers to the PCs you choose: a network printer with its own IP address, or a
-queue shared from a print server. Setting one up again does nothing if it is already correct, so it is safe to run
-after adding a PC.</p>
+<p class="muted">Network printers — a printer with its own IP address. Stage the vendor's driver with the printer
+and AnsiWEB installs it on each PC before creating the printer, so nothing has to be prepared by hand. Setting a
+printer up again does nothing if it is already correct.</p>
 
 <table class="list">
-  <tr><th>Printer</th><th>Kind</th><th>Where</th><th>Driver</th><th>On</th><th>Status</th><th></th></tr>
+  <tr><th>Printer</th><th>Address</th><th>Driver</th><th>Staged driver</th><th>Status</th>
+    {% if can(perms.run) %}<th>Set up on</th>{% endif %}<th></th></tr>
   {% for p in printers %}
   <tr class="{{ 'dim' if not p.enabled }}">
     <td><b>{{ p.name }}</b>
       {% if p.default %}<span class="pill">default</span>{% endif %}
       {% if p.remove %}<span class="pill failed">removes it</span>{% endif %}
-      {% if p.location or p.comment %}<br><span class="muted small">{{ p.location }} {{ p.comment }}</span>{% endif %}</td>
-    <td class="small">{{ 'Network (IP)' if p.kind == 'tcpip' else 'Shared queue' }}</td>
-    <td class="small">{% if p.kind == 'tcpip' %}{{ p.host }}:{{ p.port }}{% else %}<code>{{ p.connection }}</code>{% endif %}</td>
+      {% if p.location or p.comment %}<br><span class="muted small">{{ p.location }} {{ p.comment }}</span>{% endif %}
+      {% if p.notes %}<br><span class="err small">{{ p.notes }}</span>{% endif %}</td>
+    <td class="small">{{ p.host }}:{{ p.port }}</td>
     <td class="small">{{ p.driver or '—' }}</td>
-    <td class="small">{% for t in p.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td class="small">
+      {% if driver_present(p) %}<span class="pill st-ok">staged</span><br>
+        <span class="muted">{{ p.driver_original }} ({{ size(p.driver_size) }})</span>
+      {% else %}<span class="muted">none — the driver must already be on the PC</span>{% endif %}</td>
     <td>{% if p.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
-    <td class="nowrap">
-      {% if can(perms.run) %}
-      <form method="post" action="{{ url_for('printer_run', pid=p.id) }}" class="inline row tight">{{ csrf() }}
+    {% if can(perms.run) %}
+    <td>
+      <form method="post" action="{{ url_for('printer_run', pid=p.id) }}" class="form tight">{{ csrf() }}
         {{ target_select('target', targets, cls='short') }}
-        <button class="btn small primary" {{ 'disabled' if not p.enabled }}>Set up now</button></form>
-      {% endif %}
+        {% if pcs %}
+        <details>
+          <summary class="muted small">or pick PCs</summary>
+          <div class="checks scroll">
+            {% for pc in pcs %}
+            <label class="check"><input type="checkbox" name="pcs" value="{{ pc.name }}"> {{ pc.name }}
+              <span class="muted small">{{ pc.site }}</span></label>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+        <button class="btn small primary" {{ 'disabled' if not p.enabled }}>Set up on these</button>
+      </form>
+    </td>
+    {% endif %}
+    <td class="nowrap">
       {% if can(perms.content) %}
+      <form method="post" action="{{ url_for('printer_driver', pid=p.id) }}" enctype="multipart/form-data"
+            class="inline row tight">{{ csrf() }}
+        <input type="file" name="driver_package" accept=".zip" class="short">
+        <button class="btn small">{{ 'Replace driver' if driver_present(p) else 'Stage driver' }}</button></form>
       <form method="post" action="{{ url_for('printer_toggle', pid=p.id) }}" class="inline">{{ csrf() }}
         <button class="btn small">{{ 'Disable' if p.enabled else 'Enable' }}</button></form>
       <form method="post" action="{{ url_for('printer_delete', pid=p.id) }}" class="inline"
@@ -56,25 +78,18 @@ after adding a PC.</p>
 {% if can(perms.content) %}
 <section class="panel">
   <h2>Add a printer</h2>
-  <form method="post" action="{{ url_for('printer_add') }}" class="form">{{ csrf() }}
+  <form method="post" action="{{ url_for('printer_add') }}" enctype="multipart/form-data" class="form">{{ csrf() }}
     <div class="row">
       <label>Name shown on the PCs<input name="name" required placeholder="HQ LaserJet"></label>
-      <label>Kind<select name="kind" id="printerkind">
-        <option value="tcpip">Network printer with its own IP address</option>
-        <option value="shared">Queue shared from a print server</option>
-      </select></label>
-    </div>
-    <div class="row tcpip">
-      <label>Printer address<input name="host" placeholder="10.0.0.9"></label>
+      <label>Printer address<input name="host" placeholder="10.0.0.9"><small>Its IP address or host name.</small></label>
       <label>Port<input name="port" type="number" value="9100" min="1" max="65535"></label>
-      <label>Windows driver name<input name="driver" placeholder="HP Universal Printing PCL 6">
-        <small>Exactly as Windows names it. The driver must already be on the PC — upload the vendor's driver
-        package on the Drivers page and apply it first if it is not.</small></label>
-      <label>Port name (optional)<input name="port_name" placeholder="IP_10.0.0.9"></label>
     </div>
-    <div class="row shared">
-      <label>Shared queue<input name="connection" placeholder="\\\\printserver\\HQ-LaserJet">
-        <small>The path people would use to connect by hand.</small></label>
+    <div class="row">
+      <label>Windows driver name<input name="driver" placeholder="HP Universal Printing PCL 6">
+        <small>Exactly as it appears in the driver's .inf — this is the name Windows registers.</small></label>
+      <label>Driver package (optional)<input type="file" name="driver_package" accept=".zip">
+        <small>A .zip of the vendor's .inf files. Staged here, installed on each PC before the printer.</small></label>
+      <label>Port name (optional)<input name="port_name" placeholder="IP_10.0.0.9"></label>
     </div>
     <div class="row">
       <label>Location (optional)<input name="location" placeholder="2nd floor, east"></label>
@@ -88,6 +103,17 @@ after adding a PC.</p>
       <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
       {% endfor %}
     </div>
+    {% if pcs %}
+    <details>
+      <summary class="muted small">or choose individual PCs</summary>
+      <div class="checks scroll">
+        {% for pc in pcs %}
+        <label class="check"><input type="checkbox" name="targets" value="pc:{{ pc.name }}"> {{ pc.name }}
+          <span class="muted small">{{ pc.site }}</span></label>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
     <div class="formactions"><button class="btn primary">Add printer</button></div>
   </form>
 </section>

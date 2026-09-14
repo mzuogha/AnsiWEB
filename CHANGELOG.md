@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.10.0 - 2026-09-12
+
+Printers are network-only, can carry their own driver, and can be pushed to the exact PCs you pick. The sign-in page shows the version.
+
+
+### New
+
+- Stage a printer driver with the printer: attach the vendor's .zip of .inf files, and AnsiWEB installs it on each PC before creating the printer, so nothing has to be prepared by hand.
+- Push a printer to individual PCs, chosen from a list, as well as to a site or group. A printer can also be set to target one PC permanently.
+- The version number is shown at the bottom left of the sign-in page.
+
+
+### Removed
+
+- Shared print-server queues: printers are network printers only, which is the kind AnsiWEB can set up the same way on every PC. An existing shared entry is kept but switched off, with a note, rather than deleted.
+
+
 ## 1.9.0 - 2026-09-12
 
 Shared folders, a switch for Windows file sharing, a hardened PC prep script, and the release notes in the sidebar for everyone.

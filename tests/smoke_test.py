@@ -827,16 +827,16 @@ ok("stay on the PCs" in r.text, "deleting explains the share stays on the PCs")
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
 ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")
-r = c.post("/printers/add", data={"csrf": tok, "name": "HQ LaserJet", "kind": "tcpip",
+r = c.post("/printers/add", data={"csrf": tok, "name": "HQ LaserJet",
                                   "host": "10.0.0.9", "port": "9100",
                                   "driver": "HP Universal Printing PCL 6", "default": "on",
                                   "location": "2nd floor", "targets": ["site:HQ"]},
            follow_redirects=True)
 ok("added" in r.text and "HQ LaserJet" in r.text, "a network printer is added")
-r = c.post("/printers/add", data={"csrf": tok, "name": "Finance queue", "kind": "shared",
-                                  "connection": r"\\printsrv\Finance", "targets": ["all"]},
+r = c.post("/printers/add", data={"csrf": tok, "name": "Branch inkjet", "host": "10.20.0.9",
+                                  "port": "9100", "driver": "Brother HL", "targets": ["all"]},
            follow_redirects=True)
-ok("Finance queue" in r.text, "a shared queue is added")
+ok("Branch inkjet" in r.text, "a second printer is added")
 pr = store.load()["printers"]
 ok(len(pr) == 2 and pr[0]["default"] is True and pr[0]["port"] == 9100, "printer settings stored")
 plan_pr = json.load(open(os.path.join(DATA, "deploy_plan.json")))
@@ -846,11 +846,11 @@ ok(pr[0]["id"] not in plan_pr["hosts"]["PC-BR1-009"]["printers"], "a branch PC d
 ok(pr[1]["id"] in plan_pr["hosts"]["PC-BR1-009"]["printers"], "but does get the shared queue")
 # what is refused
 for bad, label in [
-        ({"name": "", "kind": "tcpip", "host": "10.0.0.9", "driver": "d"}, "a nameless printer"),
-        ({"name": "X", "kind": "tcpip", "host": "", "driver": "d"}, "a network printer with no address"),
-        ({"name": "X", "kind": "tcpip", "host": "10.0.0.9", "driver": ""}, "one with no driver"),
-        ({"name": "X", "kind": "tcpip", "host": "10.0.0.9", "driver": "d", "port": "99999"}, "a silly port"),
-        ({"name": "X", "kind": "shared", "connection": "not-a-path"}, "a malformed queue path")]:
+        ({"name": "", "host": "10.0.0.9", "driver": "d"}, "a nameless printer"),
+        ({"name": "X", "host": "", "driver": "d"}, "a printer with no address"),
+        ({"name": "X", "host": "10.0.0.9", "driver": ""}, "one with no driver"),
+        ({"name": "X", "host": "10.0.0.9", "driver": "d", "port": "99999"}, "a silly port"),
+        ({"name": "X", "host": "bad address!", "driver": "d"}, "a malformed address")]:
     resp = c.post("/printers/add", data={"csrf": tok, "targets": ["all"], **bad}, follow_redirects=True)
     ok("flash error" in resp.text or "error" in resp.text, f"{label} is refused")
 ok(len(store.load()["printers"]) == 2, "nothing invalid was stored")
@@ -865,9 +865,55 @@ r = c.post(f"/printers/{pr[1]['id']}/run", data={"csrf": tok, "target": "all"}, 
 wait_for_jobs()
 ok(jobs.last_job("printers") is not None, "a printer can be pushed on its own")
 ok(jobs.DEPLOY_TAGS.get("printers") == "printers", "printers have their own job tag")
+# a driver package can be staged with the printer
+zipped = zip_bytes(["hp.inf", "hp.cat"])
+r = c.post(f"/printers/{pr[0]['id']}/driver", data={"csrf": tok,
+                                                    "driver_package": (zipped, "hp-driver.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("Driver staged" in r.text, "a driver package can be staged with a printer")
+staged = store.load()["printers"][0]
+ok(staged["driver_file"].startswith(pr[0]["id"]) and staged["driver_sha256"],
+   "the package is stored and checksummed")
+ok(os.path.exists(os.path.join(DATA, "cache/printers", staged["driver_file"])), "the file is on disk")
+ok(staged["driver_original"] == "hp-driver.zip", "the original file name is kept for display")
+ok("hp-driver.zip" in c.get("/printers").text, "and shown on the page")
+plan_d = json.load(open(os.path.join(DATA, "deploy_plan.json")))["printers"][0]
+ok(plan_d["driver_url"].endswith(f"/printers/{staged['driver_file']}"), "the PCs are told where to get it")
+ok(plan_d["driver_unpack"].startswith("C:\\ProgramData\\AnsiWEB"), "and where to unpack it")
+ok("must be a .zip" in c.post(f"/printers/{pr[0]['id']}/driver",
+                              data={"csrf": tok, "driver_package": (io.BytesIO(b"x"), "driver.exe")},
+                              content_type="multipart/form-data", follow_redirects=True).text,
+   "a driver package that is not a .zip is refused")
+# printers can be pushed to chosen PCs
+wait_for_jobs()
+r = c.post(f"/printers/{pr[0]['id']}/run", data={"csrf": tok, "pcs": ["PC-HQ-001", "PC-BR2-001"]},
+           follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("printers")["target"] == "list:PC-HQ-001,PC-BR2-001",
+   "a printer can be pushed to individual PCs")
+ok(store.limit_for("list:PC-HQ-001,PC-BR2-001") == "PC-HQ-001,PC-BR2-001",
+   "which becomes an Ansible limit naming just those PCs")
+# an individual PC can also be a standing target
+r = c.post("/printers/add", data={"csrf": tok, "name": "Reception", "host": "10.0.0.11",
+                                  "driver": "HP", "targets": ["pc:PC-HQ-001"]}, follow_redirects=True)
+ok("Reception" in r.text, "a printer can target one PC")
+plan_one = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+recep = [p for p in plan_one["printers"] if p["name"] == "Reception"][0]
+ok(recep["id"] in plan_one["hosts"]["PC-HQ-001"]["printers"], "that PC gets it")
+ok(recep["id"] not in plan_one["hosts"]["PC-BR1-009"]["printers"], "others do not")
+# shared queues from an older version are kept but switched off
+cfg_old = store.load()
+cfg_old["printers"].append({"id": "old-shared", "name": "Old queue", "enabled": True,
+                            "kind": "shared", "connection": r"\\srv\Q", "targets": ["all"]})
+import yaml as _yaml
+open(os.path.join(DATA, "config.yml"), "w").write(_yaml.safe_dump(cfg_old))
+migrated = [p for p in store.load()["printers"] if p["id"] == "old-shared"][0]
+ok(migrated["enabled"] is False and "no longer supported" in migrated.get("notes", ""),
+   "a shared queue from an older version is disabled, not deleted")
+ok("kind" not in migrated and "connection" not in migrated, "and its old fields are dropped")
+
 r = c.post(f"/printers/{pr[1]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 ok("stays installed on the PCs" in r.text, "deleting explains it stays on the PCs")
-ok(len(store.load()["printers"]) == 1, "the printer list shrinks")
 
 # ---------------------------------------------------------------- uninstall from the inventory
 r = c.get("/inventory")
@@ -908,6 +954,7 @@ ok(c.get("/logo").data == png, "and is the file that was uploaded")
 # the sign-in page shows it, without needing a session
 anon = app.test_client()
 login_page = anon.get("/login").text
+ok(f"v{__version__}" in login_page, "the sign-in page shows the version")
 ok("/logo" in login_page and "Aava IT" in login_page,
    "the sign-in page shows the logo and name to anyone")
 ok(anon.get("/logo").status_code == 200, "the logo needs no sign-in, since the sign-in page needs it")

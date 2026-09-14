@@ -69,8 +69,9 @@ file_sharing:
   targets: [all]
 
 # Printers pushed to the PCs.
-# Each entry: {id, name, enabled, kind: tcpip|shared, driver, host, port,
-#              port_name, connection, comment, location, default, remove, targets}
+# Network printers only: each PC talks to the printer's own IP address.
+# Each entry: {id, name, enabled, driver, host, port, port_name, comment,
+#              location, default, remove, targets, driver_file/sha256/...}
 printers: []
 
 # Apps to remove from the PCs. Nothing is removed until the Uninstall job is

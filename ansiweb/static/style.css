@@ -93,3 +93,11 @@ pre.cmd { background: #0d1117; color: #d1d9e0; padding: 12px 14px; border-radius
 
 .loginlogo { max-width: 240px; max-height: 110px; display: block; margin: 0 auto 14px; }
 .panel .loginlogo { margin: 10px 0; }
+
+.loginver { position: fixed; left: 14px; bottom: 12px; color: var(--muted); font-size: 12px; }
+
+
+.checks.scroll { max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px;
+                 padding: 8px 10px; margin-top: 6px; }
+details summary { cursor: pointer; margin: 4px 0; }
+.form.tight label, .form.tight { margin-bottom: 4px; }

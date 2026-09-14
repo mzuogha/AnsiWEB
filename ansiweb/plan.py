@@ -120,12 +120,19 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
     }
 
     printers = [{
-        "id": p["id"], "name": p["name"], "kind": p.get("kind", "tcpip"),
+        "id": p["id"], "name": p["name"],
         "driver": p.get("driver", ""), "host": p.get("host", ""),
         "port": int(p.get("port") or 9100), "port_name": p.get("port_name", ""),
-        "connection": p.get("connection", ""), "comment": p.get("comment", ""),
+        "comment": p.get("comment", ""),
         "location": p.get("location", ""), "default": bool(p.get("default")),
         "remove": bool(p.get("remove")), "targets": p.get("targets") or ["all"],
+        # A driver package staged with the printer, installed before it is added
+        "driver_file": p.get("driver_file", "") if payloads.printer_driver_present(p) else "",
+        "driver_url": (f"{base}/printers/{p['driver_file']}"
+                       if payloads.printer_driver_present(p) else ""),
+        "driver_sha256": p.get("driver_sha256", ""),
+        "driver_unpack": (PC_CACHE + "\\printer-" + p["id"]),
+        "driver_win_file": (PC_CACHE + "\\" + p.get("driver_file", "")) if p.get("driver_file") else "",
     } for p in cfg.get("printers", []) if p.get("enabled", True)]
 
     uninstalls = [{

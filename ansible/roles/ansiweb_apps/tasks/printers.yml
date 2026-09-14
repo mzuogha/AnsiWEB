@@ -1,15 +1,47 @@
 ---
+- name: "Install the driver staged with {{ item_def.name }}"
+  when:
+    - (item_def.driver_url | default('')) | length > 0
+    - not (item_def.remove | bool)
+  block:
+    - name: "Download the driver package for {{ item_def.name }}"
+      ansible.windows.win_get_url:
+        url: "{{ item_def.driver_url }}"
+        dest: "{{ item_def.driver_win_file }}"
+        checksum: "{{ item_def.driver_sha256 | lower }}"
+        checksum_algorithm: sha256
+        force: false
+
+    - name: "Unpack the driver for {{ item_def.name }}"
+      community.windows.win_unzip:
+        src: "{{ item_def.driver_win_file }}"
+        dest: "{{ item_def.driver_unpack }}"
+        delete_archive: false
+
+    - name: "Add the driver for {{ item_def.name }} to the Windows driver store"
+      ansible.windows.win_powershell:
+        parameters:
+          Folder: "{{ item_def.driver_unpack }}"
+        script: "{{ lookup('ansible.builtin.file', 'install_driver.ps1') }}"
+      register: aw_printer_driver
+
+    - name: "Tidy up after the {{ item_def.name }} driver"
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ item_def.driver_unpack }}"
+        - "{{ item_def.driver_win_file }}"
+
 - name: "Set up printer {{ item_def.name }}"
   ansible.windows.win_powershell:
     script: "{{ lookup('ansible.builtin.file', 'manage_printer.ps1') }}"
     parameters:
       Name: "{{ item_def.name }}"
-      Kind: "{{ item_def.kind }}"
       DriverName: "{{ item_def.driver }}"
       HostAddress: "{{ item_def.host }}"
       PortNumber: "{{ item_def.port | int }}"
       PortName: "{{ item_def.port_name }}"
-      ConnectionName: "{{ item_def.connection }}"
       Comment: "{{ item_def.comment }}"
       Location: "{{ item_def.location }}"
       SetDefault: "{{ item_def.default | bool }}"

@@ -53,22 +53,6 @@ document.addEventListener('submit', function (e) {
   update();
 })();
 
-// Printers: show only the fields for the kind of printer selected
-(function () {
-  var kind = document.getElementById('printerkind');
-  if (!kind) return;
-  function update() {
-    document.querySelectorAll('.tcpip').forEach(function (el) {
-      el.style.display = kind.value === 'tcpip' ? '' : 'none';
-    });
-    document.querySelectorAll('.shared').forEach(function (el) {
-      el.style.display = kind.value === 'shared' ? '' : 'none';
-    });
-  }
-  kind.addEventListener('change', update);
-  update();
-})();
-
 // Live job log
 (function () {
   var pre = document.getElementById('log');

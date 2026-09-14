@@ -455,9 +455,12 @@ lose access, so the share ends up matching what AnsiWEB says it should be.
 
 ### 14. Add printers (optional)
 
-The **Printers** page pushes printers to the PCs you choose — either a network printer with its own IP address, or a
-queue shared from a print server. For a network printer you give the Windows driver name, and the driver must already
-be on the PC: upload the vendor's driver package on the drivers page and apply it first if it is not there.
+The **Printers** page pushes network printers — a printer with its own IP address — to the PCs you choose. Give the
+Windows driver name, and attach the vendor's driver package (.zip of its .inf files) to the entry: AnsiWEB installs
+that driver on each PC before creating the printer. Without it, the named driver must already be on the PC.
+
+Each printer can target all PCs, a site, a group or a named PC, and **Set up on these** pushes it to individual PCs
+you tick.
 
 Setting a printer up again does nothing when it is already correct, so run it whenever you add PCs.
 
@@ -588,7 +591,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
 | Updates time out | Expected on PCs that are far behind. Raise the timeout in Settings and run the job again. |
-| A printer fails with "the driver is not available" | The Windows driver is not on that PC. Upload the vendor's driver package on the drivers page, apply it, then set the printer up again. |
+| A printer fails with "the driver is not available" | Either no driver package is staged with that printer, or the driver name does not match the one in the .inf. Attach the package on the Printers page and check the name. |
 | An uninstall reports "no silent uninstaller" | That program can only be removed interactively, so AnsiWEB left it alone. Remove it by hand, or use a script with the vendor's own switches. |
 | An uninstall matched nothing | The pattern does not match the name under Windows Settings → Apps → Installed apps on that PC. Check a PC's page in Reports for the exact names. |
 | A PC shows as not reporting | It has been off or unreachable since its last deployment. Test the connection from its page; the threshold is in Settings. |

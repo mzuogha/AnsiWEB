@@ -95,8 +95,25 @@ def load() -> dict:
             save(cfg, regenerate=False)
             return cfg
         cfg = yaml.safe_load(paths.CONFIG_FILE.read_text()) or {}
+        # Printers are network-only now: keep any shared queue from an older
+        # configuration, but disabled, with its path noted so nothing is lost.
+        for pr in cfg.get("printers", []) or []:
+            if pr.get("kind") and pr["kind"] != "tcpip":
+                note = f"was a shared queue: {pr.get('connection', '')}".strip()
+                pr["comment"] = (pr.get("comment") or "") + (" " if pr.get("comment") else "") + note
+                pr["enabled"] = False
+                pr["kind"] = "tcpip"
+                pr["host"] = pr.get("host") or "0.0.0.0"
+                pr["driver"] = pr.get("driver") or "unknown"
         # Office support was removed; drop its leftovers from older configurations.
         cfg.pop("office", None)
+        # Printers are network-only now. An old shared-queue entry is kept but
+        # switched off, so nothing disappears silently.
+        for pr in cfg.get("printers") or []:
+            if pr.pop("kind", "tcpip") == "shared" or pr.pop("connection", ""):
+                pr["enabled"] = False
+                pr["notes"] = ("shared print-server queues are no longer supported - "
+                               "re-enter this as a network printer")
         cfg.get("schedules", {}).pop("office_cache", None)
         # fill in any keys added in newer versions
         base = _defaults()
@@ -263,23 +280,18 @@ def validate(cfg: dict) -> None:
         seen.add(pr["id"])
         if not pr.get("name"):
             raise ValidationError("Every printer needs a name.")
-        if pr.get("kind") not in ("tcpip", "shared"):
-            raise ValidationError(f"{pr['name']}: choose a network printer or a shared queue.")
-        if pr["kind"] == "tcpip":
-            if not pr.get("host"):
-                raise ValidationError(f"{pr['name']}: enter the printer's IP address or host name.")
-            if not HOSTNAME_RE.match(pr["host"]):
-                raise ValidationError(f"{pr['name']}: '{pr['host']}' is not a valid address.")
-            if not pr.get("driver"):
-                raise ValidationError(f"{pr['name']}: enter the Windows driver name to use.")
-            try:
-                port = int(pr.get("port") or 9100)
-            except (TypeError, ValueError):
-                raise ValidationError(f"{pr['name']}: the port must be a number.")
-            if not 1 <= port <= 65535:
-                raise ValidationError(f"{pr['name']}: the port must be between 1 and 65535.")
-        elif not re.match(r"^\\\\[^\\]+\\[^\\]+", pr.get("connection", "")):
-            raise ValidationError(f"{pr['name']}: enter the shared queue as \\\\server\\queue")
+        if not pr.get("host"):
+            raise ValidationError(f"{pr['name']}: enter the printer's IP address or host name.")
+        if not HOSTNAME_RE.match(pr["host"]):
+            raise ValidationError(f"{pr['name']}: '{pr['host']}' is not a valid address.")
+        if not pr.get("driver"):
+            raise ValidationError(f"{pr['name']}: enter the Windows driver name to use.")
+        try:
+            port = int(pr.get("port") or 9100)
+        except (TypeError, ValueError):
+            raise ValidationError(f"{pr['name']}: the port must be a number.")
+        if not 1 <= port <= 65535:
+            raise ValidationError(f"{pr['name']}: the port must be between 1 and 65535.")
 
     seen = set()
     for entry in cfg.get("uninstalls", []):

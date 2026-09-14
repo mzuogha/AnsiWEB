@@ -141,12 +141,15 @@ An entry can also **take a share down** instead of creating it; the folder and i
 
 ## Printers
 
-The **Printers** page pushes printers to the PCs you choose. Two kinds:
+The **Printers** page pushes network printers — a printer with its own IP address — to the PCs you choose. AnsiWEB creates the port and the printer using the Windows driver name you give.
 
-- **A network printer with its own IP address** — AnsiWEB creates the port and the printer, using the Windows driver name you give. The driver has to be on the PC already; upload the vendor's driver package on the drivers page and apply it first if it isn't.
-- **A queue shared from a print server** — AnsiWEB connects the PC to `\\server\queue`.
+**Stage the driver with the printer.** Attach the vendor's `.zip` of `.inf` files to the printer entry and AnsiWEB installs it into each PC's driver store before creating the printer, so nothing has to be prepared by hand. Without a staged driver the named driver must already be on the PC.
 
-You can mark one as the default, add a location and comment, or tick **Remove this printer from the PCs** to take one off instead. Setting a printer up again does nothing when it's already correct, so it's safe to run after adding a PC. **Set up now** pushes a single printer; **Set up all** does the lot.
+**Push it where you want.** A printer has standing targets (all PCs, a site, a group, or a named PC), and the **Set up on these** button pushes it to individual PCs you tick, for a one-off.
+
+You can mark one as the default, add a location and comment, or tick **Remove this printer from the PCs** to take one off instead. Setting a printer up again does nothing when it's already correct, so it's safe to run after adding a PC.
+
+Shared print-server queues are not supported: a network printer is the kind AnsiWEB can set up identically on every PC without per-user connections.
 
 ## Software inventory
 

@@ -62,6 +62,33 @@ RUN_MODES = {
 }
 
 
+PRINTER_DRIVERS = "printers"     # cache/printers/, served at /software/printers/
+
+
+def store_printer_driver(entry_id: str, file_storage) -> dict:
+    """Save a driver package (.zip of .inf files) staged with a printer."""
+    if not (file_storage.filename or "").lower().endswith(".zip"):
+        raise store.ValidationError("A printer driver must be a .zip containing the driver's .inf files.")
+    saved = store_file(PRINTER_DRIVERS, entry_id, file_storage, extensions=(".zip",))
+    return {"driver_file": saved["file"], "driver_original": saved["original_name"],
+            "driver_sha256": saved["sha256"], "driver_size": saved["size"],
+            "driver_uploaded": saved["uploaded"]}
+
+
+def delete_printer_driver(entry: dict) -> None:
+    f = entry.get("driver_file")
+    if f:
+        try:
+            (kind_dir(PRINTER_DRIVERS) / f).unlink()
+        except FileNotFoundError:
+            pass
+
+
+def printer_driver_present(entry: dict) -> bool:
+    f = entry.get("driver_file")
+    return bool(f) and (kind_dir(PRINTER_DRIVERS) / f).exists()
+
+
 def kind_dir(kind: str):
     d = paths.CACHE_DIR / kind
     d.mkdir(parents=True, exist_ok=True)
@@ -76,11 +103,11 @@ def allowed(kind: str, filename: str) -> bool:
     return filename.lower().endswith(KINDS[kind]["extensions"])
 
 
-def store_file(kind: str, entry_id: str, file_storage) -> dict:
+def store_file(kind: str, entry_id: str, file_storage, extensions=None) -> dict:
     """Save an uploaded payload. Returns metadata to merge into the config entry."""
     name = file_storage.filename or ""
     ext = os.path.splitext(name)[1].lower()
-    if not allowed(kind, name):
+    if extensions is None and not allowed(kind, name):
         raise store.ValidationError(
             f"{KINDS[kind]['label']} must be a {' or '.join(KINDS[kind]['extensions'])} file.")
     d = kind_dir(kind)
