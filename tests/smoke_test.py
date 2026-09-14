@@ -524,12 +524,16 @@ ok("no AnsiWEB data" in c.post("/settings/restore", data={"csrf": tok, "confirm"
 ok(not os.path.exists("/etc/evil"), "nothing escaped the data folder")
 
 # ---------------------------------------------------------------- uninstalling apps from PCs
-r = c.get("/uninstalls")
-ok(r.status_code == 200 and "Nothing queued" in r.text, "the uninstall page starts empty")
+ok(c.get("/uninstalls").status_code == 302, "the old uninstall URL redirects")
+r = c.get("/inventory")
+ok(r.status_code == 200 and "Standing uninstalls" in r.text,
+   "standing uninstalls live on the Inventory page")
+ok("No standing uninstalls" in r.text, "and start empty")
 r = c.post("/uninstalls/add", data={"csrf": tok, "name": "Old PDF reader",
                                     "detect_pattern": "^Foxit Reader", "targets": ["site:HQ"],
                                     "notes": "replaced"}, follow_redirects=True)
 ok("Preview it before removing anything" in r.text, "an uninstall entry is added with a warning")
+ok("Old PDF reader" in c.get("/inventory").text, "the entry shows on the Inventory page")
 u = store.load()["uninstalls"][0]
 ok(u["detect_pattern"] == "^Foxit Reader" and u["enabled"] is True, "entry stored")
 plan_un = json.load(open(os.path.join(DATA, "deploy_plan.json")))
@@ -939,6 +943,31 @@ ok(web.ENDPOINT_PERMISSIONS["inventory_uninstall"] == users.RUN_JOBS,
 ok(web.ENDPOINT_PERMISSIONS["uninstall_add"] == users.MANAGE_CONTENT,
    "but adding a standing uninstall entry still needs more")
 
+# ---------------------------------------------------------------- linking drivers to PCs and printers
+r = c.post("/files/add", data={"csrf": tok, "name": "HP printer driver", "run_mode": "once",
+                               "targets": ["pc:PC-HQ-001"],
+                               "payload": (zip_bytes(["hp.inf", "hp.cat"]), "hp-driver.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("uploaded" in r.text, "a driver can be uploaded for one PC")
+drv = [d for d in store.load()["drivers"] if d["name"] == "HP printer driver"][0]
+ok(drv["targets"] == ["pc:PC-HQ-001"], "the driver is linked to that PC")
+plan_l = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(drv["id"] in plan_l["hosts"]["PC-HQ-001"]["drivers"], "that PC gets it")
+ok(drv["id"] not in plan_l["hosts"]["PC-BR1-009"]["drivers"], "other PCs do not")
+ok("individual PCs" in c.get("/files").text, "the page offers per-PC linking")
+# and a printer can use that driver
+r = c.post("/printers/add", data={"csrf": tok, "name": "Linked printer", "host": "10.0.0.12",
+                                  "driver": "HP Universal", "driver_ref": drv["id"],
+                                  "targets": ["pc:PC-HQ-001"]}, follow_redirects=True)
+ok("Linked printer" in r.text, "a printer can be linked to an uploaded driver")
+plan_l = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+linked = [p for p in plan_l["printers"] if p["name"] == "Linked printer"][0]
+ok(linked["driver_url"].endswith(f"/drivers/{drv['file']}"), "the PCs fetch the linked driver")
+ok("linked to the" in linked["driver_source"], "and the plan records where it came from")
+ok(linked["id"] in plan_l["hosts"]["PC-HQ-001"]["printers"], "the printer goes to that PC only")
+ok(linked["id"] not in plan_l["hosts"]["PC-BR1-009"]["printers"], "not to the others")
+ok("linked" in c.get("/printers").text, "the page shows it as linked")
+
 # ---------------------------------------------------------------- login page branding
 png = bytes.fromhex("89504e470d0a1a0a") + b"fake-but-png-enough"
 ok(c.get("/logo").status_code == 404, "there is no logo to begin with")
@@ -1175,7 +1204,7 @@ ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/files", "/drivers/intel-nic/edit",
             "/scripts/set-power-plan/edit", "/registry/disable-autostart/edit", "/reports", "/jobs",
-            "/settings", "/release-notes", "/help", "/users", "/uninstalls", "/inventory"]:
+            "/settings", "/release-notes", "/help", "/users", "/inventory"]:
     ok(c.get(url).status_code == 200, f"page renders: {url}")
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")

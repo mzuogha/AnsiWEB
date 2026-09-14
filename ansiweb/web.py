@@ -623,7 +623,8 @@ def create_app(start_background: bool = True) -> Flask:
         return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
                                targets=store.target_choices(cfg),
                                pcs=[pc for pc in cfg.get("pcs", []) if pc_allowed(cfg, pc["name"])],
-                               driver_present=payloads.printer_driver_present)
+                               driver_present=payloads.printer_driver_present,
+                               drivers=[d for d in cfg.get("drivers", []) if d.get("enabled", True)])
 
     def printer_from_form(existing=None):
         f = request.form
@@ -641,6 +642,9 @@ def create_app(start_background: bool = True) -> Flask:
             "remove": f.get("remove") == "on",
             # "targets" may hold all / site: / group: entries and individual pc: entries
             "targets": request.form.getlist("targets") or ["all"],
+            # A driver package uploaded on the drivers page can be linked here
+            # instead of attaching a second copy to the printer.
+            "driver_ref": f.get("driver_ref", "").strip(),
         })
         return p
 
@@ -722,10 +726,8 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- uninstalling apps from the PCs --------------------------------------------
     @app.route("/uninstalls")
     def uninstalls_page():
-        cfg = store.load()
-        return render_template("uninstalls.html", cfg=cfg, entries=cfg.get("uninstalls", []),
-                               targets=store.target_choices(cfg), reports=load_reports(),
-                               apps=cfg.get("apps", []))
+        """Uninstalling lives on the Inventory page now; keep old links working."""
+        return redirect(url_for("inventory_page") + "#uninstall")
 
     @app.route("/uninstalls/add", methods=["POST"])
     def uninstall_add():
@@ -749,7 +751,7 @@ def create_app(start_background: bool = True) -> Flask:
             flash(f"'{name}' added. Preview it before removing anything.", "ok")
         except store.ValidationError as exc:
             flash(str(exc), "error")
-        return redirect(url_for("uninstalls_page"))
+        return redirect(url_for("inventory_page") + "#uninstall")
 
     def find_uninstall(cfg, uid):
         for i, e in enumerate(cfg.get("uninstalls", [])):
@@ -764,7 +766,7 @@ def create_app(start_background: bool = True) -> Flask:
         cfg["uninstalls"][idx]["enabled"] = not entry.get("enabled", True)
         if save_or_flash(cfg):
             flash(f"'{entry['name']}' {'enabled' if cfg['uninstalls'][idx]['enabled'] else 'disabled'}.", "ok")
-        return redirect(url_for("uninstalls_page"))
+        return redirect(url_for("inventory_page") + "#uninstall")
 
     @app.route("/uninstalls/<uid>/delete", methods=["POST"])
     def uninstall_delete(uid):
@@ -773,7 +775,7 @@ def create_app(start_background: bool = True) -> Flask:
         del cfg["uninstalls"][idx]
         if save_or_flash(cfg):
             flash(f"Removed the '{entry['name']}' uninstall entry. Apps already removed stay removed.", "ok")
-        return redirect(url_for("uninstalls_page"))
+        return redirect(url_for("inventory_page") + "#uninstall")
 
     def _start_uninstall(kind, uid):
         cfg = store.load()
@@ -782,12 +784,12 @@ def create_app(start_background: bool = True) -> Flask:
             target = scoped_target(cfg, request.form.get("target", "") or "all")
         except store.ValidationError as exc:
             flash(str(exc), "error")
-            return redirect(url_for("uninstalls_page"))
+            return redirect(url_for("inventory_page") + "#uninstall")
         try:
             job_id = jobs.start(kind, target, trigger=f"manual ({session.get('user')})", only=entry["id"])
         except (jobs.JobBusy, ValueError) as exc:
             flash(str(exc), "error")
-            return redirect(url_for("uninstalls_page"))
+            return redirect(url_for("inventory_page") + "#uninstall")
         return redirect(url_for("job_view", job_id=job_id))
 
     @app.route("/uninstalls/<uid>/preview", methods=["POST"])
@@ -798,7 +800,7 @@ def create_app(start_background: bool = True) -> Flask:
     def uninstall_run(uid):
         if request.form.get("confirm") != "REMOVE":
             flash("Type REMOVE to confirm that the app should be uninstalled from the targeted PCs.", "error")
-            return redirect(url_for("uninstalls_page"))
+            return redirect(url_for("inventory_page") + "#uninstall")
         return _start_uninstall("uninstall_run", uid)
 
     # ---- drivers / scripts / registry --------------------------------------------
@@ -827,6 +829,7 @@ def create_app(start_background: bool = True) -> Flask:
                 for kind in meta["kinds"] for e in cfg.get(kind, [])]
         rows.sort(key=lambda r: r["entry"]["name"].lower())
         return render_template("resources.html", group=group, meta=meta, rows=rows,
+                               pcs=visible_pcs(cfg),
                                kinds=[payloads.KINDS[k] for k in meta["kinds"]],
                                accept=",".join(ext for k in meta["kinds"]
                                                for ext in payloads.KINDS[k]["extensions"]),
@@ -902,7 +905,9 @@ def create_app(start_background: bool = True) -> Flask:
             except (store.ValidationError, ValueError) as exc:
                 flash(str(exc), "error")
         return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind],
-                               group=payloads.GROUP_OF[kind], entry=entry,
+                               group=payloads.GROUP_OF[kind], entry=entry, pcs=visible_pcs(cfg),
+                               has_pc_targets=any(str(t).startswith("pc:")
+                                                  for t in entry.get("targets") or []),
                                cfg=cfg, targets=store.target_choices(cfg), run_modes=payloads.RUN_MODES,
                                present=payloads.present(kind, entry))
 
@@ -1197,7 +1202,9 @@ def create_app(start_background: bool = True) -> Flask:
         return render_template("inventory.html", cfg=cfg, rows=rows[:1000], total=len(rows),
                                query=query, pc_filter=pc_filter, pcs=visible_pcs(cfg),
                                with_data=with_data,
-                               collect=cfg["settings"].get("collect_inventory", True))
+                               collect=cfg["settings"].get("collect_inventory", True),
+                               uninstalls=cfg.get("uninstalls", []),
+                               targets=store.target_choices(cfg))
 
     @app.route("/inventory/export.csv")
     def inventory_export():

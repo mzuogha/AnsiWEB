@@ -33,7 +33,9 @@ printer up again does nothing if it is already correct.</p>
     <td class="small">{{ p.host }}:{{ p.port }}</td>
     <td class="small">{{ p.driver or '—' }}</td>
     <td class="small">
-      {% if driver_present(p) %}<span class="pill st-ok">staged</span><br>
+      {% if p.driver_ref %}<span class="pill st-pinned">linked</span><br>
+        <span class="muted">{{ (drivers | selectattr('id', 'equalto', p.driver_ref) | map(attribute='name') | first) or p.driver_ref }}</span>
+      {% elif driver_present(p) %}<span class="pill st-ok">staged</span><br>
         <span class="muted">{{ p.driver_original }} ({{ size(p.driver_size) }})</span>
       {% else %}<span class="muted">none — the driver must already be on the PC</span>{% endif %}</td>
     <td>{% if p.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
@@ -89,6 +91,11 @@ printer up again does nothing if it is already correct.</p>
         <small>Exactly as it appears in the driver's .inf — this is the name Windows registers.</small></label>
       <label>Driver package (optional)<input type="file" name="driver_package" accept=".zip">
         <small>A .zip of the vendor's .inf files. Staged here, installed on each PC before the printer.</small></label>
+      <label>Or use a driver already uploaded<select name="driver_ref">
+        <option value="">— none —</option>
+        {% for d in drivers %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+      </select><small>Driver packages from the drivers page. A linked driver is used in preference to one
+        attached here.</small></label>
       <label>Port name (optional)<input name="port_name" placeholder="IP_10.0.0.9"></label>
     </div>
     <div class="row">

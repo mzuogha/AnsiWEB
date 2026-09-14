@@ -19,9 +19,8 @@
     <a href="{{ url_for('pcs_page') }}" class="{{ 'active' if ep.startswith('pc') }}">PCs</a>
     <a href="{{ url_for('shares_page') }}" class="{{ 'active' if ep.startswith('share') or ep == 'file_sharing_save' }}">Shared folders</a>
     <a href="{{ url_for('printers_page') }}" class="{{ 'active' if ep.startswith('printer') }}">Printers</a>
-    <a href="{{ url_for('uninstalls_page') }}" class="{{ 'active' if ep.startswith('uninstall') }}">Uninstall</a>
     <a href="{{ url_for('resources_page', group='files') }}" class="{{ 'active' if ep.startswith('resource') }}">Drivers, scripts &amp; registry</a>
-    <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory</a>
+    <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory &amp; uninstall</a>
     <a href="{{ url_for('reports_page') }}" class="{{ 'active' if ep.startswith('report') or ep.startswith('audit') }}">Reports{% if can(perms.admin) %} &amp; audit{% endif %}</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>

@@ -42,7 +42,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Each PC's installed apps are read from the Windows registry and compared with the cache.
   - Only missing or outdated apps are installed, so repeat runs are fast and safe.
 - **Web interface over HTTPS.**
-  - Pages: Dashboard, Apps & cache, Uninstall, PCs, Shared folders, Printers, Drivers/scripts/registry, Inventory, Reports & audit, Jobs, Settings, Users, Help.
+  - Pages: Dashboard, Apps & cache, PCs, Shared folders, Printers, Drivers/scripts/registry, Inventory & uninstall, Reports & audit, Jobs, Settings, Users, Help.
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
 - **Shared folders.** Create and share a folder on the PCs you choose, with the access you specify, and turn Windows file sharing on.
@@ -120,6 +120,8 @@ All three live on one page, **Drivers, scripts & registry**, and work the same w
 
 Each kind has its own **Apply** button on that page, plus **Apply all** to do the lot in one job.
 
+Each item applies to all PCs, a site, a group, or individual PCs you tick — useful for a driver that belongs to one machine or one printer.
+
 "When it runs" is one of:
 
 - **Once per PC** — skipped on later deployments. Use for one-off fixes and driver installs.
@@ -143,7 +145,7 @@ An entry can also **take a share down** instead of creating it; the folder and i
 
 The **Printers** page pushes network printers — a printer with its own IP address — to the PCs you choose. AnsiWEB creates the port and the printer using the Windows driver name you give.
 
-**Stage the driver with the printer.** Attach the vendor's `.zip` of `.inf` files to the printer entry and AnsiWEB installs it into each PC's driver store before creating the printer, so nothing has to be prepared by hand. Without a staged driver the named driver must already be on the PC.
+**Give the printer its driver.** Either attach the vendor's `.zip` of `.inf` files to the printer entry, or link a driver already uploaded on the drivers page — a linked driver wins if both are set. Either way AnsiWEB installs it into each PC's driver store before creating the printer. Without one, the named driver must already be on the PC.
 
 **Push it where you want.** A printer has standing targets (all PCs, a site, a group, or a named PC), and the **Set up on these** button pushes it to individual PCs you tick, for a one-off.
 
@@ -161,9 +163,11 @@ The inventory is refreshed at the end of every deployment, or on its own with th
 
 ## Uninstalling apps from the PCs
 
-Removing an app from the standard set stops AnsiWEB installing it, but leaves it on the PCs. The **Uninstall** page removes it from them.
+Both kinds of uninstall live on the **Inventory** page.
 
-An entry is a name, a pattern matching the program's name in Windows "Installed apps", and which PCs it applies to. AnsiWEB finds the program and runs its own uninstaller silently — the MSI product code where there is one, otherwise the vendor's quiet uninstall command. A program with no silent uninstaller is reported and left alone, rather than left sitting on a prompt nobody can see.
+Removing an app from the standard set stops AnsiWEB installing it, but leaves it on the PCs. The Inventory page removes it from them: each program row has a **Preview** and an **Uninstall** button for a one-off on a chosen PC, and the **Standing uninstalls** section below holds the rules for software that should be gone everywhere and stay gone.
+
+A standing entry is a name, a pattern matching the program's name in Windows "Installed apps", and which PCs it applies to. AnsiWEB finds the program and runs its own uninstaller silently — the MSI product code where there is one, otherwise the vendor's quiet uninstall command. A program with no silent uninstaller is reported and left alone, rather than left sitting on a prompt nobody can see.
 
 Two deliberate safeguards, since this is the one destructive thing AnsiWEB does:
 

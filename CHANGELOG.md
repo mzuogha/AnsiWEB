@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.0 - 2026-09-12
+
+Uninstalling is now part of the Inventory page, and drivers can be tied to particular PCs or to a printer.
+
+
+### New
+
+- Link a driver to individual PCs, not just to all PCs, a site or a group.
+- Link a printer to a driver already uploaded on the drivers page, instead of attaching a second copy to the printer. A linked driver is used in preference, and the plan records which one was chosen.
+
+
+### Changed
+
+- Uninstalling lives on one page: the Inventory page now carries both the per-PC uninstall on each row and the standing uninstall entries. The old /uninstalls address redirects there.
+- An operator browsing the inventory can therefore remove software from a PC, or add a standing rule, without leaving the page.
+
+
 ## 1.10.0 - 2026-09-12
 
 Printers are network-only, can carry their own driver, and can be pushed to the exact PCs you pick. The sign-in page shows the version.

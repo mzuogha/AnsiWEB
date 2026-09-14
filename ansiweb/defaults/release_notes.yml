@@ -4,6 +4,23 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.0"
+  date: "2026-09-12"
+  summary: >-
+    Uninstalling is now part of the Inventory page, and drivers can be tied to
+    particular PCs or to a printer.
+  added:
+    - Link a driver to individual PCs, not just to all PCs, a site or a group.
+    - "Link a printer to a driver already uploaded on the drivers page, instead
+       of attaching a second copy to the printer. A linked driver is used in
+       preference, and the plan records which one was chosen."
+  changed:
+    - "Uninstalling lives on one page: the Inventory page now carries both the
+       per-PC uninstall on each row and the standing uninstall entries. The old
+       /uninstalls address redirects there."
+    - "An operator browsing the inventory can therefore remove software from a
+       PC, or add a standing rule, without leaving the page."
+
 - version: "1.10.0"
   date: "2026-09-12"
   summary: >-

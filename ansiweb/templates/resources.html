@@ -82,6 +82,17 @@ internet access. Each PC records what it has already applied, so repeat deployme
       <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
       {% endfor %}
     </div>
+    {% if pcs %}
+    <details>
+      <summary class="muted small">or link it to individual PCs</summary>
+      <div class="checks scroll">
+        {% for pc in pcs %}
+        <label class="check"><input type="checkbox" name="targets" value="pc:{{ pc.name }}"> {{ pc.name }}
+          <span class="muted small">{{ pc.site }}</span></label>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
     <div class="formactions"><button class="btn primary">Upload</button></div>
   </form>
 </section>

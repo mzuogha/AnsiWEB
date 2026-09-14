@@ -456,8 +456,8 @@ lose access, so the share ends up matching what AnsiWEB says it should be.
 ### 14. Add printers (optional)
 
 The **Printers** page pushes network printers — a printer with its own IP address — to the PCs you choose. Give the
-Windows driver name, and attach the vendor's driver package (.zip of its .inf files) to the entry: AnsiWEB installs
-that driver on each PC before creating the printer. Without it, the named driver must already be on the PC.
+Windows driver name, and either attach the vendor's driver package (.zip of its .inf files) to the entry or link a
+driver already uploaded on the drivers page: AnsiWEB installs it on each PC before creating the printer. Without it, the named driver must already be on the PC.
 
 Each printer can target all PCs, a site, a group or a named PC, and **Set up on these** pushes it to individual PCs
 you tick.
@@ -467,11 +467,11 @@ Setting a printer up again does nothing when it is already correct, so run it wh
 ### 15. Removing an app from the PCs (when the time comes)
 
 Taking an app out of the standard set stops AnsiWEB installing it, but leaves it on the PCs. To remove it from them,
-use the **Uninstall** page: add an entry with a pattern matching the program's name in Windows, press **Preview** to
+use the **Inventory** page: in **Standing uninstalls**, add an entry with a pattern matching the program's name in Windows, press **Preview** to
 see exactly what would run on each PC, then type REMOVE and press **Uninstall**.
 
-For a one-off — taking a program off a single PC — the **Inventory** page is quicker: find the program, pick the PC
-on its row, preview, then type REMOVE. That creates no standing entry, and Helpdesk can do it.
+For a one-off — taking a program off a single PC — use the program's own row higher up the same page: pick the PC,
+preview, then type REMOVE. That creates no standing entry, and Helpdesk can do it.
 
 A normal deployment never uninstalls anything — it only reports what would go — so entries are safe to add and check
 before you commit to anything.
