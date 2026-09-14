@@ -1,65 +1,6 @@
 {% extends "base.html" %}
-{% from "_macros.html" import job_button with context %}
-{% from "_macros.html" import csrf, target_label with context %}
-{% block title %}Inventory{% if can(perms.content) or uninstalls %}
-<section class="panel" id="uninstall">
-  <h2>Standing uninstalls</h2>
-  <p class="muted small">An entry here is for software that should be gone everywhere and stay gone, matched by the
-  program's name in Windows. Nothing is removed until you run it: a normal deployment only reports what
-  <em>would</em> go. For a one-off on a single PC, use the Uninstall button on a row above instead.</p>
-
-  <table>
-    <tr><th>What to remove</th><th>Matches programs named</th><th>On</th><th>Status</th><th></th></tr>
-    {% for e in uninstalls %}
-    <tr class="{{ 'dim' if not e.enabled }}">
-      <td><b>{{ e.name }}</b>{% if e.notes %}<br><span class="muted small">{{ e.notes }}</span>{% endif %}</td>
-      <td class="small"><code>{{ e.detect_pattern }}</code></td>
-      <td class="small">{% for t in e.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
-      <td>{% if e.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
-      <td class="nowrap">
-        {% if can(perms.content) %}
-        <form method="post" action="{{ url_for('uninstall_preview', uid=e.id) }}" class="inline">{{ csrf() }}
-          <input type="hidden" name="target" value="all">
-          <button class="btn small" title="Report what would be removed, changing nothing">Preview</button></form>
-        <form method="post" action="{{ url_for('uninstall_run', uid=e.id) }}" class="inline row tight"
-              data-confirm="Uninstall {{ e.name }} from the targeted PCs?">{{ csrf() }}
-          <input type="hidden" name="target" value="all">
-          <input name="confirm" placeholder="type REMOVE" size="12" autocomplete="off">
-          <button class="btn small danger" {{ 'disabled' if not e.enabled }}>Uninstall</button></form>
-        <form method="post" action="{{ url_for('uninstall_toggle', uid=e.id) }}" class="inline">{{ csrf() }}
-          <button class="btn small">{{ 'Disable' if e.enabled else 'Enable' }}</button></form>
-        <form method="post" action="{{ url_for('uninstall_delete', uid=e.id) }}" class="inline"
-              data-confirm="Remove this entry? Apps already uninstalled stay uninstalled.">{{ csrf() }}
-          <button class="btn small">Delete</button></form>
-        {% endif %}
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5" class="muted">No standing uninstalls.</td></tr>
-    {% endfor %}
-  </table>
-
-  {% if can(perms.content) %}
-  <h3>Add one</h3>
-  <form method="post" action="{{ url_for('uninstall_add') }}" class="form">{{ csrf() }}
-    <div class="row">
-      <label>Name<input name="name" required placeholder="Old PDF reader"></label>
-      <label>Matches programs named<input name="detect_pattern" required placeholder="^Foxit Reader">
-        <small>A regular expression against the name under Windows "Installed apps". A pattern that matches
-        everything is refused.</small></label>
-      <label>Notes (optional)<input name="notes" placeholder="replaced by Adobe Reader"></label>
-    </div>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
-    <div class="formactions"><button class="btn primary">Add</button></div>
-  </form>
-  {% endif %}
-</section>
-{% endif %}
-{% endblock %}
+{% from "_macros.html" import job_button, csrf, target_label with context %}
+{% block title %}Inventory &amp; uninstall{% endblock %}
 {% block content %}
 <div class="head">
   <h1>Software inventory</h1>

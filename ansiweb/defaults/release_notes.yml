@@ -4,6 +4,20 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.2"
+  date: "2026-09-14"
+  summary: >-
+    Tidy-up, and two things that were quietly leaving files behind.
+  fixed:
+    - The Inventory page was rendering its uninstall section twice, because a
+      template edit caught the page title as well.
+    - Deleting a printer now deletes the driver package staged with it, and an
+      update check tidies away uploads whose entry has been removed. Both were
+      left on disk before.
+  changed:
+    - The "choose individual PCs" list is one shared piece of markup rather
+      than four copies.
+
 - version: "1.11.1"
   date: "2026-09-14"
   summary: >-

@@ -6,6 +6,21 @@
 </select>
 {% endmacro %}
 
+{% macro pc_picker(pcs, name='targets', prefix='pc:', chosen=[], label='or choose individual PCs') %}
+{% if pcs %}
+<details {{ 'open' if chosen }}>
+  <summary class="muted small">{{ label }}</summary>
+  <div class="checks scroll">
+    {% for pc in pcs %}
+    <label class="check"><input type="checkbox" name="{{ name }}" value="{{ prefix }}{{ pc.name }}"
+      {{ 'checked' if (prefix ~ pc.name) in chosen }}> {{ pc.name }}
+      <span class="muted small">{{ pc.site }}</span></label>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endmacro %}
+
 {% macro job_button(kind, label, target='', cls='btn', confirm='') %}
 <form method="post" action="{{ url_for('job_start') }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
   {{ csrf() }}<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="target" value="{{ target }}">

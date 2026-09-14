@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.2 - 2026-09-14
+
+Tidy-up, and two things that were quietly leaving files behind.
+
+
+### Changed
+
+- The "choose individual PCs" list is one shared piece of markup rather than four copies.
+
+
+### Fixed
+
+- The Inventory page was rendering its uninstall section twice, because a template edit caught the page title as well.
+- Deleting a printer now deletes the driver package staged with it, and an update check tidies away uploads whose entry has been removed. Both were left on disk before.
+
+
 ## 1.11.1 - 2026-09-14
 
 Hardening after a security review of the code and the deployment.

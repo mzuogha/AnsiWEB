@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, size with context %}
+{% from "_macros.html" import csrf, target_label, size, pc_picker with context %}
 {% block title %}{{ entry.name }}{% endblock %}
 {% block content %}
 <div class="head"><h1>{{ entry.name }}</h1>
@@ -28,18 +28,7 @@
     <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t in (entry.targets or []) }}> {{ target_label(t) }}</label>
     {% endfor %}
   </div>
-  {% if pcs %}
-  <details {{ 'open' if has_pc_targets }}>
-    <summary class="muted small">individual PCs</summary>
-    <div class="checks scroll">
-      {% for pc in pcs %}
-      <label class="check"><input type="checkbox" name="targets" value="pc:{{ pc.name }}"
-        {{ 'checked' if ('pc:' ~ pc.name) in (entry.targets or []) }}> {{ pc.name }}
-        <span class="muted small">{{ pc.site }}</span></label>
-      {% endfor %}
-    </div>
-  </details>
-  {% endif %}
+  {{ pc_picker(pcs, chosen=entry.targets or [], label='individual PCs') }}
   <h3>Replace the file</h3>
   <p class="muted small">Uploading a new file makes PCs apply it again, even where the old one already ran
   (unless this entry is set to run once and you leave the file unchanged).</p>

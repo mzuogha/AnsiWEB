@@ -697,6 +697,7 @@ def create_app(start_background: bool = True) -> Flask:
         idx, printer = find_printer(cfg, pid)
         del cfg["printers"][idx]
         if save_or_flash(cfg):
+            payloads.delete_printer_driver(printer)
             flash(f"Removed '{printer['name']}' from AnsiWEB. It stays installed on the PCs; tick "
                   "'Remove this printer from the PCs' on an entry to take it off them.", "ok")
         return redirect(url_for("printers_page"))
@@ -914,8 +915,6 @@ def create_app(start_background: bool = True) -> Flask:
                 flash(str(exc), "error")
         return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind],
                                group=payloads.GROUP_OF[kind], entry=entry, pcs=visible_pcs(cfg),
-                               has_pc_targets=any(str(t).startswith("pc:")
-                                                  for t in entry.get("targets") or []),
                                cfg=cfg, targets=store.target_choices(cfg), run_modes=payloads.RUN_MODES,
                                present=payloads.present(kind, entry))
 

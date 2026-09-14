@@ -935,6 +935,11 @@ ok(migrated["enabled"] is False and "no longer supported" in migrated.get("notes
    "a shared queue from an older version is disabled, not deleted")
 ok("kind" not in migrated and "connection" not in migrated, "and its old fields are dropped")
 
+# the staged driver goes with the printer
+staged_path = os.path.join(DATA, "cache/printers", store.load()["printers"][0]["driver_file"])
+ok(os.path.exists(staged_path), "the staged driver is on disk before deleting")
+c.post(f"/printers/{pr[0]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok(not os.path.exists(staged_path), "deleting a printer removes its staged driver file")
 r = c.post(f"/printers/{pr[1]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 ok("stays installed on the PCs" in r.text, "deleting explains it stays on the PCs")
 

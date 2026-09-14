@@ -289,6 +289,10 @@ def update_all(log=print, only: list | None = None, force: bool = False) -> dict
                         pass
             del m[key]
         save_manifest(m)
+    # Uploaded payloads whose entry has been removed are cleaned up here too,
+    # so nothing is left behind in the cache.
+    from . import payloads
+    payloads.prune(cfg)
     store.regenerate_all(cfg)
     log(f"Done: {counts['updated']} updated, {counts['current']} already current, {counts['error']} error(s)")
     return counts
