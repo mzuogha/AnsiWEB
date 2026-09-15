@@ -5,6 +5,21 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.4 - 2026-09-15
+
+Fixes an installer failure introduced in 1.11.1.
+
+
+### Changed
+
+- install.sh keeps the previous nginx site file and says where it is if the new one is rejected, instead of leaving you to work it out.
+
+
+### Fixed
+
+- The nginx site set server_tokens at file level, which clashes with the same setting in nginx.conf on a stock Ubuntu install and made install.sh stop with 'directive is duplicate'. It is set inside the server blocks now, where it cannot clash.
+
+
 ## 1.11.3 - 2026-09-14
 
 More tidy-up. No change in behaviour.

@@ -4,6 +4,19 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.4"
+  date: "2026-09-15"
+  summary: >-
+    Fixes an installer failure introduced in 1.11.1.
+  fixed:
+    - "The nginx site set server_tokens at file level, which clashes with the
+       same setting in nginx.conf on a stock Ubuntu install and made install.sh
+       stop with 'directive is duplicate'. It is set inside the server blocks
+       now, where it cannot clash."
+  changed:
+    - install.sh keeps the previous nginx site file and says where it is if the
+      new one is rejected, instead of leaving you to work it out.
+
 - version: "1.11.3"
   date: "2026-09-14"
   summary: >-

@@ -94,10 +94,22 @@ else
 fi
 
 echo "==> Web server"
+# Keep the previous site file, so a bad one can be put back rather than
+# leaving the server with no working configuration.
+if [[ -f /etc/nginx/sites-available/ansiweb ]]; then
+  cp /etc/nginx/sites-available/ansiweb /etc/nginx/sites-available/ansiweb.previous
+fi
 install -m 0644 "$APP_DIR/deploy/nginx-ansiweb.conf" /etc/nginx/sites-available/ansiweb
 ln -sf /etc/nginx/sites-available/ansiweb /etc/nginx/sites-enabled/ansiweb
 rm -f /etc/nginx/sites-enabled/default
-nginx -t
+if ! nginx -t; then
+  echo
+  echo "nginx rejected the configuration. The previous one is at"
+  echo "  /etc/nginx/sites-available/ansiweb.previous"
+  echo "AnsiWEB itself is installed; fix the error above, then run:"
+  echo "  sudo nginx -t && sudo systemctl reload nginx"
+  exit 1
+fi
 
 IP=$(hostname -I | awk '{print $1}')
 
