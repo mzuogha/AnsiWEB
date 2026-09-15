@@ -153,6 +153,14 @@ def check_password_rules(password: str) -> None:
         raise UserError(f"The password must be at least {MIN_PASSWORD} characters.")
 
 
+def _locate(users: dict, username: str) -> str:
+    """The key for this user, or a complaint. Callers already hold the lock."""
+    key = (username or "").lower()
+    if key not in users:
+        raise UserError("No such user.")
+    return key
+
+
 def create(username: str, password: str, role: str, scope: list | None = None) -> None:
     name = validate_username(username)
     check_password_rules(password)
@@ -183,9 +191,7 @@ def clean_scope(role: str, scope: list | None) -> list:
 def set_scope(username: str, scope: list) -> None:
     with _lock:
         users = _read()
-        key = (username or "").lower()
-        if key not in users:
-            raise UserError("No such user.")
+        key = _locate(users, username)
         users[key]["scope"] = clean_scope(users[key]["role"], scope)
         _write(users)
 
@@ -236,9 +242,7 @@ def set_password(username: str, password: str) -> None:
     check_password_rules(password)
     with _lock:
         users = _read()
-        key = (username or "").lower()
-        if key not in users:
-            raise UserError("No such user.")
+        key = _locate(users, username)
         users[key]["password_hash"] = generate_password_hash(password)
         users[key]["password_changed"] = _now()
         _write(users)
@@ -249,9 +253,7 @@ def set_role(username: str, role: str) -> None:
         raise UserError("Unknown role.")
     with _lock:
         users = _read()
-        key = (username or "").lower()
-        if key not in users:
-            raise UserError("No such user.")
+        key = _locate(users, username)
         if users[key]["role"] == "admin" and role != "admin" and count_admins(exclude=username) == 0:
             raise UserError("This is the only administrator left. Promote someone else first.")
         users[key]["role"] = role
@@ -263,9 +265,7 @@ def set_role(username: str, role: str) -> None:
 def set_disabled(username: str, disabled: bool) -> None:
     with _lock:
         users = _read()
-        key = (username or "").lower()
-        if key not in users:
-            raise UserError("No such user.")
+        key = _locate(users, username)
         if disabled and users[key]["role"] == "admin" and count_admins(exclude=username) == 0:
             raise UserError("This is the only administrator left, so it cannot be disabled.")
         users[key]["disabled"] = bool(disabled)
@@ -275,9 +275,7 @@ def set_disabled(username: str, disabled: bool) -> None:
 def delete(username: str) -> None:
     with _lock:
         users = _read()
-        key = (username or "").lower()
-        if key not in users:
-            raise UserError("No such user.")
+        key = _locate(users, username)
         if users[key]["role"] == "admin" and count_admins(exclude=username) == 0:
             raise UserError("This is the only administrator left, so it cannot be removed.")
         del users[key]

@@ -6,6 +6,37 @@
 </select>
 {% endmacro %}
 
+{# The list of sites and groups an item applies to. Pass "chosen" when editing
+   something that already has targets; new items default to all PCs. #}
+{# One row per job, used by the Jobs page and the Reports page. #}
+{% macro job_rows(jobs) %}
+{% for j in jobs %}
+<tr>
+  <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ j.id }}</a></td>
+  <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ job_kinds.get(j.kind, j.kind) }}</a></td>
+  <td class="small">{{ j.target or '' }}</td>
+  <td class="small">{{ j.started }}</td>
+  <td class="small">{{ j.finished or '' }}</td>
+  <td class="small">{{ j.trigger }}</td>
+  <td>{{ status_pill(j.status) }}</td>
+  <td><a class="small" href="{{ url_for('job_download', job_id=j.id) }}">log</a></td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="muted">No jobs yet.</td></tr>
+{% endfor %}
+{% endmacro %}
+
+{% macro target_picker(targets, chosen=None, heading='Applies to') %}
+{% set picked = chosen if chosen is not none else ['all'] %}
+{% if heading %}<h3>{{ heading }}</h3>{% endif %}
+<div class="checks">
+  {% for t in targets %}
+  <label class="check"><input type="checkbox" name="targets" value="{{ t }}"
+    {{ 'checked' if t in picked }}> {{ target_label(t) }}</label>
+  {% endfor %}
+</div>
+{% endmacro %}
+
 {% macro pc_picker(pcs, name='targets', prefix='pc:', chosen=[], label='or choose individual PCs') %}
 {% if pcs %}
 <details {{ 'open' if chosen }}>

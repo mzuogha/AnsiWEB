@@ -846,6 +846,21 @@ def create_app(start_background: bool = True) -> Flask:
                                run_modes=payloads.RUN_MODES, reports=load_reports(),
                                job_kind="deploy_files")
 
+    def payload_fields(kind: str, entry: dict) -> dict:
+        """The form fields shared by adding and editing a driver, script or registry file."""
+        f = request.form
+        entry.update({
+            "run_mode": f.get("run_mode", "once"),
+            "targets": request.form.getlist("targets") or ["all"],
+            "notes": f.get("notes", "").strip(),
+        })
+        if kind == "scripts":
+            entry.update({"arguments": f.get("arguments", "").strip(),
+                          "timeout": int(f.get("timeout") or 1800),
+                          "reboot": f.get("reboot") == "on",
+                          "success_codes": parse_codes(f.get("success_codes", ""))})
+        return entry
+
     @app.route("/<group>/add", methods=["POST"])
     def resource_add(group):
         check_group(group)
@@ -858,19 +873,11 @@ def create_app(start_background: bool = True) -> Flask:
             if not f or not f.filename:
                 raise store.ValidationError("Choose a file to upload.")
             kind = payloads.kind_for_filename(f.filename, payloads.GROUPS[group]["kinds"])
-            entry = {
+            entry = payload_fields(kind, {
                 "id": payloads.new_id(cfg, kind, name),
                 "name": name,
                 "enabled": True,
-                "run_mode": request.form.get("run_mode", "once"),
-                "targets": request.form.getlist("targets") or ["all"],
-                "notes": request.form.get("notes", "").strip(),
-            }
-            if kind == "scripts":
-                entry.update({"arguments": request.form.get("arguments", "").strip(),
-                              "timeout": int(request.form.get("timeout") or 1800),
-                              "reboot": request.form.get("reboot") == "on",
-                              "success_codes": parse_codes(request.form.get("success_codes", ""))})
+            })
             entry.update(payloads.store_file(kind, entry["id"], f))
             cfg.setdefault(kind, []).append(entry)
             store.save(cfg)
@@ -892,18 +899,9 @@ def create_app(start_background: bool = True) -> Flask:
         idx, entry = find_resource(cfg, kind, rid)
         if request.method == "POST":
             try:
-                entry.update({
-                    "name": request.form.get("name", "").strip() or entry["name"],
-                    "enabled": request.form.get("enabled") == "on",
-                    "run_mode": request.form.get("run_mode", "once"),
-                    "targets": request.form.getlist("targets") or ["all"],
-                    "notes": request.form.get("notes", "").strip(),
-                })
-                if kind == "scripts":
-                    entry.update({"arguments": request.form.get("arguments", "").strip(),
-                                  "timeout": int(request.form.get("timeout") or 1800),
-                                  "reboot": request.form.get("reboot") == "on",
-                                  "success_codes": parse_codes(request.form.get("success_codes", ""))})
+                entry.update({"name": request.form.get("name", "").strip() or entry["name"],
+                              "enabled": request.form.get("enabled") == "on"})
+                entry = payload_fields(kind, entry)
                 f = request.files.get("payload")
                 if f and f.filename:
                     entry.update(payloads.store_file(kind, entry["id"], f))

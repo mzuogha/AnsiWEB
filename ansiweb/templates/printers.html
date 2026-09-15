@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker with context %}
+{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker with context %}
 {% block title %}Printers{% endblock %}
 {% block content %}
 <div class="head">
@@ -94,12 +94,7 @@ printer up again does nothing if it is already correct.</p>
     </div>
     <label class="check"><input type="checkbox" name="default"> Make it the default printer</label>
     <label class="check"><input type="checkbox" name="remove"> Remove this printer from the PCs instead of adding it</label>
-    <h3>Install on</h3>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
+    {{ target_picker(targets, heading='Install on') }}
     {{ pc_picker(pcs) }}
     <div class="formactions"><button class="btn primary">Add printer</button></div>
   </form>

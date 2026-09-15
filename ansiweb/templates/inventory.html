@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import job_button, csrf, target_label with context %}
+{% from "_macros.html" import job_button, csrf, target_label, target_picker with context %}
 {% block title %}Inventory &amp; uninstall{% endblock %}
 {% block content %}
 <div class="head">
@@ -120,11 +120,7 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
         everything is refused.</small></label>
       <label>Notes (optional)<input name="notes" placeholder="replaced by Adobe Reader"></label>
     </div>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
+    {{ target_picker(targets, heading=None) }}
     <div class="formactions"><button class="btn primary">Add</button></div>
   </form>
   {% endif %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import job_button, state_pill, csrf, target_label with context %}
+{% from "_macros.html" import job_button, state_pill, csrf, target_label, target_picker with context %}
 {% block title %}Apps{% endblock %}
 {% block content %}
 <div class="head">
@@ -56,12 +56,7 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
       <label>Detection pattern<input name="detect_pattern" required placeholder="^Vendor App">
         <small>Regular expression matching the name under Windows "Installed apps".</small></label>
     </div>
-    <h3>Install on</h3>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
+    {{ target_picker(targets, heading='Install on') }}
     <div class="formactions"><button class="btn primary">Upload and add</button></div>
   </form>
 </section>

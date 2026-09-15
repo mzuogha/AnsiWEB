@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker with context %}
+{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker with context %}
 {% block title %}{{ meta.title }}{% endblock %}
 {% block content %}
 <div class="head">
@@ -76,12 +76,7 @@ internet access. Each PC records what it has already applied, so repeat deployme
     <p class="muted small">The settings above apply to scripts only; they are ignored for a driver package
     or a registry file.</p>
     <label>Notes (optional)<input name="notes"></label>
-    <h3>Applies to</h3>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t == 'all' }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
+    {{ target_picker(targets) }}
     {{ pc_picker(pcs, label='or link it to individual PCs') }}
     <div class="formactions"><button class="btn primary">Upload</button></div>
   </form>

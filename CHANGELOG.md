@@ -5,6 +5,17 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.3 - 2026-09-14
+
+More tidy-up. No change in behaviour.
+
+
+### Changed
+
+- The list of sites and groups an item applies to, and the recent-jobs table, are each written once and shared, instead of five and two copies.
+- Looking up a user before changing them, and reading an uploaded item's fields from a form, are each in one place now.
+
+
 ## 1.11.2 - 2026-09-14
 
 Tidy-up, and two things that were quietly leaving files behind.

@@ -4,6 +4,16 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.3"
+  date: "2026-09-14"
+  summary: >-
+    More tidy-up. No change in behaviour.
+  changed:
+    - The list of sites and groups an item applies to, and the recent-jobs
+      table, are each written once and shared, instead of five and two copies.
+    - Looking up a user before changing them, and reading an uploaded item's
+      fields from a form, are each in one place now.
+
 - version: "1.11.2"
   date: "2026-09-14"
   summary: >-

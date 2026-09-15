@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status_pill with context %}
+{% from "_macros.html" import csrf, status_pill, job_rows with context %}
 {% block title %}Reports{% endblock %}
 {% block content %}
 <div class="head">
@@ -65,15 +65,7 @@
   <h2>Recent jobs</h2>
   <table>
     <tr><th>#</th><th>Job</th><th>Target</th><th>Started</th><th>Finished</th><th>Trigger</th><th>Status</th><th></th></tr>
-    {% for j in jobs %}
-    <tr>
-      <td><a href="{{ url_for('job_view', job_id=j.id) }}">{{ j.id }}</a></td>
-      <td>{{ job_kinds.get(j.kind, j.kind) }}</td><td class="small">{{ j.target or '' }}</td>
-      <td class="small">{{ j.started }}</td><td class="small">{{ j.finished or '' }}</td>
-      <td class="small">{{ j.trigger }}</td><td>{{ status_pill(j.status) }}</td>
-      <td><a class="small" href="{{ url_for('job_download', job_id=j.id) }}">log</a></td>
-    </tr>
-    {% else %}<tr><td colspan="8" class="muted">No jobs yet.</td></tr>{% endfor %}
+    {{ job_rows(jobs) }}
   </table>
 </section>
 {% if show_audit %}
