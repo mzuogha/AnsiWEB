@@ -311,9 +311,10 @@ Enter the password from step 1 when prompted. The script:
 - allows local administrator accounts to work remotely (`LocalAccountTokenFilterPolicy`)
 - opens TCP 5986 **only** to your AnsiWEB server, and closes the unencrypted WinRM port 5985
 
-It then checks its own work — the account, the WinRM service, the HTTPS listener and the firewall rule — and
-prints the PC name and IP to enter in AnsiWEB. If anything is wrong it says exactly what, and exits with an error
-rather than finishing quietly. It is safe to run again.
+It then checks its own work — the account, the WinRM service, the HTTPS listener, the firewall rule and the port —
+and prints the PC name and IP to enter in AnsiWEB. If anything is wrong it names the step that failed and why, and
+exits with an error rather than finishing quietly. Every run is logged to
+`C:\ProgramData\AnsiWEB\prepare-log.txt`. It is safe to run again.
 
 You can also build this into your imaging process, so new PCs arrive ready.
 

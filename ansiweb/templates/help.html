@@ -112,7 +112,8 @@ Register-ScheduledTask -TaskName 'AnsiWEB WSL' -Action $action -Trigger $trigger
   <p class="muted small">Run it in an <b>Administrator</b> PowerShell on the PC and enter the same account password
   used in AnsiWEB. It creates the local administrator account, enables WinRM over HTTPS and opens port 5986 to this
   server only. Useful checks on the PC:</p>
-  <pre class="cmd">winrm enumerate winrm/config/listener
+  <pre class="cmd">type C:\ProgramData\AnsiWEB\prepare-log.txt
+winrm enumerate winrm/config/listener
 Test-WSMan -ComputerName localhost -UseSSL
 tzutil /l                          # valid time zone IDs</pre>
 </section>

@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.11.5 - 2026-09-15
+
+The PC prep script is rewritten. The checks added in 1.9.0 reported failure on PCs that were in fact prepared correctly.
+
+
+### Changed
+
+- The script is rewritten around named steps, so a failure says which step and why, rather than only quoting an error.
+- It writes a log to C:\ProgramData\AnsiWEB\prepare-log.txt for diagnosis, and runs with strict mode so a mistake like the one above stops the script instead of passing silently.
+- The certificate now covers the computer name and its DNS name, and the Administrators group is addressed by SID throughout.
+
+
+### Fixed
+
+- The final check used a variable that was never set, so it always concluded the account was not an administrator and exited with an error.
+- It also opened a WinRM session to 'localhost' over HTTPS, which fails the certificate name check on any correctly prepared PC, because the certificate is issued for the computer name. The check is now a local port test, which is what it was trying to establish.
+
+
 ## 1.11.4 - 2026-09-15
 
 Fixes an installer failure introduced in 1.11.1.

@@ -4,6 +4,28 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.11.5"
+  date: "2026-09-15"
+  summary: >-
+    The PC prep script is rewritten. The checks added in 1.9.0 reported failure
+    on PCs that were in fact prepared correctly.
+  fixed:
+    - "The final check used a variable that was never set, so it always
+       concluded the account was not an administrator and exited with an
+       error."
+    - "It also opened a WinRM session to 'localhost' over HTTPS, which fails
+       the certificate name check on any correctly prepared PC, because the
+       certificate is issued for the computer name. The check is now a local
+       port test, which is what it was trying to establish."
+  changed:
+    - The script is rewritten around named steps, so a failure says which step
+      and why, rather than only quoting an error.
+    - It writes a log to C:\ProgramData\AnsiWEB\prepare-log.txt for
+      diagnosis, and runs with strict mode so a mistake like the one above
+      stops the script instead of passing silently.
+    - The certificate now covers the computer name and its DNS name, and the
+      Administrators group is addressed by SID throughout.
+
 - version: "1.11.4"
   date: "2026-09-15"
   summary: >-
