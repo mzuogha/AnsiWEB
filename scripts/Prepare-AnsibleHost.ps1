@@ -27,7 +27,10 @@ param(
     [string]$ControlNodeIP = '__CONTROL_NODE_IP__',
     [string]$AccountName = '__ACCOUNT_NAME__',
     [securestring]$Password,
-    [string]$LogPath = "$env:ProgramData\AnsiWEB\prepare-log.txt"
+    [string]$LogPath = "$env:ProgramData\AnsiWEB\prepare-log.txt",
+    # The window closes the moment the script ends when it is started by
+    # double-clicking or "Run with PowerShell", taking any message with it.
+    [switch]$NoPause
 )
 
 Set-StrictMode -Version Latest       # an undefined variable is a mistake, not a blank
@@ -40,6 +43,13 @@ $FIREWALL_RULE = 'AnsiWEB WinRM HTTPS'
 # --- logging ---------------------------------------------------------------
 New-Item -ItemType Directory -Path (Split-Path $LogPath) -Force | Out-Null
 try { Start-Transcript -Path $LogPath -Append | Out-Null } catch { }
+
+function Hold {
+    if (-not $NoPause) {
+        Write-Host ""
+        Read-Host "Press Enter to close this window" | Out-Null
+    }
+}
 
 function Say([string]$Text, [string]$Colour = 'Gray') { Write-Host "  $Text" -ForegroundColor $Colour }
 
@@ -55,28 +65,36 @@ function Step {
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "  A full log is at $LogPath" -ForegroundColor Red
         try { Stop-Transcript | Out-Null } catch { }
+        Hold
         exit 1
     }
 }
 
 # --- checks before anything is changed -------------------------------------
+function Stop-Here([string]$Message) {
+    Write-Host ""
+    Write-Host $Message -ForegroundColor Red
+    Hold
+    exit 1
+}
+
 if ($PSVersionTable.PSVersion.Major -lt 5) {
-    throw "This needs PowerShell 5.1 or newer; this PC has $($PSVersionTable.PSVersion)."
+    Stop-Here "This needs PowerShell 5.1 or newer; this PC has $($PSVersionTable.PSVersion)."
 }
 if (-not $ControlNodeIP -or $ControlNodeIP -eq ('__CONTROL' + '_NODE_IP__')) {
-    throw 'Give the AnsiWEB server address: -ControlNodeIP 192.168.1.10 (or download this script from the AnsiWEB PCs page).'
+    Stop-Here 'No AnsiWEB server address in this file. Download it again from the PCs page, or pass -ControlNodeIP 192.168.1.10.'
 }
 if (-not $AccountName -or $AccountName -eq ('__ACCOUNT' + '_NAME__')) { $AccountName = 'Admin' }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'Run this from an elevated PowerShell window (right-click, Run as Administrator).'
+    Stop-Here 'Run this from an elevated PowerShell window (right-click PowerShell, Run as administrator).'
 }
 if (-not $Password) {
     $Password = Read-Host -AsSecureString "Password for the local '$AccountName' account (the same one entered in AnsiWEB)"
 }
-if ($Password.Length -eq 0) { throw 'No password was given.' }
+if ($Password.Length -eq 0) { Stop-Here 'No password was given.' }
 
 Write-Host ""
 Write-Host "Preparing $env:COMPUTERNAME for AnsiWEB at $ControlNodeIP" -ForegroundColor Cyan
@@ -212,6 +230,7 @@ if ($problems) {
     $problems | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
     Write-Host "  A full log is at $LogPath" -ForegroundColor Red
     try { Stop-Transcript | Out-Null } catch { }
+    Hold
     exit 1
 }
 
@@ -223,3 +242,4 @@ Write-Host "  IP address: $ip"
 Write-Host ''
 Write-Host "A log of this run is at $LogPath"
 try { Stop-Transcript | Out-Null } catch { }
+Hold

@@ -1233,6 +1233,34 @@ for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit
 ok(c.get("/office").status_code == 404, "the removed Office page is gone")
 ok(c.get("/directory").status_code == 404, "there is no Active Directory page")
 ok(c.get("/nonsense").status_code == 404, "unknown resource kind is 404")
+# the simple .cmd method
+r = c.get("/prepare-script.cmd")
+ok(r.status_code == 200, "the .cmd prep script downloads")
+body = r.data.decode()
+ok("192.168.1.10" in body and 'set "ACCOUNT=Admin"' in body, "it is filled in with the server and account")
+ok("__CONTROL_NODE_IP__" not in body, "no placeholder is left")
+ok("\r\n" in body, "it uses Windows line endings")
+ok("pause" in body, "the window stays open at the end")
+commands = [l for l in body.splitlines() if l.strip() and not l.strip().startswith("rem")]
+ok("net user" in body and "netsh advfirewall" in body and "winrm quickconfig" in body,
+   "it uses built-in commands")
+ok(not any("powershell" in l.lower() for l in commands),
+   "and never calls PowerShell, which is the point of this method")
+# the connection mode has to match the method used
+r = c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin", "pc_connection": "ntlm"},
+           follow_redirects=True)
+conn = open(os.path.join(DATA, "inventory/group_vars/windows/connection.yml")).read()
+ok("ansible_port: 5985" in conn and "message_encryption: always" in conn,
+   "simple mode connects on 5985 with message encryption")
+ok("ansible_winrm_scheme: http\n" in conn, "over plain HTTP, encrypted by NTLM")
+r = c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin", "pc_connection": "https"},
+           follow_redirects=True)
+conn = open(os.path.join(DATA, "inventory/group_vars/windows/connection.yml")).read()
+ok("ansible_port: 5986" in conn and "scheme: https" in conn, "and back to HTTPS on 5986")
+ok("must be HTTPS or NTLM" in c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin",
+                                                           "pc_connection": "carrier-pigeon"},
+                                     follow_redirects=True).text, "an unknown mode is refused")
+
 r = c.get("/prepare-script")
 ok(b"$ControlNodeIP = '192.168.1.10'" in r.data and b"$AccountName = 'Admin'" in r.data,
    "prep script is filled in with the server IP and account")

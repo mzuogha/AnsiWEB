@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.12.0 - 2026-09-15
+
+A second way to prepare a PC, for when the PowerShell script will not run.
+
+
+### New
+
+- A simple .cmd prep script that uses only built-in Windows commands: no certificate, no execution policy, nothing to unblock. Right-click and Run as administrator; the window stays open so you can read what it did, and every run is logged.
+- A connection setting on the PCs page: HTTPS on 5986 for PCs prepared with the PowerShell script, or NTLM on 5985 for PCs prepared with the .cmd. NTLM encrypts each message, and both ends refuse unencrypted traffic, so there is no certificate to manage.
+
+
+### Changed
+
+- The PowerShell script now waits for a keypress before closing, so a message is not lost when it is started by double-clicking, and its early checks report the problem the same way instead of throwing.
+
+
 ## 1.11.5 - 2026-09-15
 
 The PC prep script is rewritten. The checks added in 1.9.0 reported failure on PCs that were in fact prepared correctly.

@@ -96,7 +96,7 @@ To upgrade later: `git pull && sudo ./install.sh`. Configuration and cache are k
 The short version is below; [docs/INSTALL.md](docs/INSTALL.md#first-time-configuration) covers each step in detail.
 
 1. **Settings.** Enter the server's IP address. Then, on the **PCs** page, set the management account (`Admin` by default) and its password. Choose that password now; you'll use the same one on every PC in step 2.
-2. **Prepare each PC once.** On the PCs page, click **Download PC prep script**; the script already contains the server IP. On each PC, open PowerShell as Administrator and run:
+2. **Prepare each PC once** — with the simple `.cmd` (right-click, Run as administrator; built-in commands only, no certificate) or the PowerShell script (creates a certificate and an HTTPS listener). Set **How AnsiWEB connects** on the PCs page to match: NTLM on 5985 for the `.cmd`, HTTPS on 5986 for PowerShell. On the PCs page, click **Download PC prep script**; the script already contains the server IP. On each PC, open PowerShell as Administrator and run:
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1
    ```

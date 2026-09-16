@@ -3,6 +3,10 @@
 settings:
   server_ip: ""            # control node IP address that PCs use to reach AnsiWEB
   pc_account: Admin        # local administrator account on the PCs used by AnsiWEB
+  # How AnsiWEB reaches the PCs, which has to match how they were prepared:
+  #   https - port 5986 with the certificate the PowerShell script creates
+  #   ntlm  - port 5985, encrypted by NTLM itself, no certificate needed
+  pc_connection: https
   allow_reboot: false      # reboot PCs automatically when an installer asks for it
   forks: 20                # how many PCs Ansible works on at the same time
   batch_size: 20           # PCs per batch during a deployment

@@ -28,7 +28,7 @@ ENDPOINT_PERMISSIONS = {
     "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
-    "prepare_script": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
+    "prepare_script": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
     # running things
@@ -1051,6 +1051,7 @@ def create_app(start_background: bool = True) -> Flask:
         new = request.form.get("pc_account", "").strip()
         password = request.form.get("password", "")
         cfg["settings"]["pc_account"] = new
+        cfg["settings"]["pc_connection"] = request.form.get("pc_connection", "https")
         if not save_or_flash(cfg):
             return redirect(url_for("pcs_page"))
         if password:
@@ -1076,6 +1077,18 @@ def create_app(start_background: bool = True) -> Flask:
             cfg["sites"] = [s for s in cfg["sites"] if s != name]
         save_or_flash(cfg)
         return redirect(url_for("pcs_page"))
+
+    @app.route("/prepare-script.cmd")
+    def prepare_script_cmd():
+        """The simple preparation method: a .cmd using only built-in commands."""
+        cfg = store.load()
+        text = (paths.SCRIPTS_DIR / "Prepare-AnsibleHost.cmd").read_text(encoding="utf-8")
+        text = text.replace("__CONTROL_NODE_IP__", cfg["settings"].get("server_ip") or "")
+        text = text.replace("__ACCOUNT_NAME__", cfg["settings"].get("pc_account") or "Admin")
+        # Batch files want CRLF, and no byte-order mark
+        return Response(text.replace("\n", "\r\n").encode("ascii", "replace"),
+                        mimetype="application/octet-stream",
+                        headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.cmd"})
 
     @app.route("/prepare-script")
     def prepare_script():

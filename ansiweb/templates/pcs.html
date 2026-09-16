@@ -5,7 +5,8 @@
 <div class="head">
   <h1>PCs</h1>
   <div class="actions">
-    <a class="btn" href="{{ url_for('prepare_script') }}">Download PC prep script</a>
+    <a class="btn" href="{{ url_for('prepare_script_cmd') }}">Prep script (simple, .cmd)</a>
+    <a class="btn" href="{{ url_for('prepare_script') }}">Prep script (PowerShell)</a>
     {% if can(perms.run) %}{{ job_button('ping', 'Test all connections', 'all') }}{% endif %}
     {% if can(perms.run) %}{{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}{% endif %}
   </div>
@@ -20,6 +21,21 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 
 {% if can(perms.admin) %}
 <section class="panel">
+  <h2>Preparing a PC</h2>
+  <p class="muted small">Each PC needs preparing once, in either of two ways. Whichever you choose has to match the
+  setting below, because it decides how AnsiWEB connects.</p>
+  <table class="kv">
+    <tr><th>Simple (.cmd)</th>
+      <td>Right-click the file and choose <b>Run as administrator</b>. It uses only built-in Windows commands,
+        needs no certificate and nothing to unblock, and the window stays open so you can read what it did.
+        AnsiWEB then connects on port 5985, with NTLM encrypting each message.</td></tr>
+    <tr><th>PowerShell (.ps1)</th>
+      <td>Run <code>powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1</code> in an elevated
+        window. It creates a certificate and an HTTPS listener, and AnsiWEB connects on port 5986.</td></tr>
+  </table>
+</section>
+
+<section class="panel">
   <h2>Management account on the PCs</h2>
   <p class="muted small">AnsiWEB signs in to every PC with this local administrator account. Changing the name here
   only changes what AnsiWEB uses: the account must exist on the PCs, so download the prep script again and re-run it
@@ -29,6 +45,10 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
       pattern="[A-Za-z0-9][A-Za-z0-9._-]*" maxlength="20"></label>
     <label>Password {% if secrets.vault_ansible_svc_password %}<span class="muted small">(set)</span>{% else %}<span class="err small">(not set)</span>{% endif %}
       <input type="password" name="password" placeholder="leave empty to keep" autocomplete="new-password"></label>
+    <label>How AnsiWEB connects<select name="pc_connection">
+      <option value="https" {{ 'selected' if cfg.settings.pc_connection != 'ntlm' }}>HTTPS on 5986 — PowerShell prep script</option>
+      <option value="ntlm" {{ 'selected' if cfg.settings.pc_connection == 'ntlm' }}>NTLM on 5985 — simple .cmd prep script</option>
+    </select><small>Must match how the PCs were prepared.</small></label>
     <div><button class="btn primary">Save account</button></div>
   </form>
 </section>
