@@ -5,6 +5,17 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.12.1 - 2026-09-15
+
+Fixes the password prompt in the simple .cmd prep script.
+
+
+### Fixed
+
+- The account commands had their output sent to the log, which also hid the password prompt that 'net user *' prints - so there was nothing to type into. Those commands now write to the screen.
+- The script no longer depends on wmic, which recent Windows 11 builds do not ship. It falls back for both the "password never expires" setting and finding the Administrators group, and carries on if neither works.
+
+
 ## 1.12.0 - 2026-09-15
 
 A second way to prepare a PC, for when the PowerShell script will not run.

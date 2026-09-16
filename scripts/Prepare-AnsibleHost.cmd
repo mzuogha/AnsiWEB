@@ -8,6 +8,8 @@ rem  execution policy, nothing to unblock. AnsiWEB then connects over port 5985
 rem  with NTLM, which encrypts the traffic at the message level.
 rem
 rem  Right-click this file and choose "Run as administrator".
+rem  You are asked for the account password on screen; it is not shown as you
+rem  type, and it is never written to the log.
 rem ===========================================================================
 
 set "SERVER=__CONTROL_NODE_IP__"
@@ -41,37 +43,55 @@ if not errorlevel 1 (
 )
 
 rem --- 1. the account AnsiWEB signs in with ---------------------------------
+rem  The password prompt from "net user *" is written to the screen, so these
+rem  commands must NOT be redirected to the log - that would hide the prompt
+rem  and leave the script waiting with nothing on screen.
 echo  [1/5] Local administrator account "%ACCOUNT%"
 net user "%ACCOUNT%" >nul 2>&1
-if errorlevel 1 (
-    echo        Enter a password for the new account ^(it is not shown^):
-    net user "%ACCOUNT%" * /add /comment:"AnsiWEB management account" /passwordchg:no >>"%LOG%" 2>&1
-    if errorlevel 1 goto :failed_account
-    echo        account created
-) else (
-    echo        Account exists. Enter its password ^(it is not shown^):
-    net user "%ACCOUNT%" * >>"%LOG%" 2>&1
-    if errorlevel 1 goto :failed_account
-    net user "%ACCOUNT%" /active:yes >>"%LOG%" 2>&1
-    echo        password updated
-)
-wmic useraccount where "name='%ACCOUNT%'" set PasswordExpires=false >>"%LOG%" 2>&1
+if errorlevel 1 goto :make_account
 
-rem The Administrators group is not called "Administrators" on every language,
-rem so look up its real name by its well-known SID.
+echo        The account already exists. Enter the password to set for it.
+echo        ^(Nothing appears as you type. Use the same password as in AnsiWEB.^)
+net user "%ACCOUNT%" *
+if errorlevel 1 goto :failed_account
+net user "%ACCOUNT%" /active:yes >>"%LOG%" 2>&1
+echo        password updated
+goto :account_ready
+
+:make_account
+echo        Enter a password for the new account.
+echo        ^(Nothing appears as you type. Use the same password as in AnsiWEB.^)
+net user "%ACCOUNT%" * /add /comment:"AnsiWEB management account" /passwordchg:no
+if errorlevel 1 goto :failed_account
+echo        account created
+
+:account_ready
+rem  Stop the password expiring. wmic is missing on the newest Windows, so this
+rem  is best-effort: an expired password is easy to spot and reset later.
+where wmic >nul 2>&1 && wmic useraccount where "name='%ACCOUNT%'" set PasswordExpires=false >>"%LOG%" 2>&1
+
+rem  The Administrators group is not called "Administrators" on every language,
+rem  so look up its real name by its well-known SID where possible.
 set "ADMINS="
-for /f "usebackq tokens=*" %%G in (`wmic group where "sid='S-1-5-32-544'" get name /value 2^>nul ^| find "Name="`) do (
-    set "%%G"
-    set "ADMINS=!Name!"
+where wmic >nul 2>&1 && (
+    for /f "usebackq tokens=1,* delims==" %%G in (`wmic group where "sid='S-1-5-32-544'" get name /value 2^>nul ^| find "Name="`) do set "ADMINS=%%H"
+)
+if not defined ADMINS (
+    for /f "usebackq tokens=*" %%G in (`net localgroup 2^>nul ^| findstr /b "\*" ^| findstr /i "admin"`) do (
+        if not defined ADMINS set "ADMINS=%%G"
+    )
+    if defined ADMINS set "ADMINS=!ADMINS:~1!"
 )
 if not defined ADMINS set "ADMINS=Administrators"
-net localgroup "%ADMINS%" | find /i "%ACCOUNT%" >nul
+set "ADMINS=!ADMINS: =!"
+
+net localgroup "!ADMINS!" | find /i "%ACCOUNT%" >nul
 if errorlevel 1 (
-    net localgroup "%ADMINS%" "%ACCOUNT%" /add >>"%LOG%" 2>&1
+    net localgroup "!ADMINS!" "%ACCOUNT%" /add >>"%LOG%" 2>&1
     if errorlevel 1 goto :failed_group
-    echo        added to %ADMINS%
+    echo        added to !ADMINS!
 ) else (
-    echo        already in %ADMINS%
+    echo        already in !ADMINS!
 )
 
 rem --- 2. let that local account work over the network ------------------------
@@ -105,7 +125,7 @@ echo        TCP %PORT% open to %SERVER% only
 rem --- 5. check the result ---------------------------------------------------
 echo  [5/5] Checking
 set "PROBLEM="
-net localgroup "%ADMINS%" | find /i "%ACCOUNT%" >nul || set "PROBLEM=!PROBLEM! account-not-admin"
+net localgroup "!ADMINS!" | find /i "%ACCOUNT%" >nul || set "PROBLEM=!PROBLEM! account-not-admin"
 sc query WinRM | find "RUNNING" >nul || set "PROBLEM=!PROBLEM! winrm-not-running"
 netstat -an | find ":%PORT%" | find "LISTENING" >nul || set "PROBLEM=!PROBLEM! port-%PORT%-not-listening"
 netsh advfirewall firewall show rule name="%RULE%" >nul 2>&1 || set "PROBLEM=!PROBLEM! firewall-rule-missing"
@@ -134,7 +154,7 @@ goto :finished
 echo  [X] Could not create or update the "%ACCOUNT%" account. See %LOG%
 goto :finished
 :failed_group
-echo  [X] Could not add "%ACCOUNT%" to %ADMINS%. See %LOG%
+echo  [X] Could not add "%ACCOUNT%" to !ADMINS!. See %LOG%
 goto :finished
 :failed_registry
 echo  [X] Could not set LocalAccountTokenFilterPolicy. See %LOG%
