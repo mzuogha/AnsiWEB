@@ -461,6 +461,16 @@ ok("activate" in jobs.DEPLOY_TAGS and jobs.DEPLOY_TAGS["activate"] == "activatio
 c.post("/settings/activation", data={"csrf": tok, "mode": "mak", "kms_port": "1688", "targets": ["all"]},
        follow_redirects=True)
 
+# a PC can be removed from its own row
+body = c.get("/pcs").text
+ok(body.count("Remove this PC from AnsiWEB") >= 1, "each PC row offers Remove")
+before = len(store.load()["pcs"])
+c.post("/pcs/add", data={"csrf": tok, "name": "PC-TMP-001", "ip": "10.9.9.9", "site": "HQ"},
+       follow_redirects=True)
+ok(len(store.load()["pcs"]) == before + 1, "a PC can be added")
+r = c.post("/pcs/PC-TMP-001/delete", data={"csrf": tok}, follow_redirects=True)
+ok(len(store.load()["pcs"]) == before, "and removed again from its row")
+
 # ---------------------------------------------------------------- reports
 os.makedirs(os.path.join(DATA, "reports"), exist_ok=True)
 json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending": True,
@@ -1247,19 +1257,27 @@ ok("net user" in body and "netsh advfirewall" in body and "winrm quickconfig" in
 ok(not any("powershell" in l.lower() for l in commands),
    "and never calls PowerShell, which is the point of this method")
 # the connection mode has to match the method used
-r = c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin", "pc_connection": "ntlm"},
-           follow_redirects=True)
+r = c.post("/pcs/connection", data={"csrf": tok, "pc_connection": "ntlm"}, follow_redirects=True)
+ok("port 5985 using NTLM" in r.text, "switching to NTLM says what it means")
 conn = open(os.path.join(DATA, "inventory/group_vars/windows/connection.yml")).read()
 ok("ansible_port: 5985" in conn and "message_encryption: always" in conn,
    "simple mode connects on 5985 with message encryption")
 ok("ansible_winrm_scheme: http\n" in conn, "over plain HTTP, encrypted by NTLM")
-r = c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin", "pc_connection": "https"},
-           follow_redirects=True)
+r = c.post("/pcs/connection", data={"csrf": tok, "pc_connection": "https"}, follow_redirects=True)
 conn = open(os.path.join(DATA, "inventory/group_vars/windows/connection.yml")).read()
 ok("ansible_port: 5986" in conn and "scheme: https" in conn, "and back to HTTPS on 5986")
-ok("must be HTTPS or NTLM" in c.post("/pcs/account", data={"csrf": tok, "pc_account": "Admin",
-                                                           "pc_connection": "carrier-pigeon"},
+ok("must be HTTPS or NTLM" in c.post("/pcs/connection", data={"csrf": tok,
+                                                              "pc_connection": "carrier-pigeon"},
                                      follow_redirects=True).text, "an unknown mode is refused")
+body = c.get("/pcs").text
+ok("Currently reaching PCs on" in body, "the PCs page states which port it will use")
+ok("5986 over HTTPS" in body, "and names the current one")
+# a failed connection test explains the likeliest cause
+hint = jobs._ping_hint(store.load())
+ok("port 5986" in hint and "simple (.cmd)" in hint,
+   "the hint names the configured port and the other script")
+hint_ntlm = jobs._ping_hint({"settings": {"pc_connection": "ntlm"}})
+ok("port 5985" in hint_ntlm and "PowerShell (.ps1)" in hint_ntlm, "and the other way round")
 
 r = c.get("/prepare-script")
 ok(b"$ControlNodeIP = '192.168.1.10'" in r.data and b"$AccountName = 'Admin'" in r.data,

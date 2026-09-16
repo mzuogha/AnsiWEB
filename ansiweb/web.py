@@ -50,7 +50,7 @@ ENDPOINT_PERMISSIONS = {
     "uninstall_toggle": users.MANAGE_CONTENT, "uninstall_preview": users.MANAGE_CONTENT,
     "uninstall_run": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
     # the PC list
-    "pc_add": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS,
+    "pc_add": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS, "pc_connection": users.ADMIN,
     "pc_import": users.MANAGE_PCS, "sites": users.MANAGE_PCS, "report_delete": users.MANAGE_PCS,
 }
 # POSTs to these endpoints need more than the GET does
@@ -1043,6 +1043,19 @@ def create_app(start_background: bool = True) -> Flask:
             flash(f"Imported {added} PC(s).", "ok")
         return redirect(url_for("pcs_page"))
 
+    @app.route("/pcs/connection", methods=["POST"])
+    def pc_connection():
+        """Which way AnsiWEB reaches the PCs; must match how they were prepared."""
+        cfg = store.load()
+        cfg["settings"]["pc_connection"] = request.form.get("pc_connection", "https")
+        if save_or_flash(cfg):
+            mode = cfg["settings"]["pc_connection"]
+            flash("AnsiWEB will connect on port 5985 using NTLM, for PCs prepared with the .cmd script."
+                  if mode == "ntlm" else
+                  "AnsiWEB will connect on port 5986 over HTTPS, for PCs prepared with the PowerShell script.",
+                  "ok")
+        return redirect(url_for("pcs_page"))
+
     @app.route("/pcs/account", methods=["POST"])
     def pc_account():
         """Change the local administrator account AnsiWEB uses on the PCs."""
@@ -1051,7 +1064,6 @@ def create_app(start_background: bool = True) -> Flask:
         new = request.form.get("pc_account", "").strip()
         password = request.form.get("password", "")
         cfg["settings"]["pc_account"] = new
-        cfg["settings"]["pc_connection"] = request.form.get("pc_connection", "https")
         if not save_or_flash(cfg):
             return redirect(url_for("pcs_page"))
         if password:

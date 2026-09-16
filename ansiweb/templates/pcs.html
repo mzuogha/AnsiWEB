@@ -24,6 +24,17 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   <h2>Preparing a PC</h2>
   <p class="muted small">Each PC needs preparing once, in either of two ways. Whichever you choose has to match the
   setting below, because it decides how AnsiWEB connects.</p>
+  {% set ntlm = cfg.settings.pc_connection == 'ntlm' %}
+  <form method="post" action="{{ url_for('pc_connection') }}" class="row">{{ csrf() }}
+    <label>How AnsiWEB connects<select name="pc_connection">
+      <option value="ntlm" {{ 'selected' if ntlm }}>Port 5985, NTLM — for PCs prepared with the .cmd script</option>
+      <option value="https" {{ 'selected' if not ntlm }}>Port 5986, HTTPS — for PCs prepared with the PowerShell script</option>
+    </select><small>This has to match the script you ran on the PCs, or the connection test times out.</small></label>
+    <div><button class="btn primary">Save</button></div>
+  </form>
+  <p>Currently reaching PCs on <b>port {{ '5985 with NTLM' if ntlm else '5986 over HTTPS' }}</b>, so prepare PCs
+    with the <b>{{ 'simple (.cmd)' if ntlm else 'PowerShell' }}</b> script.</p>
+
   <table class="kv">
     <tr><th>Simple (.cmd)</th>
       <td>Right-click the file and choose <b>Run as administrator</b>. It uses only built-in Windows commands,
@@ -45,10 +56,6 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
       pattern="[A-Za-z0-9][A-Za-z0-9._-]*" maxlength="20"></label>
     <label>Password {% if secrets.vault_ansible_svc_password %}<span class="muted small">(set)</span>{% else %}<span class="err small">(not set)</span>{% endif %}
       <input type="password" name="password" placeholder="leave empty to keep" autocomplete="new-password"></label>
-    <label>How AnsiWEB connects<select name="pc_connection">
-      <option value="https" {{ 'selected' if cfg.settings.pc_connection != 'ntlm' }}>HTTPS on 5986 — PowerShell prep script</option>
-      <option value="ntlm" {{ 'selected' if cfg.settings.pc_connection == 'ntlm' }}>NTLM on 5985 — simple .cmd prep script</option>
-    </select><small>Must match how the PCs were prepared.</small></label>
     <div><button class="btn primary">Save account</button></div>
   </form>
 </section>
@@ -83,6 +90,11 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
       {% if can(perms.run) %}
       {{ job_button('ping', 'Test', 'pc:' ~ pc.name, 'btn small') }}
       {{ job_button('deploy', 'Deploy', 'pc:' ~ pc.name, 'btn small primary') }}
+      {% endif %}
+      {% if can(perms.pcs) %}
+      <form method="post" action="{{ url_for('pc_delete', name=pc.name) }}" class="inline"
+            data-confirm="Remove {{ pc.name }} from AnsiWEB? Nothing is changed on the PC itself.">{{ csrf() }}
+        <button class="btn small danger" title="Remove this PC from AnsiWEB">Remove</button></form>
       {% endif %}
     </td>
   </tr>

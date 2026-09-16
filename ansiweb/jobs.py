@@ -194,6 +194,23 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
     return job_id
 
 
+def _ping_hint(cfg) -> str:
+    """What to check when a connection test fails, given how AnsiWEB is set up."""
+    mode = (cfg.get("settings") or {}).get("pc_connection", "https")
+    port, other = ("5985", "PowerShell (.ps1)") if mode == "ntlm" else ("5986", "simple (.cmd)")
+    return (
+        f"\nThe connection test failed. AnsiWEB is set to reach PCs on port {port}"
+        f" ({'NTLM' if mode == 'ntlm' else 'HTTPS'}).\n"
+        "Check, in this order:\n"
+        f"  1. The PC was prepared with the matching script. If you used the {other} script,\n"
+        f"     change 'How AnsiWEB connects' on the PCs page - a timeout on port {port} usually\n"
+        "     means the PC is listening on the other port.\n"
+        "  2. The PC is on and reachable: ping its IP address from this server.\n"
+        "  3. The IP address in AnsiWEB matches the PC's current address.\n"
+        "  4. The prep script was run with this server's address, so its firewall rule allows us.\n"
+        "  5. The account password here matches the one entered on the PC.\n")
+
+
 def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None = None) -> None:
     fh = open(log_path(job_id), "a", encoding="utf-8", buffering=1)
 
@@ -221,6 +238,8 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),
                    "--vault-password-file", str(paths.VAULT_PASS_FILE), "-m", "ansible.windows.win_ping"]
             rc = run_command(cmd, log)
+            if rc != 0:
+                log(_ping_hint(store.load()))
     except Exception as exc:  # keep the service alive whatever happens
         log(f"ERROR: {exc}")
         log(traceback.format_exc())

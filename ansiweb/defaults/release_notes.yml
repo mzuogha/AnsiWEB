@@ -4,6 +4,23 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.12.2"
+  date: "2026-09-16"
+  summary: >-
+    Makes the connection setting hard to miss, and PCs removable from their own
+    row.
+  added:
+    - A Remove button beside Test and Deploy on each PC, which takes the PC out
+      of AnsiWEB and deletes its report. Nothing on the PC itself is changed.
+  changed:
+    - "'How AnsiWEB connects' now sits with the prep scripts on the PCs page,
+       with a line saying which port it will use and which script to run. It
+       was previously tucked inside the management-account panel, where it was
+       easy to miss - and a mismatch shows up only as a connection timeout."
+    - "A failed connection test now says what to check, starting with the
+       likeliest cause: a PC prepared with the other script, so it is
+       listening on the other port."
+
 - version: "1.12.1"
   date: "2026-09-15"
   summary: >-

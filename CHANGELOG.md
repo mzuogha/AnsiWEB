@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.12.2 - 2026-09-16
+
+Makes the connection setting hard to miss, and PCs removable from their own row.
+
+
+### New
+
+- A Remove button beside Test and Deploy on each PC, which takes the PC out of AnsiWEB and deletes its report. Nothing on the PC itself is changed.
+
+
+### Changed
+
+- 'How AnsiWEB connects' now sits with the prep scripts on the PCs page, with a line saying which port it will use and which script to run. It was previously tucked inside the management-account panel, where it was easy to miss - and a mismatch shows up only as a connection timeout.
+- A failed connection test now says what to check, starting with the likeliest cause: a PC prepared with the other script, so it is listening on the other port.
+
+
 ## 1.12.1 - 2026-09-15
 
 Fixes the password prompt in the simple .cmd prep script.
