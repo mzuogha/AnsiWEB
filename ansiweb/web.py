@@ -25,6 +25,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
+    "dismiss": users.VIEW,
     "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
@@ -292,6 +293,12 @@ def create_app(start_background: bool = True) -> Flask:
         mine = visible_pcs(cfg)
         stale = report_state.summarise(mine, reports,
                                        cfg["settings"].get("stale_after_days", 14))
+        # A signature of which PCs are involved: dismissing hides this set, so a
+        # different PC going quiet brings the notice back rather than staying hidden.
+        stale_signature = ",".join(sorted(stale["stale_names"] + stale["never_names"]))
+        stale_dismissed = (stale_signature != ""
+                           and jobs.kv_get(f"dismiss:stale:{session.get('user', '-')}")
+                           == stale_signature)
         stats = {
             "pcs": len(mine),
             "apps": len([a for a in cfg["apps"] if a.get("enabled", True)]),
@@ -313,7 +320,8 @@ def create_app(start_background: bool = True) -> Flask:
                                upgraded_from=upgraded_from,
                                last_cache=jobs.last_job("cache_update"),
                                last_deploy=jobs.last_job("deploy"),
-                               stale=stale,
+                               stale=stale, stale_signature=stale_signature,
+                               stale_dismissed=stale_dismissed,
                                stale_days=cfg["settings"].get("stale_after_days", 14))
 
     # ---- apps --------------------------------------------------------------------
@@ -1351,6 +1359,20 @@ def create_app(start_background: bool = True) -> Flask:
         except users.UserError as exc:
             flash(str(exc), "error")
         return redirect(url_for("users_page"))
+
+    @app.route("/dismiss/<what>", methods=["POST"])
+    def dismiss(what):
+        """Hide a dashboard notice for this person."""
+        me = session.get("user", "-")
+        if what == "upgrade":
+            jobs.kv_set("acknowledged_version", __version__)
+        elif what == "stale":
+            # Remembered against the PCs involved, so the notice comes back if
+            # a different PC stops reporting rather than staying hidden.
+            jobs.kv_set(f"dismiss:stale:{me}", request.form.get("signature", ""))
+        else:
+            abort(404)
+        return redirect(url_for("dashboard"))
 
     # ---- release notes -----------------------------------------------------------------
     @app.route("/release-notes")

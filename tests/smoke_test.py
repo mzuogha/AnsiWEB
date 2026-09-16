@@ -635,6 +635,20 @@ ok(summary == {"ok": 1, "stale": 1, "never": 1, "stale_names": ["B"], "never_nam
 r = c.get("/")
 ok("PCs not reporting" in r.text, "the dashboard has a card for PCs that are not reporting")
 ok("never reported" in c.get("/reports").text, "reports flag PCs that never reported")
+# the stale notice can be dismissed, and returns when a different PC goes quiet
+body = c.get("/").text
+ok("PC(s) have never reported" in body or "have not reported" in body, "the notice is shown")
+import re as _re
+sig = _re.search(r'name="signature" value="([^"]*)"', body).group(1)
+ok(sig, "the notice carries which PCs it is about")
+r = c.post("/dismiss/stale", data={"csrf": tok, "signature": sig}, follow_redirects=True)
+ok("See which" not in r.text, "dismissing hides it")
+ok(c.get("/").text.count("See which") == 0, "and it stays hidden on a reload")
+c.post("/pcs/add", data={"csrf": tok, "name": "PC-QUIET-1", "ip": "10.9.9.8", "site": "HQ"},
+       follow_redirects=True)
+ok("See which" in c.get("/").text, "a newly quiet PC brings the notice back")
+c.post("/pcs/PC-QUIET-1/delete", data={"csrf": tok}, follow_redirects=True)
+ok(c.post("/dismiss/nonsense", data={"csrf": tok}).status_code == 404, "an unknown notice is 404")
 r = c.get("/reports?only=stale")
 ok("Show all PCs" in r.text, "reports can be filtered to only those PCs")
 ok("PC-BR1-009" in r.text and "PC-HQ-001" not in r.text.split("Recent jobs")[0],
@@ -1229,6 +1243,11 @@ jobs.kv_set("acknowledged_version", "1.0.0")
 r = c.get("/")
 ok("upgraded from 1.0.0" in r.text and "See what changed" in r.text,
    "the dashboard announces an upgrade")
+ok("dismiss" in c.get("/").text, "the upgrade notice can be dismissed")
+r = c.post("/dismiss/upgrade", data={"csrf": tok}, follow_redirects=True)
+ok("upgraded from" not in r.text, "dismissing the upgrade notice hides it")
+ok(jobs.kv_get("acknowledged_version") == __version__, "and marks the version as read")
+jobs.kv_set("acknowledged_version", "1.0.0")
 r = c.get("/release-notes")
 ok("new to you" in r.text, "releases new since the upgrade are marked")
 ok(jobs.kv_get("acknowledged_version") == __version__, "opening the page acknowledges the version")

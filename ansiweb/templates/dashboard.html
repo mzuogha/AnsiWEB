@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import job_button, status_pill, state_pill with context %}
+{% from "_macros.html" import job_button, status_pill, state_pill, csrf with context %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <div class="head">
@@ -12,15 +12,21 @@
 
 {% if upgraded_from %}
 <div class="flash ok">AnsiWEB was upgraded from {{ upgraded_from }} to {{ version }}.
-  <a href="{{ url_for('release_notes') }}">See what changed</a>.</div>
+  <a href="{{ url_for('release_notes') }}">See what changed</a>.
+  <form method="post" action="{{ url_for('dismiss', what='upgrade') }}" class="inline dismiss">{{ csrf() }}
+    <button class="link" title="Hide this">&times;</button></form>
+</div>
 {% endif %}
 
-{% if stale.needs_attention %}
+{% if stale.needs_attention and not stale_dismissed %}
 <div class="flash warn">
   {% if stale.stale %}{{ stale.stale }} PC(s) have not reported for {{ stale_days }} days or more{% if stale.stale_names %}:
     {{ stale.stale_names[:6] | join(', ') }}{% if stale.stale|int > 6 %} and {{ stale.stale - 6 }} more{% endif %}{% endif %}.{% endif %}
   {% if stale.never %} {{ stale.never }} PC(s) have never reported.{% endif %}
   <a href="{{ url_for('reports_page', only='stale') }}">See which</a>.
+  <form method="post" action="{{ url_for('dismiss', what='stale') }}" class="inline dismiss">{{ csrf() }}
+    <input type="hidden" name="signature" value="{{ stale_signature }}">
+    <button class="link" title="Hide until another PC stops reporting">&times;</button></form>
 </div>
 {% endif %}
 

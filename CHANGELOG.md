@@ -5,6 +5,17 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.12.3 - 2026-09-16
+
+The dashboard notices can be dismissed.
+
+
+### New
+
+- A small x on the upgrade notice and the not-reporting notice hides it. Dismissing is per person, so it does not hide anything from your colleagues.
+- The not-reporting notice is dismissed against the PCs it is about, so it comes back if a different PC goes quiet instead of staying hidden once and for all.
+
+
 ## 1.12.2 - 2026-09-16
 
 Makes the connection setting hard to miss, and PCs removable from their own row.

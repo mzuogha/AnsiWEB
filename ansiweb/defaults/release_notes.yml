@@ -4,6 +4,18 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.12.3"
+  date: "2026-09-16"
+  summary: >-
+    The dashboard notices can be dismissed.
+  added:
+    - "A small x on the upgrade notice and the not-reporting notice hides it.
+       Dismissing is per person, so it does not hide anything from your
+       colleagues."
+    - "The not-reporting notice is dismissed against the PCs it is about, so
+       it comes back if a different PC goes quiet instead of staying hidden
+       once and for all."
+
 - version: "1.12.2"
   date: "2026-09-16"
   summary: >-
