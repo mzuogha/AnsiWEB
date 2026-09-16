@@ -6,7 +6,7 @@
   <h1>Dashboard</h1>
   <div class="actions">
     {% if can(perms.content) %}{{ job_button('cache_update', 'Check for updates now') }}{% endif %}
-    {% if can(perms.run) %}{{ job_button('deploy', 'Deploy to all PCs', 'all', 'btn primary', 'Apply everything (apps, drivers, scripts, registry) to every PC now?') }}{% endif %}
+    {% if can(perms.run) %}<a class="btn primary" href="{{ url_for('deploy_page', target='all') }}">Deploy…</a>{% endif %}
   </div>
 </div>
 

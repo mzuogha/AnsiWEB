@@ -1,17 +1,13 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, target_picker with context %}
+{% from "_macros.html" import csrf, target_label, target_select, target_picker, apply_form with context %}
 {% block title %}Shared folders{% endblock %}
 {% block content %}
 <div class="head">
   <h1>Shared folders</h1>
   <div class="actions">
     {% if can(perms.run) %}
-    <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
-          data-confirm="Apply the sharing settings and every enabled share on the selected PCs now?">{{ csrf() }}
-      <input type="hidden" name="kind" value="shares">
-      {{ target_select('target', targets) }}
-      <button class="btn primary">Set up all</button>
-    </form>
+    {{ apply_form('shares', 'Set up all', targets,
+       'Apply the sharing settings and every enabled share on the selected PCs now?') }}
     {% endif %}
   </div>
 </div>

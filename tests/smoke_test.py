@@ -471,6 +471,42 @@ ok(len(store.load()["pcs"]) == before + 1, "a PC can be added")
 r = c.post("/pcs/PC-TMP-001/delete", data={"csrf": tok}, follow_redirects=True)
 ok(len(store.load()["pcs"]) == before, "and removed again from its row")
 
+# ---------------------------------------------------------------- choosing what to deploy
+r = c.get("/deploy?target=pc:PC-HQ-001")
+ok(r.status_code == 200 and "What to deploy" in r.text, "the deploy page offers a choice")
+for key, label, _note in jobs.DEPLOY_PARTS:
+    ok(f'value="{key}"' in r.text, f"it offers {label.lower()}")
+ok(r.text.count('checked') >= len(jobs.DEPLOY_PARTS), "everything is ticked by default")
+ok("nothing set up" in r.text, "parts with nothing configured are marked")
+ok("Deploy…" in c.get("/pcs").text, "the PCs page opens the chooser")
+ok("Deploy…" in c.get("/").text, "and so does the dashboard")
+# a selection becomes the job's tags
+wait_for_jobs()
+r = c.post("/deploy", data={"csrf": tok, "parts": ["apps", "printers"], "target": "pc:PC-HQ-001"},
+           follow_redirects=True)
+wait_for_jobs()
+log = jobs.log_path(jobs.last_job("deploy")["id"]).read_text()
+ok("--tags apps,printers" in log, "only the chosen parts are run")
+ok("--limit PC-HQ-001" in log, "on the chosen PC")
+# everything selected is a plain deployment, with no tag limit
+wait_for_jobs()
+c.post("/deploy", data={"csrf": tok, "parts": [p[0] for p in jobs.DEPLOY_PARTS], "target": "all"},
+       follow_redirects=True)
+wait_for_jobs()
+log = jobs.log_path(jobs.last_job("deploy")["id"]).read_text()
+ok("--tags" not in log, "choosing everything runs the whole deployment")
+# picking individual PCs, and refusing an empty choice
+wait_for_jobs()
+c.post("/deploy", data={"csrf": tok, "parts": ["apps"], "pcs": ["PC-HQ-001", "PC-BR2-001"]},
+       follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("deploy")["target"] == "list:PC-HQ-001,PC-BR2-001", "chosen PCs become the target")
+r = c.post("/deploy", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+ok("Choose at least one thing" in r.text, "an empty choice is refused")
+r = c.post("/deploy", data={"csrf": tok, "parts": ["rm -rf /"], "target": "all"},
+           follow_redirects=True)
+ok("Choose at least one thing" in r.text, "an invented part is ignored, not passed through")
+
 # ---------------------------------------------------------------- reports
 os.makedirs(os.path.join(DATA, "reports"), exist_ok=True)
 json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending": True,
@@ -779,8 +815,11 @@ ok("Site: Branch1" in r.text, "the scope is shown in the interface")
 t = csrf(sc.get("/").text)
 body = sc.get("/pcs").text
 ok("PC-BR1-009" in body and "PC-HQ-001" not in body, "only in-scope PCs are listed")
-ok("PC-BR1-009" in sc.get("/reports").text and "PC-HQ-001" not in sc.get("/reports").text,
-   "reports are limited to the scope")
+_rep = sc.get("/reports").text
+ok("PC-BR1-009" in _rep and "PC-HQ-001" not in _rep, "reports are limited to the scope")
+ok("PC-HQ-001" not in sc.get("/jobs").text,
+   "and job history does not name PCs outside the scope")
+ok("PC-HQ-001" not in sc.get("/").text, "nor does the dashboard")
 ok("PC-HQ-001" not in sc.get("/inventory").text, "the inventory is limited to the scope")
 ok("Google Chrome" not in sc.get("/inventory").text, "out-of-scope programs are not shown")
 ok(sc.get("/pcs/PC-BR1-009/edit").status_code == 200, "an in-scope PC page opens")

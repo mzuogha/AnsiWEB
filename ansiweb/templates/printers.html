@@ -1,17 +1,13 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker with context %}
+{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker, apply_form with context %}
 {% block title %}Printers{% endblock %}
 {% block content %}
 <div class="head">
   <h1>Printers</h1>
   <div class="actions">
     {% if can(perms.run) %}
-    <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
-          data-confirm="Set up every enabled printer on the selected PCs now?">{{ csrf() }}
-      <input type="hidden" name="kind" value="printers">
-      {{ target_select('target', targets) }}
-      <button class="btn primary">Set up all</button>
-    </form>
+    {{ apply_form('printers', 'Set up all', targets,
+       'Set up every enabled printer on the selected PCs now?') }}
     {% endif %}
   </div>
 </div>

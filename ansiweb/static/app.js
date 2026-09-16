@@ -21,6 +21,18 @@
   reset();
 })();
 
+// "Tick all" / "Untick all" on the Deploy page
+document.addEventListener('click', function (e) {
+  var all = e.target.closest('[data-check-all]');
+  var none = e.target.closest('[data-check-none]');
+  var name = all ? all.getAttribute('data-check-all') : (none ? none.getAttribute('data-check-none') : null);
+  if (!name) return;
+  e.preventDefault();
+  document.querySelectorAll('input[type=checkbox][name="' + name + '"]').forEach(function (box) {
+    box.checked = Boolean(all);
+  });
+});
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

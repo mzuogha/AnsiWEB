@@ -49,6 +49,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Printers.** Push network printers or shared queues to the PCs you choose, including which is the default.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
 - **Scoped roles.** Limit someone to particular sites or groups.
+- **Choose what to deploy.** Deploy opens a page to pick which parts to apply and which PCs to apply them to.
 - **Uninstall from PCs.** Remove an app from the PCs it was installed on, with a preview first and a typed confirmation before anything goes.
 - **Audit log.** Every change through the web interface, with the account that made it.
 - **Stale PC detection.** PCs that stop reporting are counted and flagged rather than quietly disappearing.
@@ -152,6 +153,12 @@ The **Printers** page pushes network printers — a printer with its own IP addr
 You can mark one as the default, add a location and comment, or tick **Remove this printer from the PCs** to take one off instead. Setting a printer up again does nothing when it's already correct, so it's safe to run after adding a PC.
 
 Shared print-server queues are not supported: a network printer is the kind AnsiWEB can set up identically on every PC without per-user connections.
+
+## Choosing what to deploy
+
+**Deploy** opens a page rather than starting immediately. Everything is ticked by default — the same as a plain deployment — so you can untick whatever you want left alone this time: applications, drivers, scripts, registry files, shared folders, printers, time, activation, computer name, Windows updates, inventory. Parts with nothing configured are marked, so an empty tick is obvious.
+
+Under it you choose where: all PCs, a site, a group, or individual PCs from a list. Picking everything runs the whole deployment; picking some runs only those parts.
 
 ## Software inventory
 

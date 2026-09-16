@@ -171,8 +171,25 @@ def run_command(cmd: list, log, env=None) -> int:
     return proc.wait()
 
 
+# What a deployment can cover, in the order it runs on the PC. The label is
+# what the Deploy page offers; the value is the tag the playbook uses.
+DEPLOY_PARTS = [
+    ("apps", "Applications", "install or upgrade the standard app set"),
+    ("drivers", "Device drivers", "add uploaded driver packages"),
+    ("scripts", "Scripts", "run uploaded scripts"),
+    ("registry", "Registry files", "merge uploaded .reg files"),
+    ("shares", "Shared folders", "create shares and turn file sharing on"),
+    ("printers", "Printers", "set up the printers for this PC"),
+    ("time", "Time and time zone", "set the time zone and time source"),
+    ("activation", "Windows activation", "activate Windows if it is not already"),
+    ("hostname", "Computer name", "rename Windows to match AnsiWEB"),
+    ("updates", "Windows updates", "install updates (this can take hours)"),
+    ("inventory", "Inventory", "collect the installed-software list"),
+]
+
+
 def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
-          adhoc: dict | None = None) -> int:
+          adhoc: dict | None = None, tags: str = "") -> int:
     """Start a job in the background. Raises JobBusy if one of this kind is running."""
     if kind not in KINDS:
         raise ValueError(kind)
@@ -189,7 +206,7 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
                             (kind, target, "running", _stamp(), trigger))
             job_id = cur.lastrowid
         _running[kind] = job_id
-    threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc),
+    threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc, tags),
                      daemon=True, name=f"job-{job_id}").start()
     return job_id
 
@@ -211,7 +228,8 @@ def _ping_hint(cfg) -> str:
         "  5. The account password here matches the one entered on the PC.\n")
 
 
-def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None = None) -> None:
+def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None = None,
+         tags: str = "") -> None:
     fh = open(log_path(job_id), "a", encoding="utf-8", buffering=1)
 
     def log(line: str) -> None:
@@ -231,8 +249,10 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             if adhoc:
                 extra["aw_adhoc_name"] = adhoc["name"]
                 extra["aw_adhoc_pattern"] = adhoc["pattern"]
+            # "deploy" with chosen parts passes its own tags; otherwise the
+            # kind decides them, and a plain deployment runs everything.
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
-                                          extra=extra, tags=DEPLOY_TAGS[kind]), log)
+                                          extra=extra, tags=tags or DEPLOY_TAGS[kind]), log)
             store.regenerate_all()
         elif kind == "ping":
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),

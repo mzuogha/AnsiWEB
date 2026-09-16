@@ -34,6 +34,7 @@ ENDPOINT_PERMISSIONS = {
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
     # running things
     "job_start": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
+    "deploy_page": users.RUN_JOBS, "deploy_start": users.RUN_JOBS,
     # what gets deployed
     "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
@@ -218,6 +219,31 @@ def create_app(start_background: bool = True) -> Flask:
                 return users.pc_in_scope(pc, scope)
         return False
 
+    def visible_jobs(cfg: dict, rows: list) -> list:
+        """Job history for this person, with other PCs' names kept out of it.
+
+        A scoped user should not learn the names of PCs outside their sites and
+        groups, and a job target names them plainly.
+        """
+        scope = my_scope()
+        if not scope:
+            return rows
+        allowed = {pc["name"] for pc in cfg.get("pcs", []) if users.pc_in_scope(pc, scope)}
+        out = []
+        for row in rows:
+            target = row.get("target") or ""
+            named = []
+            if target.startswith("list:"):
+                named = target[5:].split(",")
+            elif target.startswith("pc:"):
+                named = [target[3:]]
+            if named and not set(named) <= allowed:
+                row = dict(row)
+                mine = [n for n in named if n in allowed]
+                row["target"] = "list:" + ",".join(mine) if mine else "other PCs"
+            out.append(row)
+        return out
+
     def scoped_target(cfg: dict, requested: str) -> str:
         """Narrow a requested job target to what this user is allowed to touch.
 
@@ -316,7 +342,8 @@ def create_app(start_background: bool = True) -> Flask:
             jobs.kv_set("acknowledged_version", __version__)
         upgraded_from = seen if seen and seen != __version__ else ""
         return render_template("dashboard.html", cfg=cfg, stats=stats, apps=app_rows, plan=p,
-                               recent=jobs.list_jobs(8), warnings=setup_warnings(cfg),
+                               recent=visible_jobs(cfg, jobs.list_jobs(8)),
+                               warnings=setup_warnings(cfg),
                                upgraded_from=upgraded_from,
                                last_cache=jobs.last_job("cache_update"),
                                last_deploy=jobs.last_job("deploy"),
@@ -1157,7 +1184,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "retention": cfg["settings"].get("log_retention_days", 60),
             }
         return render_template("reports.html", cfg=cfg, rows=rows, plan=p,
-                               jobs=jobs.list_jobs(25), counts=jobs.job_counts(30),
+                               jobs=visible_jobs(cfg, jobs.list_jobs(25)), counts=jobs.job_counts(30),
                                show_audit=show_audit, audit=audit_data, describe=audit.describe,
                                stale=report_state.summarise(visible_pcs(cfg), reports, threshold),
                                stale_days=threshold,
@@ -1388,8 +1415,59 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/jobs")
     def jobs_page():
-        return render_template("jobs.html", jobs=jobs.list_jobs(200), cfg=store.load(),
-                               targets=store.target_choices(store.load()))
+        cfg = store.load()
+        return render_template("jobs.html", jobs=visible_jobs(cfg, jobs.list_jobs(200)), cfg=cfg,
+                               targets=store.target_choices(cfg))
+
+    @app.route("/deploy")
+    def deploy_page():
+        """Choose what to deploy, and where, before starting it."""
+        cfg = store.load()
+        target = request.args.get("target", "all")
+        return render_template("deploy.html", cfg=cfg, target=target,
+                               targets=store.target_choices(cfg), pcs=visible_pcs(cfg),
+                               parts=jobs.DEPLOY_PARTS,
+                               configured=deploy_relevance(cfg))
+
+    def deploy_relevance(cfg) -> dict:
+        """Which parts have anything set up, so the page can say so."""
+        s = cfg.get("settings", {})
+        return {
+            "apps": any(a.get("enabled", True) for a in cfg.get("apps", [])),
+            "drivers": bool(cfg.get("drivers")),
+            "scripts": bool(cfg.get("scripts")),
+            "registry": bool(cfg.get("registry")),
+            "shares": bool(cfg.get("shares")) or bool((cfg.get("file_sharing") or {}).get("enabled")),
+            "printers": bool(cfg.get("printers")),
+            "time": bool((cfg.get("time") or {}).get("enabled")),
+            "activation": bool((cfg.get("activation") or {}).get("enabled")),
+            "hostname": any(pc.get("sync_hostname") for pc in cfg.get("pcs", [])),
+            "updates": bool((cfg.get("updates") or {}).get("enabled")),
+            "inventory": bool(s.get("collect_inventory", True)),
+        }
+
+    @app.route("/deploy", methods=["POST"])
+    def deploy_start():
+        cfg = store.load()
+        chosen = [p for p in request.form.getlist("parts") if p in dict((k, 1) for k, _, _ in jobs.DEPLOY_PARTS)]
+        picked_pcs = [n for n in request.form.getlist("pcs") if n]
+        target = "list:" + ",".join(picked_pcs) if picked_pcs else request.form.get("target", "all")
+        try:
+            limit = scoped_target(cfg, target)
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("deploy_page", target=target))
+        if not chosen:
+            flash("Choose at least one thing to deploy.", "error")
+            return redirect(url_for("deploy_page", target=target))
+        everything = len(chosen) == len(jobs.DEPLOY_PARTS)
+        try:
+            job_id = jobs.start("deploy", limit, trigger=f"manual ({session.get('user')})",
+                                tags="" if everything else ",".join(chosen))
+        except (jobs.JobBusy, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("deploy_page", target=target))
+        return redirect(url_for("job_view", job_id=job_id))
 
     @app.route("/jobs/start", methods=["POST"])
     def job_start():

@@ -4,6 +4,26 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.13.0"
+  date: "2026-09-16"
+  summary: >-
+    Deploy now asks what to deploy, and a scoped user no longer sees other PCs'
+    names in the job history.
+  added:
+    - "Deploy opens a page where you choose what to apply - applications,
+       drivers, scripts, registry files, shared folders, printers, time,
+       activation, computer name, Windows updates, inventory - and where to
+       apply it, including individual PCs. Everything is ticked by default,
+       which is the same as before, and parts with nothing set up are marked."
+  fixed:
+    - "A user limited to certain sites or groups could see PC names outside
+       their scope in the recent-jobs list, because a job target names them.
+       Those names are now hidden from the dashboard, the Jobs page and the
+       Reports page."
+  changed:
+    - The "apply everything on this page" form is written once and shared by
+      the printers and shared-folders pages.
+
 - version: "1.12.3"
   date: "2026-09-16"
   summary: >-

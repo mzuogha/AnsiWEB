@@ -5,7 +5,7 @@
 <div class="head"><h1>{{ pc.name }}</h1>
   <div class="actions">
     {{ job_button('ping', 'Test connection', 'pc:' ~ pc.name) }}
-    {{ job_button('deploy', 'Deploy now', 'pc:' ~ pc.name, 'btn primary') }}
+    <a class="btn primary" href="{{ url_for('deploy_page', target='pc:' ~ pc.name) }}">Deploy…</a>
     <a class="btn" href="{{ url_for('pcs_page') }}">Back</a></div></div>
 
 <form method="post" class="panel form">{{ csrf() }}

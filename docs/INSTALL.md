@@ -361,6 +361,9 @@ Firefox is pinned to 65.0.2 and is downloaded from Mozilla's release archive.
 
 ### 7. Deploy
 
+**Deploy** opens a page where you choose what to apply and where. Everything is ticked to begin with, which is the
+same as deploying the lot; untick anything you want to leave alone, and pick a site, a group or individual PCs.
+
 Start with one PC (PCs page → **Deploy**), then a site, then everything:
 
 ```

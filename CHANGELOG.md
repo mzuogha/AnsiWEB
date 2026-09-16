@@ -5,6 +5,26 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.13.0 - 2026-09-16
+
+Deploy now asks what to deploy, and a scoped user no longer sees other PCs' names in the job history.
+
+
+### New
+
+- Deploy opens a page where you choose what to apply - applications, drivers, scripts, registry files, shared folders, printers, time, activation, computer name, Windows updates, inventory - and where to apply it, including individual PCs. Everything is ticked by default, which is the same as before, and parts with nothing set up are marked.
+
+
+### Changed
+
+- The "apply everything on this page" form is written once and shared by the printers and shared-folders pages.
+
+
+### Fixed
+
+- A user limited to certain sites or groups could see PC names outside their scope in the recent-jobs list, because a job target names them. Those names are now hidden from the dashboard, the Jobs page and the Reports page.
+
+
 ## 1.12.3 - 2026-09-16
 
 The dashboard notices can be dismissed.

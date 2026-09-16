@@ -9,6 +9,16 @@
 {# The list of sites and groups an item applies to. Pass "chosen" when editing
    something that already has targets; new items default to all PCs. #}
 {# One row per job, used by the Jobs page and the Reports page. #}
+{# The "apply everything on this page" form: a target picker and a button. #}
+{% macro apply_form(kind, label, targets, confirm) %}
+<form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
+      data-confirm="{{ confirm }}">{{ csrf() }}
+  <input type="hidden" name="kind" value="{{ kind }}">
+  {{ target_select('target', targets) }}
+  <button class="btn primary">{{ label }}</button>
+</form>
+{% endmacro %}
+
 {% macro job_rows(jobs) %}
 {% for j in jobs %}
 <tr>

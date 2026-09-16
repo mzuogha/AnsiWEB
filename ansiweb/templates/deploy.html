@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_select, pc_picker with context %}
+{% block title %}Deploy{% endblock %}
+{% block content %}
+<div class="head"><h1>Deploy</h1></div>
+
+<p class="muted">Choose what to apply and where. Everything is ticked by default, which is the same as the plain
+deployment; untick anything you want to leave alone this time. Each part only does something where you have set it
+up, and nothing is uninstalled here.</p>
+
+<form method="post" action="{{ url_for('deploy_start') }}" class="panel form">{{ csrf() }}
+  <h2>What to deploy</h2>
+  <div class="checks">
+    {% for key, label, note in parts %}
+    <label class="check">
+      <input type="checkbox" name="parts" value="{{ key }}" checked>
+      <b>{{ label }}</b> <span class="muted small">— {{ note }}{% if not configured.get(key) %}
+        <span class="pill st-disabled">nothing set up</span>{% endif %}</span>
+    </label>
+    {% endfor %}
+  </div>
+  <p class="muted small">
+    <a href="#" data-check-all="parts">Tick all</a> ·
+    <a href="#" data-check-none="parts">Untick all</a>
+  </p>
+
+  <h2>Where</h2>
+  <label>Target<select name="target">
+    {% for t in targets %}<option value="{{ t }}" {{ 'selected' if t == target }}>{{ target_label(t) }}</option>{% endfor %}
+    {% if target.startswith('pc:') or target.startswith('list:') %}
+    <option value="{{ target }}" selected>{{ target_label(target) }}</option>{% endif %}
+  </select></label>
+  {{ pc_picker(pcs, name='pcs', prefix='', label='or pick individual PCs') }}
+
+  <div class="formactions">
+    <button class="btn primary">Start the deployment</button>
+    <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

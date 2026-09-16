@@ -89,7 +89,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     <td class="nowrap">
       {% if can(perms.run) %}
       {{ job_button('ping', 'Test', 'pc:' ~ pc.name, 'btn small') }}
-      {{ job_button('deploy', 'Deploy', 'pc:' ~ pc.name, 'btn small primary') }}
+      <a class="btn small primary" href="{{ url_for('deploy_page', target='pc:' ~ pc.name) }}">Deploy…</a>
       {% endif %}
       {% if can(perms.pcs) %}
       <form method="post" action="{{ url_for('pc_delete', name=pc.name) }}" class="inline"
@@ -139,7 +139,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     {% for s in cfg.sites %}
     <span class="chip">
       {{ s }} <span class="muted small">({{ cfg.pcs|selectattr('site', 'equalto', s)|list|length }} PCs)</span>
-      {{ job_button('deploy', 'Deploy', 'site:' ~ s, 'link') }}
+      <a class="link" href="{{ url_for('deploy_page', target='site:' ~ s) }}">Deploy…</a>
       <form method="post" action="{{ url_for('sites') }}" class="inline" data-confirm="Delete site {{ s }}?">{{ csrf() }}
         <input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{{ s }}">
         <button class="link" title="Delete site">×</button></form>
