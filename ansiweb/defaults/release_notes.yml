@@ -4,6 +4,17 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.13.1"
+  date: "2026-09-16"
+  summary: >-
+    Fixes jobs that apply only part of a deployment.
+  fixed:
+    - "Any job limited to one part - shared folders, printers, time,
+       activation and so on, including the new choose-what-to-deploy page -
+       failed with an undefined variable. The tasks that work out what a PC
+       should have were skipped along with everything else outside the chosen
+       part. They now run on every job, whatever it covers."
+
 - version: "1.13.0"
   date: "2026-09-16"
   summary: >-

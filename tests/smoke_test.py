@@ -471,6 +471,23 @@ ok(len(store.load()["pcs"]) == before + 1, "a PC can be added")
 r = c.post("/pcs/PC-TMP-001/delete", data={"csrf": tok}, follow_redirects=True)
 ok(len(store.load()["pcs"]) == before, "and removed again from its row")
 
+# ---------------------------------------------------------------- the role's setup tasks
+# Every job that limits itself to tags still needs the facts these tasks set;
+# without "always" they are skipped and the run dies on an undefined variable.
+import yaml as _y
+_role = _y.safe_load(open(os.path.join(os.path.dirname(__file__), "..",
+                                       "ansible/roles/ansiweb_apps/tasks/main.yml")))
+_defined = {}
+for _task in _role:
+    for _var in (_task.get("ansible.builtin.set_fact") or {}):
+        _defined.setdefault(_var, []).append(_task)
+for _var in ("aw_plan", "aw_host", "aw_results", "aw_shares", "aw_printers", "aw_apps",
+             "aw_drivers", "aw_scripts", "aw_registry", "aw_uninstalls"):
+    _tasks = _defined.get(_var, [])
+    ok(_tasks, f"{_var} is set somewhere in the role")
+    ok(all("always" in (_t.get("tags") or []) for _t in _tasks),
+       f"{_var} is set on every run, whatever tags a job uses")
+
 # ---------------------------------------------------------------- choosing what to deploy
 r = c.get("/deploy?target=pc:PC-HQ-001")
 ok(r.status_code == 200 and "What to deploy" in r.text, "the deploy page offers a choice")

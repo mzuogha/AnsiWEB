@@ -5,6 +5,16 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.13.1 - 2026-09-16
+
+Fixes jobs that apply only part of a deployment.
+
+
+### Fixed
+
+- Any job limited to one part - shared folders, printers, time, activation and so on, including the new choose-what-to-deploy page - failed with an undefined variable. The tasks that work out what a PC should have were skipped along with everything else outside the chosen part. They now run on every job, whatever it covers.
+
+
 ## 1.13.0 - 2026-09-16
 
 Deploy now asks what to deploy, and a scoped user no longer sees other PCs' names in the job history.

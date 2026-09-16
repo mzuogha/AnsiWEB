@@ -1,9 +1,11 @@
 ---
 - name: Load the AnsiWEB deployment plan
+  tags: [always]
   ansible.builtin.set_fact:
     aw_plan: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/deploy_plan.json') | from_json }}"
 
 - name: Work out what this PC should have
+  tags: [always]
   ansible.builtin.set_fact:
     aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {}) }}"
     aw_pc_cache: "{{ aw_plan.pc_cache }}"
@@ -12,6 +14,7 @@
     aw_results: []
 
 - name: Select this PC's items
+  tags: [always]
   ansible.builtin.set_fact:
     aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps | default([])) | list }}"
     aw_drivers: "{{ aw_plan.drivers | selectattr('id', 'in', aw_host.drivers | default([])) | list }}"
@@ -25,6 +28,7 @@
 # An uninstall started from the Inventory page names the program directly,
 # rather than using a stored entry.
 - name: Use the one-off uninstall this job was given
+  tags: [always]
   ansible.builtin.set_fact:
     aw_uninstalls:
       - id: adhoc
@@ -34,6 +38,7 @@
 
 # aw_only is set when the web interface runs a single item ("Run now"/"Install now").
 - name: Narrow down to one item when asked
+  tags: [always]
   ansible.builtin.set_fact:
     aw_apps: "{{ aw_apps | selectattr('id', 'equalto', aw_only) | list }}"
     aw_drivers: "{{ aw_drivers | selectattr('id', 'equalto', aw_only) | list }}"
