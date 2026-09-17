@@ -35,7 +35,7 @@
 {% endfor %}
 
 <div class="cards">
-  <div class="card"><div class="num">{{ stats.pcs }}</div><div class="lbl">PCs managed</div></div>
+  <div class="card" {% if stats.pcs == 42 %}title="Don't panic."{% endif %}><div class="num">{{ stats.pcs }}</div><div class="lbl">PCs managed</div></div>
   <div class="card"><div class="num">{{ stats.cached }}/{{ stats.apps }}</div><div class="lbl">apps cached and ready</div></div>
   <div class="card {{ 'bad' if stats.problems }}"><div class="num">{{ stats.problems }}</div><div class="lbl">cache problems</div></div>
   <div class="card"><div class="num">{{ stats.payloads }}</div><div class="lbl">drivers, scripts &amp; registry files</div></div>

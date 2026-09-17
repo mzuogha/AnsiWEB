@@ -33,6 +33,44 @@ document.addEventListener('click', function (e) {
   });
 });
 
+// --- Odds and ends -------------------------------------------------------
+(function () {
+  // The Konami code puts the deployment into, let us say, a higher gear.
+  var code = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
+  var at = 0;
+  document.addEventListener('keydown', function (e) {
+    at = (e.keyCode === code[at]) ? at + 1 : (e.keyCode === code[0] ? 1 : 0);
+    if (at !== code.length) return;
+    at = 0;
+    document.body.classList.toggle('konami');
+    var note = document.createElement('div');
+    note.className = 'flash ok eggnote';
+    note.textContent = 'Deployment mode: maximum effort. (Press it again to calm down.)';
+    var main = document.querySelector('main') || document.body;
+    main.insertBefore(note, main.firstChild);
+    window.setTimeout(function () { note.remove(); }, 6000);
+  });
+
+  // Five clicks on the version number
+  var ver = document.querySelector('.ver a');
+  if (!ver) return;
+  var clicks = 0, last = 0;
+  ver.addEventListener('click', function (e) {
+    var now = Date.now();
+    clicks = (now - last < 800) ? clicks + 1 : 1;
+    last = now;
+    if (clicks < 5) return;
+    e.preventDefault();
+    clicks = 0;
+    var tag = document.createElement('div');
+    tag.className = 'ver egg';
+    tag.innerHTML = 'Built one careful step at a time.<br>No PCs were harmed in the making of this software.' +
+                    '<br><a href="/coffee">Take a break</a>';
+    ver.parentNode.appendChild(tag);
+    window.setTimeout(function () { tag.remove(); }, 9000);
+  });
+})();
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

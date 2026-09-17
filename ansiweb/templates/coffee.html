@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Coffee{% endblock %}
+{% block content %}
+<div class="head"><h1>418 — I'm a teapot</h1></div>
+<div class="panel">
+  <pre class="cmd">        (  )   (   )  )
+         ) (   )  (  (
+         ( )  (    ) )
+         _____________
+        &lt;_____________&gt; ___
+        |             |/ _ \
+        |               | | |
+        |               |_| |
+     ___|             |\___/
+    /    \___________/    \
+    \_____________________/</pre>
+  <p>AnsiWEB deploys applications, not beverages. This one is on you.</p>
+  <p class="muted small">Although: a <code>.cmd</code> script that runs <code>start ms-teams:</code> at 09:00
+  every Monday has been known to produce a similar effect on morale.</p>
+  <p><a class="btn" href="{{ url_for('dashboard') }}">Back to work</a></p>
+</div>
+{% endblock %}

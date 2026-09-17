@@ -112,3 +112,11 @@ details summary { cursor: pointer; margin: 4px 0; }
 ul.toc { margin: 4px 0 0; padding-left: 20px; line-height: 1.9; }
 ul.toc a { font-weight: 600; }
 .panel h3 { margin-top: 16px; }
+
+/* Odds and ends */
+body.konami .brand span { animation: aw-hue 2s linear infinite; }
+body.konami .btn.primary { animation: aw-nudge 1.4s ease-in-out infinite; }
+@keyframes aw-hue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+@keyframes aw-nudge { 0%, 100% { transform: none; } 50% { transform: translateY(-2px); } }
+.ver.egg { color: #64748b; font-size: 11px; padding: 2px 8px 8px; line-height: 1.5; }
+.eggnote { margin-bottom: 10px; }

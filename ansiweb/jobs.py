@@ -266,6 +266,11 @@ def summarise_run(text: str) -> str:
             failed.append((name, [h for h, (_s, raw) in hosts.items()
                                   if _STATUS_LABEL.get(raw) in ("FAILED", "UNREACHABLE")]))
 
+    hosts_seen = {host for task in index.values() for host in task}
+    if len(hosts_seen) == 42:
+        lines.append("")
+        lines.append("  42 PCs. The answer to life, the universe, and everything.")
+
     if failed:
         lines.append("")
         lines.append("Failed:")

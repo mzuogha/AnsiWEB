@@ -1428,6 +1428,19 @@ ok("new to you" in r.text, "releases new since the upgrade are marked")
 ok(jobs.kv_get("acknowledged_version") == __version__, "opening the page acknowledges the version")
 ok("upgraded from" not in c.get("/").text, "the notice is gone once read")
 
+# ---------------------------------------------------------------- odds and ends
+r = c.get("/coffee")
+ok(r.status_code == 418, "/coffee knows what it is")
+ok("teapot" in r.text.lower(), "and says so")
+r = c.get("/pcs?q=xyzzy", follow_redirects=True)
+ok("Nothing happens" in r.text, "searching for xyzzy does nothing, politely")
+ok(r.status_code == 200 and "Find a PC" in r.text, "and the page still works")
+# none of this belongs in the release notes
+notes_text = open(os.path.join(os.path.dirname(__file__), "..",
+                               "ansiweb/defaults/release_notes.yml")).read().lower()
+for word in ("teapot", "coffee", "xyzzy", "konami", "easter"):
+    ok(word not in notes_text, f"the release notes do not mention {word}")
+
 # ---------------------------------------------------------------- every page renders
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",
             "/pcs/PC-HQ-001/edit", "/files", "/drivers/intel-nic/edit",

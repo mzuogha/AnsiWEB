@@ -25,6 +25,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
+    "coffee": users.VIEW,
     "dismiss": users.VIEW,
     "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
@@ -194,6 +195,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.after_request
     def headers(resp):
+        resp.headers["X-Clacks-Overhead"] = "GNU Terry Pratchett"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Referrer-Policy"] = "same-origin"
@@ -291,6 +293,11 @@ def create_app(start_background: bool = True) -> Flask:
             users.record_failure(name, source)
             flash("Wrong user name or password, or the account is disabled.", "error")
         return render_template("login.html", no_admin=not users.any_users(), branding=branding())
+
+    @app.route("/coffee")
+    def coffee():
+        cfg = store.load()
+        return render_template("coffee.html", cfg=cfg), 418
 
     @app.route("/logo")
     def logo():
@@ -995,6 +1002,8 @@ def create_app(start_background: bool = True) -> Flask:
         cfg = store.load()
         query = request.args.get("q", "").strip().lower()
         shown = visible_pcs(cfg)
+        if query == "xyzzy":
+            flash("Nothing happens.", "ok")
         if query:
             shown = [pc for pc in shown
                      if query in pc["name"].lower()
