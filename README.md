@@ -65,6 +65,12 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - The web interface requires a login and has CSRF protection.
   - WinRM on each PC only accepts connections from the server.
 
+## Where to run it
+
+Run AnsiWEB on a **Hyper-V virtual machine** or a dedicated server. A Hyper-V VM set with `-AutomaticStartAction Start` comes back on its own after a restart or a power cut, with nobody signed in, and keeps its own address on your network. Any other hypervisor or a spare machine does just as well.
+
+**WSL is for trying it out only.** It does not start with Windows, it stops when the signed-in user logs out, and its address changes on every restart — so scheduled deployments and overnight update checks quietly do not happen. The Help page inside AnsiWEB has the full explanation and the Hyper-V setup commands.
+
 ## Installation
 
 **Full step-by-step guide, including WSL: [docs/INSTALL.md](docs/INSTALL.md).**

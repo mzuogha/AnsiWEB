@@ -1375,6 +1375,19 @@ for snippet in ["sudo ./install.sh", "git clone https://github.com/mzuogha/AnsiW
                 "sudo ansiweb deploy all", "Prepare-AnsibleHost.ps1", "journalctl -u ansiweb -f"]:
     ok(snippet in r.text, f"help includes: {snippet}")
 ok("192.168.1.10" in r.text, "help uses the configured server address")
+# a contents list whose links all land somewhere
+import re as _re3
+_ids = set(_re3.findall(r'id="([^"]+)"', r.text))
+_links = set(_re3.findall(r'href="#([^"]+)"', r.text))
+ok("Contents" in r.text, "the help page has a table of contents")
+ok(_links and not (_links - _ids), "every contents link points at a section that exists")
+for _anchor in ("where", "hyperv", "ubuntu", "wsl", "prepare", "backup", "problems"):
+    ok(_anchor in _ids, f"the help page has a '{_anchor}' section")
+# and says plainly what WSL is and is not for
+ok("not on WSL" in r.text, "help recommends against running on WSL")
+ok("does not start with Windows" in r.text, "and says why")
+ok("AutomaticStartAction Start" in r.text, "the Hyper-V VM is set to start by itself")
+ok("MicrosoftUEFICertificateAuthority" in r.text, "and Secure Boot is dealt with")
 ok("what each role can do" in c.get("/users").text.lower(), "the users page explains the roles")
 
 # ---------------------------------------------------------------- release notes

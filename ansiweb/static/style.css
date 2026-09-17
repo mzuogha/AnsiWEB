@@ -108,3 +108,7 @@ details summary { cursor: pointer; margin: 4px 0; }
 
 .searchbar { margin: 0 0 10px; align-items: end; }
 .searchbar label { margin-bottom: 0; }
+
+ul.toc { margin: 4px 0 0; padding-left: 20px; line-height: 1.9; }
+ul.toc a { font-weight: 600; }
+.panel h3 { margin-top: 16px; }

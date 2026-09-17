@@ -7,8 +7,97 @@
 server's settings{% if not cfg.settings.server_ip %} (set the server IP in Settings for accurate commands){% endif %}.
 The full guide is in <code>docs/INSTALL.md</code> in the repository.</p>
 
-<section class="panel">
-  <h2>Deploy on Ubuntu Server (standalone)</h2>
+<section class="panel" id="contents">
+  <h2>Contents</h2>
+  <ul class="toc">
+    <li><a href="#where">Where to run AnsiWEB</a> — and why not WSL</li>
+    <li><a href="#hyperv">Setting up the Hyper-V virtual machine</a></li>
+    <li><a href="#ubuntu">Deploy on Ubuntu Server (standalone or in a VM)</a></li>
+    <li><a href="#wsl">Deploy on WSL</a> — for trying it out only</li>
+    <li><a href="#prepare">Preparing a PC</a></li>
+    <li><a href="#backup">Backup and restore</a></li>
+    <li><a href="#uninstall">Removing an app from the PCs</a></li>
+    <li><a href="#problems">When something is wrong</a></li>
+  </ul>
+</section>
+
+<section class="panel" id="where">
+  <h2>Where to run AnsiWEB</h2>
+  <div class="flash warn"><b>Run AnsiWEB on a Hyper-V virtual machine or a dedicated server, not on WSL.</b>
+    WSL is fine for trying AnsiWEB out, but it is not built to run a service that has to be there when nobody is
+    signed in.</div>
+
+  <p class="muted">The three practical choices, best first:</p>
+  <table>
+    <tr><th>Where</th><th>What to expect</th></tr>
+    <tr><td><b>Hyper-V virtual machine</b><br><span class="muted small">recommended</span></td>
+      <td>Starts with the host, whether or not anyone signs in, and comes back by itself after a restart or a
+        power cut. It has its own address on your network, so the PCs reach it directly and the firewall rule the
+        prep script creates keeps working. Checkpoints give you a way back if an upgrade goes wrong.</td></tr>
+    <tr><td><b>A dedicated machine, or another VM platform</b></td>
+      <td>Equally good. VMware, Proxmox, XCP-ng or a spare physical box all behave the same way: a service that
+        starts at boot and keeps its address.</td></tr>
+    <tr><td><b>WSL on a Windows PC</b><br><span class="muted small">trying it out only</span></td>
+      <td>Works, but see below: it does not start on its own, its address changes, and everything stops when the
+        signed-in user logs out.</td></tr>
+  </table>
+
+  <h3>Why WSL is not suitable for real use</h3>
+  <ul>
+    <li><b>It does not start with Windows.</b> WSL starts when someone opens it. After a Windows update restarts
+      the host at 3am, AnsiWEB is simply not running until somebody signs in and opens a terminal — so the
+      overnight deployment and the update check never happen.</li>
+    <li><b>It stops when the user logs out.</b> WSL is tied to the signed-in Windows session, so signing out or
+      switching user can take the service down in the middle of a deployment.</li>
+    <li><b>Its address changes on every restart</b>, which breaks the port forwarding the PCs depend on. The
+      scheduled task below papers over it, but it is one more thing to go wrong unattended.</li>
+    <li><b>The PCs never reach it directly.</b> Everything is forwarded from the Windows host, so one problem
+      there looks like every PC being unreachable at once.</li>
+    <li><b>systemd is off by default</b>, and the job runner, the scheduler and the service itself rely on it.</li>
+  </ul>
+  <p class="muted small">None of this is a fault in WSL — it is a development tool, not somewhere to host a
+  service. If AnsiWEB is on WSL and working there is no urgency, but move it before you rely on scheduled
+  deployments.</p>
+</section>
+
+<section class="panel" id="hyperv">
+  <h2>Setting up the Hyper-V virtual machine</h2>
+  <p class="muted small">On Windows 10/11 Pro or Enterprise, or Windows Server. Home editions do not include
+  Hyper-V; VirtualBox, VMware or a spare machine work just as well, and the AnsiWEB side is identical.</p>
+
+  <h3>1. Turn Hyper-V on (Administrator PowerShell, then restart)</h3>
+  <pre class="cmd">Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All</pre>
+
+  <h3>2. Give it a network the PCs can reach</h3>
+  <p class="muted small">An <b>external</b> switch puts the VM on your LAN with its own address, which is what you
+  want. The Default Switch gives it a private address that changes on reboot, which brings back the WSL problem.</p>
+  <pre class="cmd">Get-NetAdapter        # find the wired adapter's name
+New-VMSwitch -Name "LAN" -NetAdapterName "Ethernet" -AllowManagementOS $true</pre>
+
+  <h3>3. Create the VM</h3>
+  <pre class="cmd">New-VM -Name AnsiWEB -MemoryStartupBytes 4GB -Generation 2 `
+       -NewVHDPath "C:\VMs\AnsiWEB.vhdx" -NewVHDSizeBytes 60GB -SwitchName "LAN"
+Set-VM -Name AnsiWEB -ProcessorCount 2 -AutomaticStartAction Start -AutomaticStartDelay 30 `
+       -AutomaticStopAction ShutDown
+Set-VMDvdDrive -VMName AnsiWEB -Path "C:\iso\ubuntu-24.04-live-server-amd64.iso"</pre>
+  <p class="muted small"><b>-AutomaticStartAction Start</b> is the part that matters: the VM comes back on its own
+  after a restart or a power cut, with nobody signed in. <b>-AutomaticStopAction ShutDown</b> closes Ubuntu
+  cleanly when the host is shut down.</p>
+
+  <h3>4. Ubuntu needs Secure Boot's Microsoft certificate</h3>
+  <pre class="cmd">Set-VMFirmware -VMName AnsiWEB -SecureBootTemplate MicrosoftUEFICertificateAuthority
+Start-VM -Name AnsiWEB
+vmconnect.exe localhost AnsiWEB</pre>
+
+  <h3>5. Install Ubuntu Server, then AnsiWEB</h3>
+  <p class="muted small">Give it a fixed address (or a DHCP reservation), then follow
+  <a href="#ubuntu">Deploy on Ubuntu Server</a> below, inside the VM. Once it works, take a checkpoint so you can
+  step back if an upgrade misbehaves:</p>
+  <pre class="cmd">Checkpoint-VM -Name AnsiWEB -SnapshotName "AnsiWEB installed and working"</pre>
+</section>
+
+<section class="panel" id="ubuntu">
+  <h2>Deploy on Ubuntu Server (standalone or in a VM)</h2>
   <p class="muted small">Ubuntu Server 22.04 or 24.04, 2 vCPU, 4 GB RAM, about 10 GB free for the cache, on a fixed
   IP address.</p>
   <h3>Install</h3>
@@ -52,9 +141,13 @@ sudo ./install.sh</pre>
   <a href="{{ url_for('release_notes') }}">release notes</a> afterwards.</p>
 </section>
 
-<section class="panel">
+<section class="panel" id="wsl">
   <h2>Deploy on WSL (Ubuntu on a Windows PC)</h2>
-  <p class="muted small">Fine for trying AnsiWEB out or for a small site. Two extra things are needed: systemd
+  <div class="flash warn"><b>For trying AnsiWEB out, not for running it.</b> WSL does not start with Windows,
+    stops when the signed-in user logs out, and changes its address on every restart, so scheduled deployments
+    and overnight update checks are missed unless somebody happens to be signed in.
+    <a href="#where">Why, and what to use instead</a>.</div>
+  <p class="muted small">Fine for trying AnsiWEB out. Two extra things are needed: systemd
   inside WSL, and port forwarding from Windows so your PCs can reach the server. Use a Windows machine that stays
   on, and not one that AnsiWEB itself manages.</p>
 
@@ -103,7 +196,7 @@ Register-ScheduledTask -TaskName 'AnsiWEB WSL' -Action $action -Trigger $trigger
     -User 'SYSTEM' -RunLevel Highest</pre>
 </section>
 
-<section class="panel">
+<section class="panel" id="prepare">
   <h2>Preparing a PC</h2>
   <p class="muted small">Once per PC, before AnsiWEB can reach it. Download the script from the
   <a href="{{ url_for('pcs_page') }}">PCs</a> page — it already has this server's address and the
@@ -118,7 +211,7 @@ Test-WSMan -ComputerName localhost -UseSSL
 tzutil /l                          # valid time zone IDs</pre>
 </section>
 
-<section class="panel">
+<section class="panel" id="backup">
   <h2>Backup and restore</h2>
   <pre class="cmd"># easiest: Settings -> Download backup
 
@@ -129,7 +222,7 @@ sudo systemctl start ansiweb</pre>
   <p class="muted small">The archive holds the key to your stored passwords, so keep it somewhere safe.</p>
 </section>
 
-<section class="panel">
+<section class="panel" id="uninstall">
   <h2>Removing an app from the PCs</h2>
   <p class="muted small">Taking an app out of the standard set stops AnsiWEB installing it but leaves it on the PCs.
   Use the <a href="{{ url_for('inventory_page') }}">Inventory</a> page to remove it from them: add an entry, press
@@ -137,7 +230,7 @@ sudo systemctl start ansiweb</pre>
   anything, so entries are safe to add and check first.</p>
 </section>
 
-<section class="panel">
+<section class="panel" id="problems">
   <h2>When something is wrong</h2>
   <table>
     <tr><th>Symptom</th><th>What to check</th></tr>

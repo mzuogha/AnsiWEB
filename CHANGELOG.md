@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.15.0 - 2026-09-17
+
+The Help page gains a contents list, and says plainly where AnsiWEB should run.
+
+
+### New
+
+- A table of contents at the top of the Help page, linking to each section.
+- A 'Where to run AnsiWEB' section recommending a Hyper-V virtual machine or a dedicated server, with the reasons WSL is not suitable: it does not start with Windows, stops when the signed-in user logs out, changes its address on every restart, and has systemd off by default.
+- Commands for building the Hyper-V VM, including the setting that brings it back by itself after a restart or a power cut, an external switch so the PCs reach it directly, and a checkpoint before upgrades.
+
+
+### Changed
+
+- The WSL section now opens with a warning that it is for trying AnsiWEB out rather than running it, and the same guidance is in the README and the installation guide.
+
+
 ## 1.14.0 - 2026-09-17
 
 PCs can be found by the person using them, and some tidying of the names in the sidebar.
