@@ -4,6 +4,21 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.13.2"
+  date: "2026-09-16"
+  summary: >-
+    Job logs now say what each task did, and a skipped task can no longer make
+    a later one fail.
+  added:
+    - "Every deployment ends with a 'What each task did' list: each task marked
+       done, changed, skipped or FAILED, with the count per PC. Failures are
+       listed again at the end with the PCs they happened on."
+  fixed:
+    - "A task that was skipped - by a tag, a condition, or because the play
+       stopped early - could leave a later task referring to a result that was
+       never produced, failing with 'aw_detect is undefined' or similar. Those
+       results now start out empty."
+
 - version: "1.13.1"
   date: "2026-09-16"
   summary: >-

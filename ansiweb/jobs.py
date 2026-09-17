@@ -2,6 +2,7 @@
 and the built-in scheduler."""
 import datetime as dt
 import os
+import re
 import sqlite3
 import subprocess
 import threading
@@ -211,6 +212,72 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
     return job_id
 
 
+# Ansible's own output interleaves tasks and hosts, and a failure buries the
+# rest. These read it back and say plainly what each task did.
+_TASK_RE = re.compile(r"^TASK \[(?:[^:]+ : )?(.+?)\]")
+_RESULT_RE = re.compile(r"^(ok|changed|skipping|failed|fatal|unreachable):\s*\[([^\]]+?)(?:\s*->.*)?\]")
+# Ansible writes a failure as either "failed:" or "fatal:"; treat them alike.
+_CANONICAL = {"fatal": "failed"}
+_STATUS_ORDER = {"failed": 0, "unreachable": 1, "changed": 2, "ok": 3, "skipping": 4}
+_STATUS_LABEL = {"failed": "FAILED", "fatal": "FAILED", "unreachable": "UNREACHABLE",
+                 "changed": "changed", "ok": "ok", "skipping": "skipped"}
+
+
+def summarise_run(text: str) -> str:
+    """A short 'what each task did' list, from Ansible's output."""
+    tasks: list = []
+    index: dict = {}
+    current = ""
+    for line in text.splitlines():
+        task = _TASK_RE.match(line)
+        if task:
+            current = task.group(1).strip()
+            continue
+        result = _RESULT_RE.match(line)
+        if not result or not current:
+            continue
+        raw = _CANONICAL.get(result.group(1), result.group(1))
+        status = _STATUS_LABEL.get(raw, raw)
+        host = result.group(2).strip()
+        if current not in index:
+            index[current] = {}
+            tasks.append(current)
+        hosts = index[current]
+        # A host's worst outcome for this task is the one worth showing
+        if host not in hosts or _STATUS_ORDER.get(raw, 9) < _STATUS_ORDER.get(hosts[host][1], 9):
+            hosts[host] = (status, raw)
+
+    if not tasks:
+        return ""
+
+    lines = ["", "=" * 64, "What each task did", "=" * 64]
+    failed = []
+    for name in tasks:
+        hosts = index[name]
+        counts: dict = {}
+        for status, _raw in hosts.values():
+            counts[status] = counts.get(status, 0) + 1
+        worst = min((raw for _s, raw in hosts.values()), key=lambda r: _STATUS_ORDER.get(r, 9))
+        mark = "x" if _STATUS_LABEL.get(worst) in ("FAILED", "UNREACHABLE") else \
+               "-" if _STATUS_LABEL.get(worst) == "skipped" else "v"
+        detail = ", ".join(f"{n} {status}" for status, n in sorted(counts.items()))
+        lines.append(f"  [{mark}] {name}  ({detail})")
+        if mark == "x":
+            failed.append((name, [h for h, (_s, raw) in hosts.items()
+                                  if _STATUS_LABEL.get(raw) in ("FAILED", "UNREACHABLE")]))
+
+    if failed:
+        lines.append("")
+        lines.append("Failed:")
+        for name, hosts in failed:
+            lines.append(f"  - {name}  on {', '.join(sorted(hosts))}")
+        lines.append("")
+        lines.append("Everything above the first failure was applied; anything after it did not run")
+        lines.append("on that PC. Fix the cause and run the job again - re-running is safe.")
+    lines.append("=" * 64)
+    return "\n".join(lines)
+
+
 def _ping_hint(cfg) -> str:
     """What to check when a connection test fails, given how AnsiWEB is set up."""
     mode = (cfg.get("settings") or {}).get("pc_connection", "https")
@@ -253,6 +320,9 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             # kind decides them, and a plain deployment runs everything.
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
                                           extra=extra, tags=tags or DEPLOY_TAGS[kind]), log)
+            summary = summarise_run(log_path(job_id).read_text(errors="replace"))
+            if summary:
+                log(summary)
             store.regenerate_all()
         elif kind == "ping":
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),

@@ -12,6 +12,11 @@
     aw_state_dir: "{{ aw_plan.pc_state }}"
     aw_reboot_needed: false
     aw_results: []
+    # Empty results to begin with, so a task that is skipped - by a tag, by a
+    # condition, or because the play stopped early - cannot leave a later task
+    # referring to something undefined.
+    aw_detect: {"result": []}
+    aw_inventory: {"result": {"apps": [], "count": 0, "truncated": false}}
 
 - name: Select this PC's items
   tags: [always]
@@ -84,7 +89,8 @@
 
 - name: Show what will be done
   ansible.builtin.debug:
-    msg: "{{ aw_detect.result | map(attribute='summary') | list }}"
+    msg: "{{ (aw_detect.result | default([])) | map(attribute='summary') | list }}"
+  when: aw_detect is defined
   tags: [apps]
 
 - name: Install or upgrade apps
@@ -92,7 +98,7 @@
     file: install_app.yml
     apply:
       tags: [apps]
-  loop: "{{ aw_apps | selectattr('id', 'in', aw_todo) | list }}"
+  loop: "{{ aw_apps | selectattr('id', 'in', aw_todo | default([])) | list }}"
   loop_control:
     loop_var: app
     label: "{{ app.name }} {{ app.version }}"
@@ -200,7 +206,7 @@
 
 - name: Re-check installed app versions for the report
   ansible.builtin.include_tasks: detect.yml
-  when: aw_todo | length > 0
+  when: (aw_todo | default([])) | length > 0
 
 - name: List every installed program for the inventory
   ansible.windows.win_powershell:
@@ -245,7 +251,7 @@
           'time': now(fmt='%Y-%m-%d %H:%M:%S'),
           'facts': aw_facts.result,
           'reboot_pending': aw_reboot_needed | bool,
-          'apps': aw_detect.result,
+          'apps': (aw_detect.result | default([])),
           'inventory': (aw_inventory.result.apps | default([])),
           'inventory_count': (aw_inventory.result.count | default(0)),
           'inventory_truncated': (aw_inventory.result.truncated | default(false)),

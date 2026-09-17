@@ -33,6 +33,14 @@ def wait_for_jobs(seconds=10):
         time.sleep(0.05)
 
 
+import yaml as _y
+
+
+def _role_tasks():
+    return _y.safe_load(open(os.path.join(os.path.dirname(__file__), "..",
+                                          "ansible/roles/ansiweb_apps/tasks/main.yml")))
+
+
 PW = "correct-horse-1"
 vault.set_admin("admin", generate_password_hash(PW))   # the pre-roles single admin
 app = web.create_app(start_background=False)
@@ -471,12 +479,79 @@ ok(len(store.load()["pcs"]) == before + 1, "a PC can be added")
 r = c.post("/pcs/PC-TMP-001/delete", data={"csrf": tok}, follow_redirects=True)
 ok(len(store.load()["pcs"]) == before, "and removed again from its row")
 
+# ---------------------------------------------------------------- the playbook wrapper
+_play = _yaml_play = __import__("yaml").safe_load(
+    open(os.path.join(os.path.dirname(__file__), "..", "ansible/playbooks/deploy.yml")))[0]
+_wrapper = _play["tasks"][0]
+_include_tags = set(_wrapper["block"][0].get("tags") or [])
+_job_tags = {t for t in jobs.DEPLOY_TAGS.values() if t}
+_part_tags = {p[0] for p in jobs.DEPLOY_PARTS}
+for _t in sorted({x for tag in _job_tags for x in tag.split(",")} | _part_tags):
+    ok(_t in _include_tags,
+       f"a job limited to '{_t}' can still enter the role")
+ok("always" not in _include_tags,
+   "the role is not tagged 'always', which would run every task on every job")
+ok(all("always" in (_t.get("tags") or [])
+       for _t in _wrapper["rescue"] + _wrapper["always"]),
+   "the failure report and the summary run whatever tags a job uses")
+ok(any("failed" in str(_t).lower() for _t in _wrapper["rescue"]),
+   "a failure names the task that failed")
+ok(any("aw_results" in str(_t) for _t in _wrapper["always"]),
+   "and the summary lists what was applied")
+
+# ---------------------------------------------------------------- what each task did
+sample = """
+TASK [ansiweb_apps : Load the plan] ***
+ok: [PC-A]
+ok: [PC-B]
+TASK [ansiweb_apps : Install or upgrade apps] ***
+changed: [PC-A] => (item=7-Zip)
+ok: [PC-B]
+TASK [ansiweb_apps : Set up shared folders] ***
+skipping: [PC-A]
+skipping: [PC-B]
+TASK [ansiweb_apps : Show what will be done] ***
+fatal: [PC-A]: FAILED! => {"msg": "undefined"}
+ok: [PC-B]
+"""
+summary = jobs.summarise_run(sample)
+ok("What each task did" in summary, "a run is summarised task by task")
+ok("[v] Load the plan  (2 ok)" in summary, "a task that worked everywhere is marked")
+ok("[v] Install or upgrade apps  (1 changed, 1 ok)" in summary, "changes are counted separately")
+ok("[-] Set up shared folders  (2 skipped)" in summary, "skipped tasks are marked apart from failures")
+ok("[x] Show what will be done  (1 FAILED, 1 ok)" in summary, "a task that failed anywhere is marked failed")
+ok("- Show what will be done  on PC-A" in summary, "the failures are listed with their PCs")
+ok("re-running is safe" in summary, "and it says what to do next")
+ok("[x]" not in jobs.summarise_run("""
+TASK [ansiweb_apps : Install apps] ***
+changed: [PC-A]
+"""), "a clean run has nothing marked failed")
+ok("Failed:" not in jobs.summarise_run("""
+TASK [ansiweb_apps : Install apps] ***
+ok: [PC-A]
+"""), "and no failure list")
+ok(jobs.summarise_run("nothing that looks like ansible") == "",
+   "output that is not a playbook run is left alone")
+ok("[x] Gathering Facts" in jobs.summarise_run("""
+TASK [Gathering Facts] ***
+unreachable: [PC-C]: UNREACHABLE! => {"msg": "timed out"}
+"""), "an unreachable PC counts as a failure")
+ok("[v] Save the report  (1 changed)" in jobs.summarise_run("""
+TASK [ansiweb_apps : Save the report] ***
+changed: [PC-A -> localhost]
+"""), "a delegated task is attributed to the PC, not the server")
+
+# the role gives its registered results a default, so a skipped task cannot
+# leave a later one referring to something undefined
+_setup = [t for t in _role_tasks() if "Work out what this PC should have" == t.get("name")][0]
+_facts = _setup["ansible.builtin.set_fact"]
+ok("aw_detect" in _facts and "aw_inventory" in _facts,
+   "results that later tasks read start out empty")
+
 # ---------------------------------------------------------------- the role's setup tasks
 # Every job that limits itself to tags still needs the facts these tasks set;
 # without "always" they are skipped and the run dies on an undefined variable.
-import yaml as _y
-_role = _y.safe_load(open(os.path.join(os.path.dirname(__file__), "..",
-                                       "ansible/roles/ansiweb_apps/tasks/main.yml")))
+_role = _role_tasks()
 _defined = {}
 for _task in _role:
     for _var in (_task.get("ansible.builtin.set_fact") or {}):

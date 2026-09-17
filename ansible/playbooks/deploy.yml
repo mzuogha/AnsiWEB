@@ -1,10 +1,47 @@
 ---
-# Installs missing apps and upgrades outdated ones from the AnsiWEB cache.
+# Applies the AnsiWEB configuration to the Windows PCs.
 # Run from the web interface, or: python -m ansiweb.cli deploy [target]
-- name: Deploy standard apps from the AnsiWEB cache
+- name: Apply the AnsiWEB configuration
   hosts: windows
   gather_facts: false
   serial: "{{ aw_batch | default(20) | int }}"
   max_fail_percentage: 50
-  roles:
-    - ansiweb_apps
+
+  tasks:
+    - name: Apply everything this PC should have
+      block:
+        # Tagged with every part a job can ask for, so the role is entered
+        # whichever one is chosen. The tasks inside then filter themselves by
+        # their own tags. Tagging this "always" instead would make every task
+        # run on every job, whatever was asked for.
+        - ansible.builtin.include_role:
+            name: ansiweb_apps
+          tags: [apps, drivers, scripts, registry, shares, printers, time,
+                 activation, hostname, updates, inventory, uninstall]
+
+      rescue:
+        - name: Say which task failed
+          tags: [always]
+          ansible.builtin.debug:
+            msg: >-
+              FAILED on {{ inventory_hostname }}:
+              "{{ ansible_failed_task.name | default('unnamed task') }}"
+              - {{ (ansible_failed_result.msg | default(ansible_failed_result.stderr)
+                    | default('no message')) | trim }}
+
+        - name: Keep the job's failed status
+          tags: [always]
+          ansible.builtin.fail:
+            msg: >-
+              {{ inventory_hostname }} stopped at
+              "{{ ansible_failed_task.name | default('unnamed task') }}"
+
+      always:
+        - name: What was applied on this PC
+          tags: [always]
+          ansible.builtin.debug:
+            vars:
+              done: "{{ aw_results | default([]) }}"
+            msg: "{{ [inventory_hostname ~ ' - ' ~ (done | length | string) ~ ' item(s):'] +
+                     (done | map(attribute='name') | zip(done | map(attribute='status'))
+                           | map('join', ' = ') | list) }}"

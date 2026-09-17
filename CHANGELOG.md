@@ -5,6 +5,21 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.13.2 - 2026-09-16
+
+Job logs now say what each task did, and a skipped task can no longer make a later one fail.
+
+
+### New
+
+- Every deployment ends with a 'What each task did' list: each task marked done, changed, skipped or FAILED, with the count per PC. Failures are listed again at the end with the PCs they happened on.
+
+
+### Fixed
+
+- A task that was skipped - by a tag, a condition, or because the play stopped early - could leave a later task referring to a result that was never produced, failing with 'aw_detect is undefined' or similar. Those results now start out empty.
+
+
 ## 1.13.1 - 2026-09-16
 
 Fixes jobs that apply only part of a deployment.
