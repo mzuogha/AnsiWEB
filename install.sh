@@ -33,9 +33,57 @@ MSG
 fi
 
 echo "==> Installing system packages"
-apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-dev gcc \
-    libkrb5-dev nginx rsync git openssl >/dev/null
+PACKAGES=(python3 python3-venv python3-dev gcc libkrb5-dev nginx rsync git openssl)
+MISSING=()
+for pkg in "${PACKAGES[@]}"; do
+  dpkg -s "$pkg" >/dev/null 2>&1 || MISSING+=("$pkg")
+done
+
+apt_busy() {
+  # fuser is the direct check, but psmisc is not always installed, so fall
+  # back to looking for the processes that hold those locks.
+  if command -v fuser >/dev/null 2>&1; then
+    fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/lib/dpkg/lock \
+        >/dev/null 2>&1 && return 0
+  fi
+  pgrep -x 'apt|apt-get|dpkg|unattended-upgr|packagekitd' >/dev/null 2>&1
+}
+
+apt_holder() {
+  pgrep -a -x 'apt|apt-get|dpkg|unattended-upgr|packagekitd' 2>/dev/null |
+      head -1 | cut -d' ' -f2- || true
+}
+
+wait_for_apt() {
+  # Ubuntu runs unattended-upgrades in the background, which holds the apt
+  # locks. Wait for it rather than failing, and say what we are waiting for.
+  local waited=0 limit=300 holder=""
+  while apt_busy; do
+    if [[ $waited -eq 0 ]]; then
+      holder=$(apt_holder)
+      echo "    waiting for ${holder:-another package manager} to finish (up to $((limit / 60)) minutes)"
+    fi
+    if [[ $waited -ge $limit ]]; then
+      echo
+      echo "Another package manager (${holder:-apt}) is still running, so the packages" >&2
+      echo "could not be installed. It is usually Ubuntu's automatic updates; wait a" >&2
+      echo "minute and run this again. To see what is holding it:" >&2
+      echo "  ps aux | grep -E 'apt|dpkg|unattended'" >&2
+      exit 1
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+}
+
+if [[ ${#MISSING[@]} -eq 0 ]]; then
+  echo "    already installed, nothing to do"
+else
+  echo "    installing: ${MISSING[*]}"
+  wait_for_apt
+  apt-get update -qq || echo "    (could not refresh the package lists; continuing)"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${MISSING[@]}" >/dev/null
+fi
 
 echo "==> Creating service account"
 id ansiweb &>/dev/null || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin ansiweb

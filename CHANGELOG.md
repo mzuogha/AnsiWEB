@@ -5,6 +5,21 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.13.3 - 2026-09-17
+
+The installer copes with Ubuntu's automatic updates holding the package manager.
+
+
+### Changed
+
+- The installer only calls apt at all when a package is actually missing, so upgrading an existing installation no longer touches the package manager.
+
+
+### Fixed
+
+- install.sh stopped with 'Could not get lock /var/lib/apt/lists/lock' when something else was using apt, which on Ubuntu is usually unattended-upgrades running in the background. It now waits up to five minutes, says what it is waiting for, and if it is still busy explains that rather than failing with apt's message.
+
+
 ## 1.13.2 - 2026-09-16
 
 Job logs now say what each task did, and a skipped task can no longer make a later one fail.

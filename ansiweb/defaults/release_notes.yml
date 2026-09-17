@@ -4,6 +4,22 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.13.3"
+  date: "2026-09-17"
+  summary: >-
+    The installer copes with Ubuntu's automatic updates holding the package
+    manager.
+  fixed:
+    - "install.sh stopped with 'Could not get lock /var/lib/apt/lists/lock'
+       when something else was using apt, which on Ubuntu is usually
+       unattended-upgrades running in the background. It now waits up to five
+       minutes, says what it is waiting for, and if it is still busy explains
+       that rather than failing with apt's message."
+  changed:
+    - "The installer only calls apt at all when a package is actually missing,
+       so upgrading an existing installation no longer touches the package
+       manager."
+
 - version: "1.13.2"
   date: "2026-09-16"
   summary: >-
