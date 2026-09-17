@@ -1125,6 +1125,57 @@ ok(jobs.DEPLOY_TAGS.get("shares") == "shares", "shares have their own job tag")
 r = c.post(f"/shares/{sh['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 ok("stay on the PCs" in r.text, "deleting explains the share stays on the PCs")
 
+# ---------------------------------------------------------------- finding apps in winget
+# The GitHub API is stood in for, so the search logic is tested without the network.
+_FAKE_TREE = {
+    "m": ["Microsoft", "Mozilla"],
+    "m/Mozilla": ["Firefox", "Thunderbird"],
+    "m/Microsoft": ["VisualStudioCode"],
+    "v": ["VideoLAN"],
+    "v/VideoLAN": ["VLC"],
+}
+_real_get_json = cache.get_json
+cache.get_json = lambda url, token="": [{"name": n, "type": "dir"}
+                                        for n in _FAKE_TREE.get(url.split("manifests/")[1], [])]
+cache._search_cache.clear()
+
+ok(c.get("/apps").text.count("Find in winget") == 1, "Apps & Cache links to the catalogue search")
+r = c.get("/apps/search")
+ok(r.status_code == 200 and "winget catalogue" in r.text, "the search page opens")
+r = c.get("/apps/search?q=mozilla")
+ok("Mozilla.Firefox" in r.text and "Mozilla.Thunderbird" in r.text, "a publisher search lists its packages")
+ok("Mozilla.Firefox" in c.get("/apps/search?q=Mozilla.Fire").text, "a partial package ID resolves")
+ok("Nothing matched" in c.get("/apps/search?q=nosuchthing").text, "a miss says so")
+ok("at least two characters" in c.get("/apps/search?q=m").text, "a one-letter search is refused")
+# adding one from the results
+before_apps = len(store.load()["apps"])
+r = c.post("/apps/search/add", data={"csrf": tok, "winget_id": "Mozilla.Thunderbird",
+                                     "name": "Thunderbird", "targets": ["all"]},
+           follow_redirects=True)
+ok("Added Thunderbird" in r.text, "a result can be added to the standard set")
+added = [a for a in store.load()["apps"] if a.get("winget_id") == "Mozilla.Thunderbird"]
+ok(added, "it is stored as a winget app")
+ok(added[0]["source"] == "winget" and added[0]["detect_pattern"].startswith("^"),
+   "with a source and a starting detection pattern")
+ok(len(store.load()["apps"]) == before_apps + 1, "and nothing else changed")
+ok("already in the set" in c.get("/apps/search?q=mozilla").text,
+   "something already in the set is marked, not offered twice")
+r = c.post("/apps/search/add", data={"csrf": tok, "winget_id": "Mozilla.Thunderbird",
+                                     "name": "Thunderbird again"}, follow_redirects=True)
+ok("already in the standard set" in r.text, "and cannot be added twice")
+r = c.post("/apps/search/add", data={"csrf": tok, "winget_id": "", "name": "Nothing"},
+           follow_redirects=True)
+ok("No package was chosen" in r.text, "an empty choice is refused")
+# a rate limit or outage is reported, not swallowed
+def _boom(url, token=""):
+    raise cache.CacheError("GitHub rate limit reached; add a GitHub token in Settings")
+cache.get_json = _boom
+cache._search_cache.clear()
+ok("rate limit" in c.get("/apps/search?q=mozilla").text, "an API failure is explained on the page")
+cache.get_json = _real_get_json
+cache._search_cache.clear()
+c.post("/apps/thunderbird/delete", data={"csrf": tok}, follow_redirects=True)
+
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
 ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")

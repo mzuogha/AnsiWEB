@@ -161,6 +161,14 @@ You can mark one as the default, add a location and comment, or tick **Remove th
 
 Shared print-server queues are not supported: a network printer is the kind AnsiWEB can set up identically on every PC without per-user connections.
 
+## Finding an app
+
+**Apps & Cache → Find in winget** searches the winget catalogue from inside AnsiWEB and adds a result to the standard set in one press. Search by publisher (`Mozilla`), by product where the name appears in the publisher or the package ID (`7zip`, `VideoLAN`), or paste a package ID (`Mozilla.Firefox`).
+
+winget organises its repository by publisher rather than by product name, so a name that appears in neither the publisher nor the ID cannot be found this way. For those, `winget search <name>` on any PC gives the ID, which can be pasted in. Listings are cached for a day to stay inside the GitHub API allowance; adding a GitHub token in Settings raises that considerably.
+
+An added app comes with a suggested detection pattern — worth checking on its page — and the installer is downloaded by the next update check.
+
 ## Choosing what to deploy
 
 **Deploy** opens a page rather than starting immediately. Everything is ticked by default — the same as a plain deployment — so you can untick whatever you want left alone this time: applications, drivers, scripts, registry files, shared folders, printers, time, activation, computer name, Windows updates, inventory. Parts with nothing configured are marked, so an empty tick is obvious.

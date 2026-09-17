@@ -34,12 +34,14 @@ ENDPOINT_PERMISSIONS = {
     "prepare_script": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
+    "app_search": users.VIEW,
     # running things
     "job_start": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
     "deploy_page": users.RUN_JOBS, "deploy_start": users.RUN_JOBS,
     # what gets deployed
     "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
+    "app_search_add": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
     "share_add": users.MANAGE_CONTENT, "share_delete": users.MANAGE_CONTENT,
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
@@ -404,6 +406,49 @@ def create_app(start_background: bool = True) -> Flask:
         except ValueError:
             raise store.ValidationError("Extra success codes must be numbers, e.g. 1638, 1641")
         return app_
+
+    @app.route("/apps/search")
+    def app_search():
+        """Look up packages in the winget catalogue to add to the standard set."""
+        term = request.args.get("q", "").strip()
+        results, error = [], ""
+        if term:
+            try:
+                results = cache.winget_search(term, vault.app_secret("github_token"))
+            except cache.CacheError as exc:
+                error = str(exc)
+        cfg = store.load()
+        have = {a.get("winget_id", "").lower() for a in cfg.get("apps", []) if a.get("winget_id")}
+        for r in results:
+            r["already"] = r["id"].lower() in have
+        return render_template("app_search.html", cfg=cfg, term=term, results=results, error=error)
+
+    @app.route("/apps/search/add", methods=["POST"])
+    def app_search_add():
+        cfg = store.load()
+        pkg_id = request.form.get("winget_id", "").strip()
+        name = request.form.get("name", "").strip() or pkg_id.split(".")[-1]
+        try:
+            if not pkg_id:
+                raise store.ValidationError("No package was chosen.")
+            if any(a.get("winget_id", "").lower() == pkg_id.lower() for a in cfg.get("apps", [])):
+                raise store.ValidationError(f"{pkg_id} is already in the standard set.")
+            app_id = payloads.new_id(cfg, "apps", name)
+            cfg.setdefault("apps", []).append({
+                "id": app_id, "name": name, "enabled": True, "source": "winget",
+                "winget_id": pkg_id, "pinned_version": "",
+                # A sensible starting point; the app's own page can refine it
+                "detect_pattern": "^" + re.escape(name.split()[0]),
+                "install_if_missing_only": False,
+                "targets": request.form.getlist("targets") or ["all"],
+            })
+            store.save(cfg)
+            flash(f"Added {name} ({pkg_id}). Check its detection pattern, then run an update check "
+                  "to download it.", "ok")
+            return redirect(url_for("app_edit", app_id=app_id))
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("app_search", q=request.form.get("q", "")))
 
     @app.route("/apps/new", methods=["GET", "POST"])
     def app_new():

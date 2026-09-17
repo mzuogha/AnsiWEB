@@ -357,6 +357,10 @@ Click **Test all connections**. Every PC should answer `pong`. Fix any failures 
 
 ### 6. Fill the cache
 
+To add something not in the default set, use **Apps & Cache → Find in winget**: search by publisher, product or
+package ID, and press Add. If a product cannot be found by name, run `winget search <name>` on any PC and paste the
+package ID it gives you.
+
 On the **Apps** page, click **Check for updates now**. Watch the live log: each app is downloaded once and verified against its published SHA256 fingerprint. This takes a while on the first run, and it's the only step that needs internet.
 
 Firefox is pinned to 65.0.2 and is downloaded from Mozilla's release archive.

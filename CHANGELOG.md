@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.17.0 - 2026-09-17
+
+Apps can be found in the winget catalogue from inside AnsiWEB.
+
+
+### New
+
+- Find in winget, on the Apps & Cache page: search the catalogue by publisher, product or package ID and add a result to the standard set with one press. Anything already in the set is marked rather than offered again.
+- An added app arrives with a suggested detection pattern to check, and its installer is downloaded by the next update check.
+
+
+### Changed
+
+- Catalogue listings are remembered for a day, so searching repeatedly does not use up the GitHub API allowance. A rate limit or outage is reported on the page rather than silently returning nothing.
+
+
 ## 1.16.0 - 2026-09-17
 
 Tooltips, a forced password change for new accounts, corrected task tags, and the hidden bits are no longer hidden.

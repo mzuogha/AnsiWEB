@@ -12,6 +12,7 @@ Sources:
 import hashlib
 import json
 import os
+import time
 import re
 import tempfile
 import threading
@@ -340,3 +341,69 @@ def store_upload(app: dict, file_storage, version: str) -> None:
     _replace_cached(app["id"], fname, version, sha256=sha256_file(paths.APPS_DIR / fname),
                     source_url="uploaded: " + name, installer_type=ext[1:], success_codes=[0, 3010, 1641],
                     latest_seen=version)
+
+
+# ---- searching the winget catalogue --------------------------------------------
+# winget-pkgs is laid out as manifests/<first letter>/<Publisher>/<Package>/<version>/.
+# There is no name index to query, so a search looks in the letter bucket the
+# term starts with, matches publishers, then their packages. That finds anything
+# whose publisher or package ID contains the term - which is most things, since
+# IDs look like Mozilla.Firefox or VideoLAN.VLC - but it cannot find a product
+# whose name appears in neither. For those, "winget search <name>" on a PC gives
+# the ID, which can be pasted in directly.
+SEARCH_CACHE_HOURS = 24
+_search_cache: dict = {}
+_search_lock = threading.Lock()
+
+
+def _listing(path: str, token: str = "") -> list:
+    """A directory of the winget repo, remembered for a day to spare the API."""
+    key = path.lower()
+    with _search_lock:
+        hit = _search_cache.get(key)
+        if hit and time.time() - hit[0] < SEARCH_CACHE_HOURS * 3600:
+            return hit[1]
+    data = get_json(GITHUB_API + path, token)
+    names = [x["name"] for x in data if isinstance(x, dict) and x.get("type") == "dir"] \
+        if isinstance(data, list) else []
+    with _search_lock:
+        _search_cache[key] = (time.time(), names)
+    return names
+
+
+def winget_search(term: str, token: str = "", limit: int = 25) -> list:
+    """Packages in the winget catalogue matching a term, a publisher or an ID."""
+    term = (term or "").strip()
+    if len(term) < 2:
+        raise CacheError("Type at least two characters to search.")
+    needle = term.lower()
+    found: list = []
+
+    def add(publisher: str, package: str):
+        pkg_id = f"{publisher}.{package}" if publisher != package else publisher
+        if not any(f["id"].lower() == pkg_id.lower() for f in found):
+            found.append({"id": pkg_id, "publisher": publisher, "package": package})
+
+    # A full or partial package ID: go straight to that publisher
+    if "." in term:
+        publisher, _, rest = term.partition(".")
+        letter = publisher[0].lower()
+        for name in _listing(f"{letter}", token):
+            if name.lower() != publisher.lower():
+                continue
+            for package in _listing(f"{letter}/{urllib.parse.quote(name)}", token):
+                if not rest or rest.lower() in package.lower():
+                    add(name, package)
+        return found[:limit]
+
+    letter = needle[0]
+    publishers = _listing(letter, token)
+    # Publishers whose name contains the term, closest first
+    matches = sorted((p for p in publishers if needle in p.lower()),
+                     key=lambda p: (not p.lower().startswith(needle), len(p)))
+    for publisher in matches[:8]:
+        for package in _listing(f"{letter}/{urllib.parse.quote(publisher)}", token):
+            add(publisher, package)
+        if len(found) >= limit:
+            break
+    return found[:limit]

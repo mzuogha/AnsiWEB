@@ -4,6 +4,22 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.17.0"
+  date: "2026-09-17"
+  summary: >-
+    Apps can be found in the winget catalogue from inside AnsiWEB.
+  added:
+    - "Find in winget, on the Apps & Cache page: search the catalogue by
+       publisher, product or package ID and add a result to the standard set
+       with one press. Anything already in the set is marked rather than
+       offered again."
+    - An added app arrives with a suggested detection pattern to check, and its
+      installer is downloaded by the next update check.
+  changed:
+    - "Catalogue listings are remembered for a day, so searching repeatedly
+       does not use up the GitHub API allowance. A rate limit or outage is
+       reported on the page rather than silently returning nothing."
+
 - version: "1.16.0"
   date: "2026-09-17"
   summary: >-
