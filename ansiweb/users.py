@@ -161,7 +161,10 @@ def _locate(users: dict, username: str) -> str:
     return key
 
 
-def create(username: str, password: str, role: str, scope: list | None = None) -> None:
+def create(username: str, password: str, role: str, scope: list | None = None,
+           force_change: bool = True) -> None:
+    """Add a user. force_change is right when somebody else picked the password,
+    and wrong when the person is choosing their own, as at installation."""
     name = validate_username(username)
     check_password_rules(password)
     if role not in ROLES:
@@ -171,6 +174,7 @@ def create(username: str, password: str, role: str, scope: list | None = None) -
         if name.lower() in users:
             raise UserError(f"A user called '{name}' already exists.")
         users[name.lower()] = {"username": name, "password_hash": generate_password_hash(password),
+                              "must_change_password": bool(force_change),
                               "role": role, "created": _now(), "disabled": False,
                               "scope": clean_scope(role, scope)}
         _write(users)
@@ -238,13 +242,14 @@ def scope_label(scope: list) -> str:
     return ", ".join(s.replace("site:", "Site: ").replace("group:", "Group: ") for s in scope)
 
 
-def set_password(username: str, password: str) -> None:
+def set_password(username: str, password: str, force_change: bool = False) -> None:
     check_password_rules(password)
     with _lock:
         users = _read()
         key = _locate(users, username)
         users[key]["password_hash"] = generate_password_hash(password)
         users[key]["password_changed"] = _now()
+        users[key]["must_change_password"] = bool(force_change)
         _write(users)
 
 
@@ -290,6 +295,10 @@ def authenticate(username: str, password: str) -> dict:
     if not check_password_hash(user["password_hash"], password or ""):
         return {}
     return user
+
+
+def must_change_password(username: str) -> bool:
+    return bool(get(username).get("must_change_password"))
 
 
 def permissions(role: str) -> set:

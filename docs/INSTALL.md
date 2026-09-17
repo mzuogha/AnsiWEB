@@ -325,6 +325,8 @@ The account created by the installer is an administrator. To give someone less, 
 You can also limit someone to certain sites or groups with a **scope**, so a branch technician only sees and
 touches their own PCs.
 
+New accounts created in the web interface must choose their own password at the first sign-in.
+
 - **Operator** — manages apps, drivers, scripts, registry files and PCs, and runs jobs. No settings or secrets.
 - **Helpdesk** — runs deployments and connection tests, and reads reports.
 - **Viewer** — read-only.

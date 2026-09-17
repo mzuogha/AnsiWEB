@@ -55,6 +55,7 @@
   when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
 
 - name: Create the AnsiWEB working folders on the PC
+  tags: [always]
   ansible.windows.win_file:
     path: "{{ item }}"
     state: directory
@@ -195,16 +196,19 @@
   tags: [updates]
 
 - name: Reboot where something asked for it
+  tags: [always]
   ansible.windows.win_reboot:
     reboot_timeout: 1200
   when: aw_reboot_needed | bool and aw_plan.allow_reboot | bool
 
 - name: List PCs that still need a reboot
+  tags: [always]
   ansible.builtin.debug:
     msg: "{{ inventory_hostname }} needs a reboot to finish."
   when: aw_reboot_needed | bool and not (aw_plan.allow_reboot | bool)
 
 - name: Re-check installed app versions for the report
+  tags: [apps, inventory]
   ansible.builtin.include_tasks: detect.yml
   when: (aw_todo | default([])) | length > 0
 
@@ -217,7 +221,7 @@
   tags: [inventory]
 
 - name: Collect facts for the report
-  tags: [inventory]
+  tags: [always]
   ansible.windows.win_powershell:
     script: |
       $os = Get-CimInstance Win32_OperatingSystem
@@ -241,8 +245,18 @@
   register: aw_facts
   changed_when: false
 
+# Read what this PC reported last time, so a job covering only part of a
+# deployment keeps the rest of the report instead of blanking it.
+- name: Read this PC's previous report
+  tags: [always]
+  ansible.builtin.set_fact:
+    aw_prior: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/reports/' ~ inventory_hostname ~ '.json',
+                         errors='ignore') | default('{}', true) | from_json }}"
+  delegate_to: localhost
+  become: false
+
 - name: Save the report for the AnsiWEB dashboard
-  tags: [inventory]
+  tags: [always]
   ansible.builtin.copy:
     dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
     mode: "0644"
@@ -251,9 +265,10 @@
           'time': now(fmt='%Y-%m-%d %H:%M:%S'),
           'facts': aw_facts.result,
           'reboot_pending': aw_reboot_needed | bool,
-          'apps': (aw_detect.result | default([])),
-          'inventory': (aw_inventory.result.apps | default([])),
-          'inventory_count': (aw_inventory.result.count | default(0)),
+          'apps': (aw_detect.result | default([])) or (aw_prior.apps | default([])),
+          'inventory': (aw_inventory.result.apps | default([])) or (aw_prior.inventory | default([])),
+          'inventory_count': (aw_inventory.result.count | default(0))
+                             or (aw_prior.inventory_count | default(0)),
           'inventory_truncated': (aw_inventory.result.truncated | default(false)),
           'results': aw_results} | to_nice_json }}
   delegate_to: localhost

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, pc_picker with context %}
+{% from "_macros.html" import csrf, target_label, target_select, pc_picker, tip with context %}
 {% block title %}Deploy{% endblock %}
 {% block content %}
 <div class="head"><h1>Deploy</h1></div>
@@ -9,7 +9,7 @@ deployment; untick anything you want to leave alone this time. Each part only do
 up, and nothing is uninstalled here.</p>
 
 <form method="post" action="{{ url_for('deploy_start') }}" class="panel form">{{ csrf() }}
-  <h2>What to deploy</h2>
+  <h2>What to deploy{{ tip("Each part only does something where you have set it up. Unticking a part leaves whatever is already on the PC alone.") }}</h2>
   <div class="checks">
     {% for key, label, note in parts %}
     <label class="check">

@@ -71,6 +71,15 @@ document.addEventListener('click', function (e) {
   });
 })();
 
+// Tooltips are CSS on hover and focus; a tap needs a hand on touch screens.
+document.addEventListener('click', function (e) {
+  var marker = e.target.closest('[data-tip]');
+  document.querySelectorAll('.tip-open').forEach(function (el) {
+    if (el !== marker) el.classList.remove('tip-open');
+  });
+  if (marker) marker.classList.toggle('tip-open');
+});
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

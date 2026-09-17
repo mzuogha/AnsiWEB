@@ -65,7 +65,8 @@ def main(argv=None) -> int:
         try:
             users.validate_username(args[0])
             pw = _ask_password(args[0])
-            users.create(args[0], pw, args[1])
+            # Typed at the console by whoever will use it
+            users.create(args[0], pw, args[1], force_change=False)
         except users.UserError as exc:
             print(exc)
             return 1
@@ -79,7 +80,7 @@ def main(argv=None) -> int:
             users.set_password(user, pw)
             print(f"Password for '{user}' updated.")
         else:
-            users.create(user, pw, "admin")
+            users.create(user, pw, "admin", force_change=False)
             print(f"Created administrator '{user}'.")
         return 0
 

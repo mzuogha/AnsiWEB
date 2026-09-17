@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, job_button with context %}
+{% from "_macros.html" import csrf, job_button, tip with context %}
 {% block title %}PCs{% endblock %}
 {% block content %}
 <div class="head">
@@ -69,7 +69,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 {% if query %}<p class="muted small">{{ visible | length }} of {{ total }} PCs match "{{ query }}".</p>{% endif %}
 
 <table class="list">
-  <tr><th>PC</th><th>Assigned to</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
+  <tr><th>PC</th><th>Assigned to{{ tip("Who uses this PC. Searchable, so you do not have to remember PC names.") }}</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync{{ tip("Whether AnsiWEB renames Windows to match the name here at the next deployment.") }}</th><th>Apps</th><th>Last report</th><th></th></tr>
   {% for pc in visible %}
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}

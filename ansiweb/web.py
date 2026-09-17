@@ -25,6 +25,7 @@ ENDPOINT_PERMISSIONS = {
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
+    "first_password": users.VIEW,
     "coffee": users.VIEW,
     "dismiss": users.VIEW,
     "printers_page": users.VIEW, "shares_page": users.VIEW,
@@ -159,6 +160,14 @@ def create_app(start_background: bool = True) -> Flask:
 
         if request.method == "POST":
             _check_csrf()
+
+        # A new account, or one whose password an administrator has reset, has a
+        # password somebody else chose. Nothing else is reachable until it is
+        # changed - including the API-ish pages, so nothing can be done with it.
+        if users.must_change_password(session["user"]) and request.endpoint not in (
+                "first_password", "own_password", "logout", "logo", "help_page"):
+            return redirect(url_for("first_password"))
+
         needed = (POST_PERMISSIONS.get(request.endpoint) if request.method == "POST" else None) \
             or ENDPOINT_PERMISSIONS.get(request.endpoint, users.ADMIN)
         if not users.can(record["role"], needed):
@@ -1377,8 +1386,8 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/users/<username>/password", methods=["POST"])
     def user_password(username):
         try:
-            users.set_password(username, request.form.get("password", ""))
-            flash(f"Password for {username} updated.", "ok")
+            users.set_password(username, request.form.get("password", ""), force_change=True)
+            flash(f"Password for {username} updated. They must change it when they next sign in.", "ok")
         except users.UserError as exc:
             flash(str(exc), "error")
         return redirect(url_for("users_page"))
@@ -1689,6 +1698,14 @@ def create_app(start_background: bool = True) -> Flask:
         flash("Secret updated." if value else "Secret cleared.", "ok")
         return back("settings_page")
 
+    @app.route("/password/new", methods=["GET"])
+    def first_password():
+        """Shown until a new or reset password has been replaced."""
+        if not users.must_change_password(session.get("user", "")):
+            return redirect(url_for("dashboard"))
+        return render_template("first_password.html", me=session.get("user"),
+                               min_password=users.MIN_PASSWORD)
+
     @app.route("/settings/password", methods=["POST"])
     def own_password():
         """Any signed-in user can change their own password."""
@@ -1699,7 +1716,7 @@ def create_app(start_background: bool = True) -> Flask:
             flash("New passwords do not match.", "error")
         else:
             try:
-                users.set_password(me, request.form.get("new", ""))
+                users.set_password(me, request.form.get("new", ""), force_change=False)
                 flash("Password changed.", "ok")
             except users.UserError as exc:
                 flash(str(exc), "error")

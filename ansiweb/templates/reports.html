@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, status_pill, job_rows with context %}
+{% from "_macros.html" import csrf, status_pill, job_rows, tip with context %}
 {% block title %}Reports{% endblock %}
 {% block content %}
 <div class="head">
@@ -22,7 +22,7 @@
 </p>
 
 <table class="list">
-  <tr><th>PC</th><th>Last report</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
+  <tr><th>PC</th><th>Last report{{ tip("Each PC writes a report at the end of every deployment. A PC that has gone quiet is flagged here.") }}</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
   {% for row in rows if not only or (only == 'stale' and row.freshness.state != 'ok') %}
   <tr>
     <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a>

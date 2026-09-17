@@ -10,6 +10,11 @@
    something that already has targets; new items default to all PCs. #}
 {# One row per job, used by the Jobs page and the Reports page. #}
 {# The "apply everything on this page" form: a target picker and a button. #}
+{# A small (?) that explains a field or a column on hover, and on focus for
+   anyone using the keyboard. Attach to anything with data-tip. #}
+{% macro tip(text) %}<span class="tip" tabindex="0" role="note" data-tip="{{ text }}"
+  aria-label="{{ text }}">?</span>{% endmacro %}
+
 {% macro apply_form(kind, label, targets, confirm) %}
 <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
       data-confirm="{{ confirm }}">{{ csrf() }}

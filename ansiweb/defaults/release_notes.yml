@@ -4,6 +4,37 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.16.0"
+  date: "2026-09-17"
+  summary: >-
+    Tooltips, a forced password change for new accounts, corrected task tags,
+    and the hidden bits are no longer hidden.
+  added:
+    - "Tooltips - a small ? next to a field or column heading explains it, on
+       hover, on keyboard focus, or on a tap."
+    - "A new account, or one whose password an administrator has reset, has to
+       choose its own password at the next sign-in. Nothing else in AnsiWEB is
+       reachable until it does. An account created at the command line is not
+       affected, since that person typed the password themselves."
+    - "A few things put in for fun, now written down: /coffee, searching the
+       PCs page for xyzzy, the Konami code, five quick clicks on the version
+       number, a line in the job summary at exactly 42 PCs, and
+       X-Clacks-Overhead on every response. None of them affect a deployment."
+  fixed:
+    - "Four tasks in the role were untagged, so any job covering only part of a
+       deployment skipped them: creating the working folders on the PC, the
+       reboot a script or update asks for, the list of PCs still needing one,
+       and the app re-check. A printers-only job could therefore leave a PC
+       waiting for a reboot nobody was told about."
+    - "Reports were only written by jobs covering apps or inventory, so a
+       printers-only or shares-only deployment recorded nothing. Every job now
+       writes a report, and keeps the parts it did not gather rather than
+       blanking them."
+  changed:
+    - "The test suite now proves a restored backup still deploys - the
+       configuration, uploaded files, inventory and encrypted secrets all come
+       back, the plan is rebuilt, and Ansible still accepts the result."
+
 - version: "1.15.0"
   date: "2026-09-17"
   summary: >-

@@ -229,6 +229,8 @@ AnsiWEB has four roles, so you can hand out what someone actually needs. Manage 
 
 **Scopes.** A non-administrator can be limited to particular sites or groups. They see only those PCs on every page, and any job they start is narrowed to that set before it runs, so it cannot reach a PC outside the scope even if the form is tampered with. Administrators are never scoped, and promoting someone clears any scope they had.
 
+A new account, or one whose password an administrator has reset, must choose its own password at the next sign-in; nothing else is reachable until it does. An account created at the command line is exempt, since that person typed the password themselves.
+
 Everyone can change their own password. Controls a role cannot use are hidden rather than failing when pressed, and a role change or a disabled account takes effect on that person's next click. AnsiWEB always keeps at least one administrator, so the last one cannot be demoted, disabled or removed.
 
 Every route is mapped to a permission, and anything unmapped requires an administrator, so a new feature is never accidentally exposed to a lesser role.

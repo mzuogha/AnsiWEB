@@ -581,6 +581,23 @@ _defined = {}
 for _task in _role:
     for _var in (_task.get("ansible.builtin.set_fact") or {}):
         _defined.setdefault(_var, []).append(_task)
+# Tasks every job needs, whatever parts it covers. Without "always" a job
+# limited to one part skips them, which has bitten us: no working folders to
+# download into, a reboot nobody performs, and no report of what happened.
+for _needed in ("Create the AnsiWEB working folders on the PC",
+                "Reboot where something asked for it",
+                "List PCs that still need a reboot",
+                "Collect facts for the report",
+                "Read this PC's previous report",
+                "Save the report for the AnsiWEB dashboard"):
+    _task = next((t for t in _role if t.get("name") == _needed), None)
+    ok(_task, f"the role still has '{_needed}'")
+    ok("always" in (_task.get("tags") or []), f"'{_needed}' runs on every job")
+# and nothing else is left untagged, since untagged means skipped by any
+# tag-limited job
+_untagged = [t.get("name") for t in _role if not t.get("tags")]
+ok(not _untagged, f"no task is left untagged: {_untagged}")
+
 for _var in ("aw_plan", "aw_host", "aw_results", "aw_shares", "aw_printers", "aw_apps",
              "aw_drivers", "aw_scripts", "aw_registry", "aw_uninstalls"):
     _tasks = _defined.get(_var, [])
@@ -920,9 +937,90 @@ ok("switched off in Settings" in c.get("/inventory").text, "the page says when c
 c.post("/settings", data={"csrf": tok, "collect_inventory": "on", **SETTINGS_BASE}, follow_redirects=True)
 ok(store.load()["settings"]["collect_inventory"] is True, "and back on again")
 
+# ------------------------------------------------ a restored backup still deploys
+# The point is not just that the files come back, but that everything derived
+# from them - inventory, plan, vault - is rebuilt and Ansible still accepts it.
+import shutil as _sh
+import subprocess as _sp
+
+before_cfg = store.load()
+before_plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+archive = backup.create()
+ok(len(archive) > 1000, "a backup is produced")
+
+# scribble over everything a restore is supposed to put back
+wrecked = store.load()
+wrecked["pcs"] = []
+wrecked["apps"] = []
+wrecked["printers"] = []
+store.save(wrecked)
+for name in os.listdir(os.path.join(DATA, "cache", "drivers")):
+    os.remove(os.path.join(DATA, "cache", "drivers", name))
+os.remove(os.path.join(DATA, "inventory", "group_vars", "windows", "vault.yml"))
+ok(store.load()["pcs"] == [], "the configuration is wrecked")
+
+backup.restore(io.BytesIO(archive))    # restore takes a file-like object
+
+after_cfg = store.load()
+ok([pc["name"] for pc in after_cfg["pcs"]] == [pc["name"] for pc in before_cfg["pcs"]],
+   "the PCs come back")
+ok([a["id"] for a in after_cfg["apps"]] == [a["id"] for a in before_cfg["apps"]], "so do the apps")
+ok([p["id"] for p in after_cfg["printers"]] == [p["id"] for p in before_cfg["printers"]],
+   "and the printers")
+ok(os.listdir(os.path.join(DATA, "cache", "drivers")), "the uploaded driver files are back")
+# the parts a deployment actually reads
+ok(os.path.exists(os.path.join(DATA, "inventory", "hosts.yml")), "the inventory exists again")
+hosts = open(os.path.join(DATA, "inventory", "hosts.yml")).read()
+for pc in before_cfg["pcs"]:
+    ok(pc["name"] in hosts, f"{pc['name']} is in the inventory")
+vault_text = open(os.path.join(DATA, "inventory", "group_vars", "windows", "vault.yml")).read()
+ok(vault_text.startswith("$ANSIBLE_VAULT"), "the secrets file is back and still encrypted")
+ok(vault.secret_status().get("vault_ansible_svc_password"),
+   "and the account password still decrypts, so deployments can sign in")
+after_plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(sorted(after_plan["hosts"]) == sorted(before_plan["hosts"]),
+   "the deployment plan covers the same PCs")
+ok(after_plan["apps"] == before_plan["apps"], "and the same apps")
+# and Ansible itself still accepts the restored files
+check = _sp.run(["ansible-playbook", "-i", os.path.join(DATA, "inventory", "hosts.yml"),
+                 "--vault-password-file", os.path.join(DATA, ".vault_pass"),
+                 "-e", f"ansiweb_data={DATA}",
+                 os.path.join(os.path.dirname(__file__), "..", "ansible/playbooks/deploy.yml"),
+                 "--syntax-check"],
+                capture_output=True, text=True,
+                env={**os.environ, "ANSIBLE_CONFIG": os.path.join(os.path.dirname(__file__), "..",
+                                                                  "ansible/ansible.cfg")})
+ok(check.returncode == 0, f"a deployment still runs against the restored data: {check.stderr[:200]}")
+
+# ---------------------------------------------------------------- choosing your own password
+users.create("newbie", "given-by-admin", "helpdesk")
+ok(users.must_change_password("newbie"), "a new account must choose its own password")
+nc = app.test_client()
+t = csrf(nc.get("/login").text)
+r = nc.post("/login", data={"username": "newbie", "password": "given-by-admin", "csrf": t},
+            follow_redirects=True)
+ok("Choose your own password" in r.text, "and is asked to on the first sign-in")
+ok(nc.get("/pcs", follow_redirects=True).text.count("Choose your own password") == 1,
+   "every other page leads back there")
+ok(nc.get("/reports", follow_redirects=True).status_code == 200, "without erroring")
+ok("Choose your own password" not in nc.get("/help").text, "help is still readable")
+t = csrf(nc.get("/password/new").text)
+r = nc.post("/settings/password", data={"csrf": t, "current": "given-by-admin",
+                                        "new": "mine-alone-1", "confirm": "mine-alone-1"},
+            follow_redirects=True)
+ok("Password changed" in r.text, "changing it works")
+ok(not users.must_change_password("newbie"), "and the requirement is cleared")
+ok("Dashboard" in nc.get("/").text, "the rest of AnsiWEB is then available")
+# an administrator resetting a password asks for the same again
+r = c.post("/users/newbie/password", data={"csrf": tok, "password": "reset-by-admin"},
+           follow_redirects=True)
+ok("must change it" in r.text, "resetting a password says they must change it")
+ok(users.must_change_password("newbie"), "and it is required again")
+c.post("/users/newbie/delete", data={"csrf": tok}, follow_redirects=True)
+
 # ---------------------------------------------------------------- per-role scoping
 # PC-HQ-001 is in site HQ; PC-BR1-009 is in Branch1; PC-BR2-001 is in Branch2 with group finance
-users.create("sam", "sam-pass-12345", "helpdesk", ["site:Branch1"])
+users.create("sam", "sam-pass-12345", "helpdesk", ["site:Branch1"], force_change=False)
 sc = app.test_client()
 t = csrf(sc.get("/login").text)
 r = sc.post("/login", data={"username": "sam", "password": "sam-pass-12345", "csrf": t},
@@ -1235,6 +1333,9 @@ for name, role, pw in [("olivia", "operator", "operator-pass-1"),
     r = c.post("/users/add", data={"csrf": tok, "username": name, "password": pw, "role": role},
                follow_redirects=True)
     ok(f"Added {name}" in r.text, f"added a {role}")
+    ok(users.must_change_password(name), f"the new {role} must choose their own password")
+    # so the rest of the suite can use these accounts as themselves
+    users.set_password(name, pw, force_change=False)
 ok(users.MIN_PASSWORD == 8, "the password minimum is eight characters")
 ok(f"at least {users.MIN_PASSWORD} characters" in
    c.post("/users/add", data={"csrf": tok, "username": "shorty", "password": "abc",
@@ -1435,11 +1536,10 @@ ok("teapot" in r.text.lower(), "and says so")
 r = c.get("/pcs?q=xyzzy", follow_redirects=True)
 ok("Nothing happens" in r.text, "searching for xyzzy does nothing, politely")
 ok(r.status_code == 200 and "Find a PC" in r.text, "and the page still works")
-# none of this belongs in the release notes
 notes_text = open(os.path.join(os.path.dirname(__file__), "..",
                                "ansiweb/defaults/release_notes.yml")).read().lower()
-for word in ("teapot", "coffee", "xyzzy", "konami", "easter"):
-    ok(word not in notes_text, f"the release notes do not mention {word}")
+for word in ("coffee", "xyzzy", "konami"):
+    ok(word in notes_text, f"the release notes now mention {word}")
 
 # ---------------------------------------------------------------- every page renders
 for url in ["/", "/apps", "/apps/new", "/apps/7zip/edit", "/apps/vendor-app/edit", "/pcs",

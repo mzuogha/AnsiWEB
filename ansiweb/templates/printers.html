@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker, apply_form with context %}
+{% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker, apply_form, tip with context %}
 {% block title %}Printers{% endblock %}
 {% block content %}
 <div class="head">
@@ -17,7 +17,7 @@ and AnsiWEB installs it on each PC before creating the printer, so nothing has t
 printer up again does nothing if it is already correct.</p>
 
 <table class="list">
-  <tr><th>Printer</th><th>Address</th><th>Driver</th><th>Staged driver</th><th>Status</th>
+  <tr><th>Printer</th><th>Address</th><th>Driver</th><th>Staged driver{{ tip("A driver package AnsiWEB installs on each PC before creating the printer. Without one, the named driver must already be on the PC.") }}</th><th>Status</th>
     {% if can(perms.run) %}<th>Set up on</th>{% endif %}<th></th></tr>
   {% for p in printers %}
   <tr class="{{ 'dim' if not p.enabled }}">
