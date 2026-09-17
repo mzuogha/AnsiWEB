@@ -52,7 +52,7 @@ ROLES = {
     },
 }
 DEFAULT_ROLE = "helpdesk"
-MIN_PASSWORD = 10
+MIN_PASSWORD = 8
 
 
 class UserError(Exception):

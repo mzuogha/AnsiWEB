@@ -46,6 +46,7 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
   - Built-in schedules for update checks and deployments; every job has a live log you can download.
 - **Reports.** Each PC reports after every deployment: installed versions, driver/script/registry results, OS, model, serial, pending reboots. Exportable as CSV.
 - **Shared folders.** Create and share a folder on the PCs you choose, with the access you specify, and turn Windows file sharing on.
+- **Find a PC by its user.** Record who each PC is assigned to and search by person, name, address or site.
 - **Printers.** Push network printers or shared queues to the PCs you choose, including which is the default.
 - **Software inventory.** Every program installed on every PC, searchable and exportable, not just the ones AnsiWEB manages.
 - **Scoped roles.** Limit someone to particular sites or groups.

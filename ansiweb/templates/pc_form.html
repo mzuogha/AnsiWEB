@@ -2,7 +2,7 @@
 {% from "_macros.html" import csrf, job_button with context %}
 {% block title %}{{ pc.name }}{% endblock %}
 {% block content %}
-<div class="head"><h1>{{ pc.name }}</h1>
+<div class="head"><h1>{{ pc.name }}{% if pc.user %} <span class="muted">— {{ pc.user }}</span>{% endif %}</h1>
   <div class="actions">
     {{ job_button('ping', 'Test connection', 'pc:' ~ pc.name) }}
     <a class="btn primary" href="{{ url_for('deploy_page', target='pc:' ~ pc.name) }}">Deploy…</a>
@@ -15,6 +15,8 @@
     <label>IP address<input name="ip" value="{{ pc.ip }}" required></label>
   </div>
   <div class="row">
+    <label>Assigned to<input name="user" value="{{ pc.user or '' }}" placeholder="Jane Doe">
+      <small>Who uses this PC, so you can find it without remembering its name.</small></label>
     <label>Site<select name="site">{% for s in cfg.sites %}<option {{ 'selected' if s == pc.site }}>{{ s }}</option>{% endfor %}</select></label>
     <label>Groups (comma-separated)<input name="groups" value="{{ pc.groups|join(', ') }}"></label>
   </div>

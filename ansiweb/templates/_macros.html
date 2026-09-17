@@ -55,7 +55,7 @@
     {% for pc in pcs %}
     <label class="check"><input type="checkbox" name="{{ name }}" value="{{ prefix }}{{ pc.name }}"
       {{ 'checked' if (prefix ~ pc.name) in chosen }}> {{ pc.name }}
-      <span class="muted small">{{ pc.site }}</span></label>
+      <span class="muted small">{% if pc.user %}{{ pc.user }} — {% endif %}{{ pc.site }}</span></label>
     {% endfor %}
   </div>
 </details>

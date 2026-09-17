@@ -469,6 +469,31 @@ ok("activate" in jobs.DEPLOY_TAGS and jobs.DEPLOY_TAGS["activate"] == "activatio
 c.post("/settings/activation", data={"csrf": tok, "mode": "mak", "kms_port": "1688", "targets": ["all"]},
        follow_redirects=True)
 
+# a PC can be found by the person it belongs to
+c.post("/pcs/add", data={"csrf": tok, "name": "PC-USR-001", "ip": "10.4.4.4", "site": "HQ",
+                         "user": "Jane Doe"}, follow_redirects=True)
+saved = [pc for pc in store.load()["pcs"] if pc["name"] == "PC-USR-001"][0]
+ok(saved["user"] == "Jane Doe", "a PC records who it is assigned to")
+body = c.get("/pcs").text
+ok("Assigned to" in body and "Jane Doe" in body, "the PC list shows the person")
+found = c.get("/pcs?q=jane").text
+table = found.split("Add a PC")[0]          # the list, not the import example below it
+ok("PC-USR-001" in table and "PC-HQ-001" not in table, "searching by person finds their PC")
+ok("1 of" in found, "and says how many matched")
+ok("PC-USR-001" in c.get("/pcs?q=10.4.4").text, "and searching by address still works")
+ok("Jane Doe" in c.get("/deploy?target=all").text, "the deploy picker names the person")
+ok("Jane Doe" in c.get("/pcs/PC-USR-001/edit").text, "the PC's own page shows them")
+ok("Jane Doe" in c.get("/reports").text, "so does the reports table")
+csv_user = c.get("/reports/export.csv").text
+ok("assigned_to" in csv_user.splitlines()[0] and "Jane Doe" in csv_user, "and the CSV export")
+# imported from CSV as a fifth column
+r = c.post("/pcs/import", data={"csvfile": "", "csv": "PC-CSV-001,10.4.4.5,HQ,finance,John Smith",
+                                "csrf": tok}, follow_redirects=True)
+imported = [pc for pc in store.load()["pcs"] if pc["name"] == "PC-CSV-001"]
+ok(imported and imported[0]["user"] == "John Smith", "a CSV import can carry the person")
+c.post("/pcs/PC-USR-001/delete", data={"csrf": tok}, follow_redirects=True)
+c.post("/pcs/PC-CSV-001/delete", data={"csrf": tok}, follow_redirects=True)
+
 # a PC can be removed from its own row
 body = c.get("/pcs").text
 ok(body.count("Remove this PC from AnsiWEB") >= 1, "each PC row offers Remove")
@@ -1210,9 +1235,15 @@ for name, role, pw in [("olivia", "operator", "operator-pass-1"),
     r = c.post("/users/add", data={"csrf": tok, "username": name, "password": pw, "role": role},
                follow_redirects=True)
     ok(f"Added {name}" in r.text, f"added a {role}")
-ok("at least 10 characters" in c.post("/users/add", data={"csrf": tok, "username": "shorty",
-                                                          "password": "abc", "role": "viewer"},
-                                      follow_redirects=True).text, "a short password is refused")
+ok(users.MIN_PASSWORD == 8, "the password minimum is eight characters")
+ok(f"at least {users.MIN_PASSWORD} characters" in
+   c.post("/users/add", data={"csrf": tok, "username": "shorty", "password": "abc",
+                              "role": "viewer"}, follow_redirects=True).text,
+   "a short password is refused")
+ok("Added eight" in c.post("/users/add", data={"csrf": tok, "username": "eight",
+                                               "password": "12345678", "role": "viewer"},
+                           follow_redirects=True).text, "eight characters is accepted")
+c.post("/users/eight/delete", data={"csrf": tok}, follow_redirects=True)
 ok("already exists" in c.post("/users/add", data={"csrf": tok, "username": "olivia",
                                                   "password": "another-pass-1", "role": "viewer"},
                               follow_redirects=True).text, "duplicate user names are refused")
@@ -1266,8 +1297,8 @@ for role, expected in MATRIX.items():
     # everyone can reach help and change their own password
     ok(rc.get("/help").status_code == 200, f"{role} can open the help page")
     ok(rc.get("/release-notes").status_code == 200, f"{role} can read the release notes")
-    ok("What&#39;s new" in rc.get("/").text or "What's new" in rc.get("/").text,
-       f"{role} has the release notes in the sidebar")
+    ok("what&#39;s new" in rc.get("/").text.lower() or "what's new" in rc.get("/").text.lower(),
+       f"{role} can reach the release notes from the sidebar")
     ok(rc.get("/settings").status_code == 200, f"{role} can open settings")
     if role != "admin":
         ok("shown read-only" in rc.get("/settings").text, f"{role} sees settings as read-only")

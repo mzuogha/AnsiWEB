@@ -993,13 +993,23 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/pcs")
     def pcs_page():
         cfg = store.load()
-        return render_template("pcs.html", cfg=cfg, reports=load_reports(), visible=visible_pcs(cfg),
+        query = request.args.get("q", "").strip().lower()
+        shown = visible_pcs(cfg)
+        if query:
+            shown = [pc for pc in shown
+                     if query in pc["name"].lower()
+                     or query in (pc.get("ip") or "").lower()
+                     or query in (pc.get("user") or "").lower()
+                     or query in (pc.get("site") or "").lower()]
+        return render_template("pcs.html", cfg=cfg, reports=load_reports(), visible=shown,
+                               query=query, total=len(visible_pcs(cfg)),
                                plan=store.read_json(paths.PLAN_FILE, {}),
                                secrets=vault.secret_status())
 
     def pc_from_form():
         f = request.form
         return {"name": f.get("name", "").strip(), "ip": f.get("ip", "").strip(), "site": f.get("site", ""),
+                "user": f.get("user", "").strip()[:60],
                 "groups": [g.strip() for g in f.get("groups", "").split(",") if g.strip()],
                 "sync_hostname": f.get("sync_hostname") == "on",
                 "notes": f.get("notes", "").strip()}
@@ -1068,6 +1078,7 @@ def create_app(start_background: bool = True) -> Flask:
                 cfg["sites"].append(row[2])
             pc = {"name": row[0], "ip": row[1], "site": row[2],
                   "groups": [g for g in (row[3].split(";") if len(row) > 3 else []) if g],
+                  "user": (row[4][:60] if len(row) > 4 else ""),
                   "sync_hostname": False, "notes": ""}
             if pc["name"].lower() in existing:
                 existing[pc["name"].lower()].update(pc)
@@ -1196,13 +1207,14 @@ def create_app(start_background: bool = True) -> Flask:
         reports = load_reports()
         out = io.StringIO()
         w = csv.writer(out)
-        w.writerow(["pc", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
+        w.writerow(["pc", "assigned_to", "site", "groups", "ip", "reported", "os", "build", "model", "serial",
                     "activated", "reboot_pending", "freshness", "days_since_report",
                     "kind", "item", "installed", "target", "status"])
         for pc in visible_pcs(cfg):
             r = reports.get(pc["name"], {})
             facts = r.get("facts") or {}
-            base = [pc["name"], pc.get("site", ""), ";".join(pc.get("groups", [])), pc.get("ip", ""),
+            base = [pc["name"], pc.get("user", ""), pc.get("site", ""),
+                    ";".join(pc.get("groups", [])), pc.get("ip", ""),
                     r.get("time", ""), facts.get("os", ""), facts.get("build", ""),
                     facts.get("model", ""), facts.get("serial", ""),
                     facts.get("activated", ""), r.get("reboot_pending", ""),

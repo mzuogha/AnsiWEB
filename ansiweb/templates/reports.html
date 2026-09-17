@@ -25,7 +25,8 @@
   <tr><th>PC</th><th>Last report</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
   {% for row in rows if not only or (only == 'stale' and row.freshness.state != 'ok') %}
   <tr>
-    <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a><br>
+    <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a>
+      {% if row.pc.user %}<br><span class="muted small">{{ row.pc.user }}</span>{% endif %}<br>
       <span class="muted small">{{ row.pc.site }}{% if row.pc.groups %} · {{ row.pc.groups|join(', ') }}{% endif %}</span></td>
     <td class="small">{{ row.report.time or '—' }}
       <br>{% if row.freshness.state == 'ok' %}<span class="pill success">{{ row.freshness.label }}</span>

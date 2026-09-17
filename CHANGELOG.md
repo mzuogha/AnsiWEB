@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.14.0 - 2026-09-17
+
+PCs can be found by the person using them, and some tidying of the names in the sidebar.
+
+
+### New
+
+- Each PC can record who it is assigned to. The PCs page has a search box that matches a person, a PC name, an address or a site, so you no longer have to remember which machine is whose.
+- The person is shown wherever a PC is listed or picked - the PC list, the PC's own page, the deploy and printer pickers, the Reports page and the CSV export - and a CSV import can carry it as a fifth column.
+
+
+### Changed
+
+- Sidebar entries now capitalise consistently: Apps & Cache, Shared Folders, Drivers, Scripts & Registry, Inventory & Uninstall, Reports & Audit.
+- The separate What's new entry is gone; the release notes are still reached from the version number at the foot of the sidebar.
+- Web passwords need eight characters rather than ten.
+
+
 ## 1.13.3 - 2026-09-17
 
 The installer copes with Ubuntu's automatic updates holding the package manager.

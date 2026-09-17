@@ -61,13 +61,21 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 </section>
 {% endif %}
 
+<form method="get" class="row tight searchbar">
+  <label>Find a PC<input name="q" value="{{ query }}" placeholder="person, PC name, address or site"></label>
+  <div><button class="btn">Search</button>
+    {% if query %}<a class="btn" href="{{ url_for('pcs_page') }}">Clear</a>{% endif %}</div>
+</form>
+{% if query %}<p class="muted small">{{ visible | length }} of {{ total }} PCs match "{{ query }}".</p>{% endif %}
+
 <table class="list">
-  <tr><th>PC</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
+  <tr><th>PC</th><th>Assigned to</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync</th><th>Apps</th><th>Last report</th><th></th></tr>
   {% for pc in visible %}
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
   <tr>
     <td><a href="{{ url_for('pc_edit', name=pc.name) }}"><b>{{ pc.name }}</b></a></td>
+    <td>{{ pc.user or '—' }}</td>
     <td>{{ pc.ip }}</td>
     <td>{{ pc.site }}</td>
     <td class="small">{{ pc.groups|join(', ') }}</td>
@@ -111,6 +119,8 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
       <div class="row">
         <label>PC name<input name="name" required placeholder="PC-HQ-001"></label>
         <label>IP address<input name="ip" required placeholder="192.168.1.21"></label>
+        <label>Assigned to<input name="user" placeholder="Jane Doe">
+          <small>Who uses it, so you can find it by person.</small></label>
       </div>
       <div class="row">
         <label>Site<select name="site">{% for s in cfg.sites %}<option>{{ s }}</option>{% endfor %}</select></label>
@@ -125,7 +135,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   <section class="panel">
     <h2>Import a list</h2>
     <form method="post" action="{{ url_for('pc_import') }}" class="form">{{ csrf() }}
-      <label>One PC per line: <code>name,ip,site,group1;group2</code>
+      <label>One PC per line: <code>name,ip,site,groups,assigned to,group1;group2</code>
         <textarea name="csv" rows="6" placeholder="PC-HQ-001,192.168.1.21,HQ&#10;PC-BR1-001,192.168.2.21,Branch1,finance"></textarea></label>
       <button class="btn">Import</button>
       <span class="muted small">Existing names are updated; new sites are created.</span>
