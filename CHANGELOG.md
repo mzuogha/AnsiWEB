@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.18.0 - 2026-09-17
+
+Particular Windows updates can be cached on the server and installed from it, with links to what Microsoft and others say about them.
+
+
+### New
+
+- A Windows Updates page. Cache a specific update by KB number - upload the .msu from the Microsoft Update Catalog - and install it on the PCs you choose, from this server. For PCs with no route to Microsoft, or when one particular fix is wanted on one particular set of PCs.
+- Each cached update links out to Microsoft's article for that KB, its Update Catalog entry, the Windows release health page for known issues, and a search for what others are reporting. AnsiWEB links rather than repeats: there is no reliable source of reviews it could quote.
+- Cached updates are a tickbox on the deploy page and a job of their own, and the page shows which PCs have already reported each KB.
+- A best-effort Look up button asks the catalogue what it holds for a KB. That page has no supported interface and the lookup sometimes cannot read it, which it says plainly; uploading always works.
+
+
+### Changed
+
+- The page states what this is not: AnsiWEB caches the updates you name, not the whole catalogue. WSUS remains the answer for wholesale mirroring, and PCs can still be pointed at one under Settings.
+
+
 ## 1.17.0 - 2026-09-17
 
 Apps can be found in the winget catalogue from inside AnsiWEB.

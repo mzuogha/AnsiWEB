@@ -28,6 +28,7 @@
     aw_uninstalls: "{{ aw_plan.uninstalls | selectattr('id', 'in', aw_host.uninstalls | default([])) | list }}"
     aw_printers: "{{ aw_plan.printers | default([]) | selectattr('id', 'in', aw_host.printers | default([])) | list }}"
     aw_shares: "{{ aw_plan.shares | default([]) | selectattr('id', 'in', aw_host.shares | default([])) | list }}"
+    aw_hotfixes: "{{ aw_plan.hotfixes | default([]) | selectattr('kb', 'in', aw_host.hotfixes | default([])) | list }}"
     aw_apply: "{{ aw_uninstall_apply | default(false) }}"
 
 # An uninstall started from the Inventory page names the program directly,
@@ -52,6 +53,7 @@
     aw_uninstalls: "{{ aw_uninstalls | selectattr('id', 'equalto', aw_only) | list }}"
     aw_printers: "{{ aw_printers | selectattr('id', 'equalto', aw_only) | list }}"
     aw_shares: "{{ aw_shares | selectattr('id', 'equalto', aw_only) | list }}"
+    aw_hotfixes: "{{ aw_hotfixes | selectattr('kb', 'equalto', aw_only) | list }}"
   when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
 
 - name: Create the AnsiWEB working folders on the PC
@@ -186,6 +188,17 @@
     loop_var: item_def
     label: "{{ item_def.name }}"
   tags: [uninstall]
+
+- name: Install updates cached on the AnsiWEB server
+  ansible.builtin.include_tasks:
+    file: hotfix.yml
+    apply:
+      tags: [hotfix]
+  loop: "{{ aw_hotfixes }}"
+  loop_control:
+    loop_var: item_def
+    label: "{{ item_def.kb }}"
+  tags: [hotfix]
 
 - name: Install Windows updates
   ansible.builtin.include_tasks:

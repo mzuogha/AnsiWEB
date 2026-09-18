@@ -261,6 +261,14 @@ sudo ansiweb set-password jane
 
 The **Help** page in the web interface has copyable commands for deploying on Ubuntu Server and under WSL, preparing a PC, taking backups, and checking common problems. It fills in your own server address.
 
+## Caching particular updates
+
+The **Windows Updates** page holds specific updates on the server and installs them from it — for PCs with no route to Microsoft, or when one fix is wanted on one set of PCs. Download the `.msu` from the [Microsoft Update Catalog](https://www.catalog.update.microsoft.com/), upload it against its KB number, choose which PCs, and install. A Look up button asks the catalogue what it lists for a KB, though that page has no supported interface and sometimes cannot be read; the upload always works.
+
+Each entry links to Microsoft's article for the KB, its catalogue entry, the Windows release health page for known issues, and a search for what others are reporting. AnsiWEB links out rather than quoting: there is no dependable source of "reviews" for a Windows update worth repeating inside a deployment tool.
+
+**This is not WSUS.** It caches the updates you name, not the whole catalogue. For every PC to get everything automatically without reaching Microsoft, use WSUS and point the PCs at it.
+
 ## Windows updates
 
 Optional, and off by default. **Settings → Windows updates** takes:

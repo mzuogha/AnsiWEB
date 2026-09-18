@@ -233,6 +233,15 @@ def validate(cfg: dict) -> None:
         except re.error as exc:
             raise ValidationError(f"Update exclusion '{pattern}' is not a valid pattern ({exc})")
 
+    seen = set()
+    for hf in (upd.get("cached") or []):
+        kb = (hf.get("kb") or "").upper()
+        if not re.match(r"^KB\d{6,8}$", kb):
+            raise ValidationError(f"'{hf.get('kb')}' is not a KB number, e.g. KB5034123.")
+        if kb in seen:
+            raise ValidationError(f"{kb} is listed twice.")
+        seen.add(kb)
+
     tm = cfg.get("time") or {}
     if tm.get("timezone") and not TIMEZONE_RE.match(tm["timezone"]):
         raise ValidationError("That does not look like a Windows time zone ID, e.g. "

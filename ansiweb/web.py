@@ -28,7 +28,7 @@ ENDPOINT_PERMISSIONS = {
     "first_password": users.VIEW,
     "coffee": users.VIEW,
     "dismiss": users.VIEW,
-    "printers_page": users.VIEW, "shares_page": users.VIEW,
+    "printers_page": users.VIEW, "shares_page": users.VIEW, "updates_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
@@ -43,6 +43,9 @@ ENDPOINT_PERMISSIONS = {
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_search_add": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
+    "hotfix_add": users.MANAGE_CONTENT, "hotfix_delete": users.MANAGE_CONTENT,
+    "hotfix_package": users.MANAGE_CONTENT, "hotfix_lookup": users.MANAGE_CONTENT,
+    "hotfix_run": users.RUN_JOBS,
     "share_add": users.MANAGE_CONTENT, "share_delete": users.MANAGE_CONTENT,
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
     "file_sharing_save": users.MANAGE_CONTENT,
@@ -719,6 +722,107 @@ def create_app(start_background: bool = True) -> Flask:
         if save_or_flash(cfg):
             flash("File and printer sharing settings saved. Run 'Set up all' to apply them.", "ok")
         return redirect(url_for("shares_page"))
+
+    # ---- cached Windows updates ---------------------------------------------------
+    @app.route("/updates")
+    def updates_page():
+        cfg = store.load()
+        entries = []
+        reports = load_reports()
+        for hf in (cfg.get("updates", {}).get("cached") or []):
+            # Which PCs have reported this update, from what they said they installed
+            on_pcs = [name for name, r in reports.items()
+                      if any(hf["kb"].lower() in (str(i.get("detail", "")) + str(i.get("name", ""))).lower()
+                             for i in (r.get("results") or []))]
+            entries.append({**hf, "present": payloads.hotfix_present(hf),
+                            "links": cache.kb_links(hf["kb"]), "on_pcs": on_pcs})
+        return render_template("updates.html", cfg=cfg, entries=entries,
+                               settings=cfg.get("updates", {}),
+                               targets=store.target_choices(cfg))
+
+    def find_hotfix(cfg, kb):
+        for i, hf in enumerate(cfg.get("updates", {}).get("cached") or []):
+            if hf["kb"].upper() == kb.upper():
+                return i, hf
+        abort(404)
+
+    @app.route("/updates/add", methods=["POST"])
+    def hotfix_add():
+        cfg = store.load()
+        f = request.form
+        try:
+            kb = cache.normalise_kb(f.get("kb", ""))
+            cached = cfg.setdefault("updates", {}).setdefault("cached", [])
+            if any(h["kb"].upper() == kb for h in cached):
+                raise store.ValidationError(f"{kb} is already listed.")
+            entry = {"kb": kb, "title": f.get("title", "").strip(), "enabled": True,
+                     "notes": f.get("notes", "").strip(),
+                     "targets": request.form.getlist("targets") or ["all"]}
+            upload = request.files.get("package")
+            if upload and upload.filename:
+                entry.update(payloads.store_hotfix(kb, upload))
+            cached.append(entry)
+            store.save(cfg)
+            if entry.get("file"):
+                flash(f"{kb} is cached and ready to install.", "ok")
+            else:
+                flash(f"{kb} added. Upload its .msu to be able to install it from here.", "ok")
+        except (store.ValidationError, cache.CacheError) as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("updates_page"))
+
+    @app.route("/updates/<kb>/package", methods=["POST"])
+    def hotfix_package(kb):
+        cfg = store.load()
+        idx, hf = find_hotfix(cfg, kb)
+        f = request.files.get("package")
+        try:
+            if not f or not f.filename:
+                raise store.ValidationError("Choose the .msu file downloaded from the catalogue.")
+            cfg["updates"]["cached"][idx].update(payloads.store_hotfix(hf["kb"], f))
+            store.save(cfg)
+            flash(f"{hf['kb']} is cached and ready to install.", "ok")
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("updates_page"))
+
+    @app.route("/updates/<kb>/lookup", methods=["POST"])
+    def hotfix_lookup(kb):
+        """Best-effort: ask the catalogue what it has for this KB."""
+        cfg = store.load()
+        idx, hf = find_hotfix(cfg, kb)
+        try:
+            found = cache.catalog_lookup(hf["kb"])
+            if found and not cfg["updates"]["cached"][idx].get("title"):
+                cfg["updates"]["cached"][idx]["title"] = found[0]["title"][:120]
+                store.save(cfg)
+            flash("The catalogue lists: " + "; ".join(f["title"] for f in found[:4]), "ok")
+        except cache.CacheError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("updates_page"))
+
+    @app.route("/updates/<kb>/delete", methods=["POST"])
+    def hotfix_delete(kb):
+        cfg = store.load()
+        idx, hf = find_hotfix(cfg, kb)
+        del cfg["updates"]["cached"][idx]
+        if save_or_flash(cfg):
+            if hf.get("file"):
+                (payloads.hotfix_dir() / hf["file"]).unlink(missing_ok=True)
+            flash(f"{hf['kb']} removed from the cache. PCs that already have it keep it.", "ok")
+        return redirect(url_for("updates_page"))
+
+    @app.route("/updates/<kb>/run", methods=["POST"])
+    def hotfix_run(kb):
+        cfg = store.load()
+        _, hf = find_hotfix(cfg, kb)
+        try:
+            job_id = jobs.start("hotfix", scoped_target(cfg, request.form.get("target", "all")),
+                                trigger=f"manual ({session.get('user')})", only=hf["kb"])
+        except (jobs.JobBusy, ValueError, store.ValidationError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("updates_page"))
+        return redirect(url_for("job_view", job_id=job_id))
 
     # ---- printers ------------------------------------------------------------------
     @app.route("/printers")

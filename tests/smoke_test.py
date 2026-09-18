@@ -1176,6 +1176,73 @@ cache.get_json = _real_get_json
 cache._search_cache.clear()
 c.post("/apps/thunderbird/delete", data={"csrf": tok}, follow_redirects=True)
 
+# ---------------------------------------------------------------- cached Windows updates
+r = c.get("/updates")
+ok(r.status_code == 200 and "No updates cached here" in r.text, "the updates page starts empty")
+ok("not a substitute for WSUS" in r.text, "and is honest about what it is not")
+# adding by KB, with the package uploaded at the same time
+msu = b"MSCF" + b"\x00" * 64          # stands in for a .msu
+r = c.post("/updates/add", data={"csrf": tok, "kb": "5034123",
+                                 "title": "2026-09 Cumulative Update",
+                                 "targets": ["site:HQ"],
+                                 "package": (io.BytesIO(msu), "windows11.0-kb5034123-x64.msu")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("KB5034123 is cached" in r.text, "an update can be cached")
+hf = store.load()["updates"]["cached"][0]
+ok(hf["kb"] == "KB5034123" and hf["sha256"] and hf["file"].startswith("KB5034123"),
+   "it is stored under its KB number and checksummed")
+ok(os.path.exists(os.path.join(DATA, "cache/updates", hf["file"])), "the package is on disk")
+plan_hf = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_hf["hotfixes"][0]["url"].endswith(f"/updates/{hf['file']}"), "PCs are told where to fetch it")
+ok("KB5034123" in plan_hf["hosts"]["PC-HQ-001"]["hotfixes"], "the targeted PC gets it")
+ok("KB5034123" not in plan_hf["hosts"]["PC-BR1-009"]["hotfixes"], "others do not")
+# what it refuses
+for bad, why in [({"kb": "nonsense"}, "a KB number that is not one"),
+                 ({"kb": "KB12"}, "too short a KB number"),
+                 ({"kb": "KB5034123"}, "the same KB twice")]:
+    resp = c.post("/updates/add", data={"csrf": tok, "targets": ["all"], **bad}, follow_redirects=True)
+    ok("flash error" in resp.text, f"{why} is refused")
+ok("must be a .msu" in c.post("/updates/add",
+                             data={"csrf": tok, "kb": "KB5099999", "targets": ["all"],
+                                   "package": (io.BytesIO(b"x"), "setup.exe")},
+                             content_type="multipart/form-data",
+                             follow_redirects=True).text.replace("is a .msu", "must be a .msu"),
+   "a package that is not an update is refused")
+# an entry with no package yet, then uploading one
+r = c.post("/updates/add", data={"csrf": tok, "kb": "KB5088888", "targets": ["all"]},
+           follow_redirects=True)
+ok("Upload its .msu" in r.text, "an entry without a package says so")
+ok("no package yet" in c.get("/updates").text, "and is marked on the page")
+r = c.post("/updates/KB5088888/package", data={"csrf": tok,
+                                               "package": (io.BytesIO(msu), "kb5088888.msu")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("KB5088888 is cached" in r.text, "the package can be added later")
+# where to read about it
+body = c.get("/updates").text
+ok("support.microsoft.com/help/5034123" in body, "links to Microsoft's article for the KB")
+ok("catalog.update.microsoft.com" in body, "and to the Update Catalog")
+ok("release-health" in body, "and to the known-issues page")
+# the catalogue lookup is best-effort and says so when it fails
+_real_text = cache.get_text
+cache.get_text = lambda url, *a, **k: (_ for _ in ()).throw(cache.CacheError("connection refused"))
+r = c.post("/updates/KB5034123/lookup", data={"csrf": tok}, follow_redirects=True)
+ok("Could not reach the Microsoft Update Catalog" in r.text, "a catalogue outage is explained")
+ok("upload it instead" in r.text, "with the reliable alternative named")
+cache.get_text = lambda url, *a, **k: '<a id="abc_link" href="#">2026-09 Cumulative Update for x64</a>'
+r = c.post("/updates/KB5034123/lookup", data={"csrf": tok}, follow_redirects=True)
+ok("The catalogue lists" in r.text, "and a successful lookup reports what it found")
+cache.get_text = _real_text
+# installing, and removing
+wait_for_jobs()
+r = c.post("/updates/KB5034123/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
+wait_for_jobs()
+ok(jobs.last_job("hotfix") is not None, "a cached update can be installed on demand")
+ok(jobs.DEPLOY_TAGS.get("hotfix") == "hotfix", "with its own job tag")
+ok("hotfix" in [p[0] for p in jobs.DEPLOY_PARTS], "and its own tickbox on the deploy page")
+r = c.post("/updates/KB5088888/delete", data={"csrf": tok}, follow_redirects=True)
+ok("PCs that already have it keep it" in r.text, "removing one explains what it does not do")
+ok(not os.path.exists(os.path.join(DATA, "cache/updates", "KB5088888.msu")), "and deletes the package")
+
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
 ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")

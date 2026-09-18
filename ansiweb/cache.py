@@ -407,3 +407,61 @@ def winget_search(term: str, token: str = "", limit: int = 25) -> list:
         if len(found) >= limit:
             break
     return found[:limit]
+
+
+# ---- Windows updates from the Microsoft Update Catalog -------------------------
+# The catalogue has no supported API: it is an HTML search page whose markup
+# Microsoft changes from time to time. So this is best-effort - it looks up the
+# download links for a KB, and says clearly when it cannot. The dependable route
+# is to download the .msu from the catalogue in a browser and upload it, which is
+# what the Updates page offers alongside this.
+CATALOG_SEARCH = "https://www.catalog.update.microsoft.com/Search.aspx?q="
+CATALOG_DOWNLOAD = "https://catalog.s.download.windowsupdate.com/"
+KB_RE = re.compile(r"^KB\d{6,8}$", re.I)
+
+
+def normalise_kb(kb: str) -> str:
+    kb = (kb or "").strip().upper()
+    if kb.isdigit():
+        kb = "KB" + kb
+    if not KB_RE.match(kb):
+        raise CacheError("A KB number looks like KB5034123.")
+    return kb
+
+
+def kb_links(kb: str) -> dict:
+    """Where to read about an update. Microsoft's own pages, not hearsay."""
+    kb = normalise_kb(kb)
+    number = kb[2:]
+    return {
+        "article": f"https://support.microsoft.com/help/{number}",
+        "catalog": f"{CATALOG_SEARCH}{urllib.parse.quote(kb)}",
+        "health": "https://learn.microsoft.com/windows/release-health/",
+        "search": f"https://www.bing.com/search?q={urllib.parse.quote(kb + ' known issues')}",
+    }
+
+
+def catalog_lookup(kb: str) -> list:
+    """Best-effort: the packages the catalogue lists for a KB.
+
+    Returns [{title, size, id}]. Raises CacheError with something useful when
+    the catalogue cannot be reached or its page no longer parses.
+    """
+    kb = normalise_kb(kb)
+    try:
+        html = get_text(CATALOG_SEARCH + urllib.parse.quote(kb))
+    except CacheError as exc:
+        raise CacheError(f"Could not reach the Microsoft Update Catalog ({exc}). "
+                         "Download the .msu there in a browser and upload it instead.")
+    rows = re.findall(r'<a[^>]+id="([^"]+)_link"[^>]*>(.*?)</a>', html, re.S)
+    found = []
+    for update_id, title in rows:
+        title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", title)).strip()
+        if title:
+            found.append({"id": update_id.replace("_link", ""), "title": title})
+    if not found:
+        raise CacheError(
+            f"The catalogue returned nothing for {kb} that AnsiWEB could read. Its page layout "
+            "changes from time to time. Download the .msu from the catalogue in a browser and "
+            "upload it here instead.")
+    return found

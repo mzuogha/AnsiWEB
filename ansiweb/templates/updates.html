@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_select, target_picker, size, tip with context %}
+{% block title %}Windows Updates{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Windows Updates</h1>
+  <div class="actions">
+    {% if can(perms.run) %}
+    <form method="post" action="{{ url_for('job_start') }}" class="inline row tight"
+          data-confirm="Install every cached update on the selected PCs now?">{{ csrf() }}
+      <input type="hidden" name="kind" value="hotfix">
+      {{ target_select('target', targets) }}
+      <button class="btn primary">Install cached updates</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<p class="muted">Two ways of getting updates onto the PCs, and they work together:</p>
+<table class="kv">
+  <tr><th>From Microsoft</th>
+    <td>Each PC fetches its own updates from Windows Update or your WSUS. Set up under
+      <a href="{{ url_for('settings_page') }}#updates">Settings → Windows updates</a>, currently
+      <b>{{ 'on' if settings.enabled else 'off' }}</b>. This is the right way round for PCs with a route out.</td></tr>
+  <tr><th>Cached here</th>
+    <td>A specific update, held on this server and installed from it. For PCs with no route to Microsoft, or
+      when you want one particular fix on one particular set of PCs.</td></tr>
+</table>
+
+<div class="flash warn"><b>AnsiWEB is not a substitute for WSUS.</b> It caches the updates you name, not the whole
+  catalogue. If you want every PC to get everything automatically without reaching Microsoft, that is what WSUS is
+  for — point the PCs at it under Settings → Windows updates.</div>
+
+<table class="list">
+  <tr><th>Update</th><th>Package{{ tip("The .msu from the Microsoft Update Catalog, held on this server and fetched by the PCs over HTTP.") }}</th>
+    <th>Install on</th><th>Reported by</th><th>Read about it</th><th></th></tr>
+  {% for e in entries %}
+  <tr class="{{ 'dim' if not e.enabled }}">
+    <td><b>{{ e.kb }}</b>{% if e.title %}<br><span class="muted small">{{ e.title }}</span>{% endif %}
+      {% if e.notes %}<br><span class="muted small">{{ e.notes }}</span>{% endif %}</td>
+    <td class="small">
+      {% if e.present %}<span class="pill st-ok">cached</span><br>
+        <span class="muted">{{ e.original }} ({{ size(e.size) }})</span>
+      {% else %}<span class="pill st-missing">no package yet</span>{% endif %}</td>
+    <td class="small">{% for t in e.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td class="small">{% if e.on_pcs %}{{ e.on_pcs | length }} PC(s)<br>
+        <span class="muted">{{ e.on_pcs[:4] | join(', ') }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="small nowrap">
+      <a href="{{ e.links.article }}" target="_blank" rel="noopener">Microsoft's article</a><br>
+      <a href="{{ e.links.catalog }}" target="_blank" rel="noopener">Update Catalog</a><br>
+      <a href="{{ e.links.health }}" target="_blank" rel="noopener">Known issues</a><br>
+      <a href="{{ e.links.search }}" target="_blank" rel="noopener">What others report</a>
+    </td>
+    <td class="nowrap">
+      {% if can(perms.run) and e.present %}
+      <form method="post" action="{{ url_for('hotfix_run', kb=e.kb) }}" class="inline row tight">{{ csrf() }}
+        {{ target_select('target', targets, cls='short') }}
+        <button class="btn small primary">Install now</button></form>
+      {% endif %}
+      {% if can(perms.content) %}
+      <form method="post" action="{{ url_for('hotfix_package', kb=e.kb) }}" enctype="multipart/form-data"
+            class="inline row tight">{{ csrf() }}
+        <input type="file" name="package" accept=".msu,.cab" class="short">
+        <button class="btn small">{{ 'Replace' if e.present else 'Upload .msu' }}</button></form>
+      <form method="post" action="{{ url_for('hotfix_lookup', kb=e.kb) }}" class="inline">{{ csrf() }}
+        <button class="btn small" title="Ask the Microsoft Update Catalog what it has for this KB">Look up</button></form>
+      <form method="post" action="{{ url_for('hotfix_delete', kb=e.kb) }}" class="inline"
+            data-confirm="Remove {{ e.kb }} from the cache? PCs that already have it keep it.">{{ csrf() }}
+        <button class="btn small danger">Remove</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">No updates cached here.</td></tr>
+  {% endfor %}
+</table>
+
+{% if can(perms.content) %}
+<section class="panel">
+  <h2>Cache an update</h2>
+  <p class="muted small">Find the update at the
+    <a href="https://www.catalog.update.microsoft.com/" target="_blank" rel="noopener">Microsoft Update Catalog</a>,
+    download the <code>.msu</code> for the right Windows version and architecture, and upload it here. AnsiWEB can
+    also ask the catalogue what it lists for a KB, though that page has no supported interface and the lookup
+    sometimes cannot read it — the upload always works.</p>
+  <form method="post" action="{{ url_for('hotfix_add') }}" enctype="multipart/form-data" class="form">{{ csrf() }}
+    <div class="row">
+      <label>KB number<input name="kb" required placeholder="KB5034123"></label>
+      <label>Package (optional now)<input type="file" name="package" accept=".msu,.cab">
+        <small>The .msu from the catalogue. Without it the entry is a note; nothing is installed.</small></label>
+      <label>Description (optional)<input name="title" placeholder="2026-09 Cumulative Update for Windows 11"></label>
+    </div>
+    <label>Notes (optional)<input name="notes" placeholder="fixes the printing problem on the branch PCs"></label>
+    {{ target_picker(targets, heading='Install on') }}
+    <div class="formactions"><button class="btn primary">Add</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

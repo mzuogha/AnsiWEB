@@ -24,6 +24,7 @@ KINDS = {
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
     "updates": "Install Windows updates",
+    "hotfix": "Install cached updates",
     "printers": "Set up printers",
     "shares": "Set up shared folders",
     "inventory": "Collect inventory from PCs",
@@ -45,6 +46,7 @@ DEPLOY_TAGS = {
     "activate": "activation",
     "set_time": "time",
     "updates": "updates",
+    "hotfix": "hotfix",
     "printers": "printers",
     "shares": "shares",
     "inventory": "inventory",
@@ -184,6 +186,7 @@ DEPLOY_PARTS = [
     ("time", "Time and time zone", "set the time zone and time source"),
     ("activation", "Windows activation", "activate Windows if it is not already"),
     ("hostname", "Computer name", "rename Windows to match AnsiWEB"),
+    ("hotfix", "Cached updates", "install the update packages held on this server"),
     ("updates", "Windows updates", "install updates (this can take hours)"),
     ("inventory", "Inventory", "collect the installed-software list"),
 ]

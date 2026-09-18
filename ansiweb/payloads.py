@@ -89,6 +89,41 @@ def printer_driver_present(entry: dict) -> bool:
     return bool(f) and (kind_dir(PRINTER_DRIVERS) / f).exists()
 
 
+HOTFIX_DIR = "updates"
+
+
+def hotfix_dir():
+    return kind_dir(HOTFIX_DIR)
+
+
+def store_hotfix(kb: str, file_storage) -> dict:
+    """Save an update package (.msu or .cab) downloaded from the catalogue."""
+    name = (file_storage.filename or "").lower()
+    if not name.endswith((".msu", ".cab")):
+        raise store.ValidationError("A Windows update is a .msu (or .cab) file from the "
+                                    "Microsoft Update Catalog.")
+    d = hotfix_dir()
+    fname = f"{kb}{os.path.splitext(name)[1]}"
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".up-")
+    os.close(fd)
+    try:
+        file_storage.save(tmp)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, d / fname)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    path = d / fname
+    return {"file": fname, "original": file_storage.filename,
+            "sha256": cache.sha256_file(path), "size": path.stat().st_size,
+            "added": cache.now()}
+
+
+def hotfix_present(entry: dict) -> bool:
+    f = entry.get("file")
+    return bool(f) and (hotfix_dir() / f).exists()
+
+
 def kind_dir(kind: str):
     d = paths.CACHE_DIR / kind
     d.mkdir(parents=True, exist_ok=True)

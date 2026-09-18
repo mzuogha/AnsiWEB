@@ -26,6 +26,9 @@ updates:
   reboot: false            # let Windows reboot the PC when updates need it
   timeout_minutes: 180
   targets: [all]
+  # Update packages cached here and installed from this server, for PCs with no
+  # route to Microsoft. Each: {kb, title, file, sha256, size, targets, notes}
+  cached: []
 
 # Clock settings pushed to the PCs: time zone and where they get the time from.
 time:
