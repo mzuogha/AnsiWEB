@@ -7,6 +7,7 @@ the file itself is stored under cache/<kind>/ and served at /software/<kind>/.
 import os
 import re
 import tempfile
+import zipfile
 
 from . import cache, paths, store
 
@@ -65,6 +66,36 @@ RUN_MODES = {
 PRINTER_DRIVERS = "printers"     # cache/printers/, served at /software/printers/
 
 
+def inspect_driver_zip(path) -> dict:
+    """What a driver package contains, so problems show up before deployment."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist() if not n.endswith("/")]
+    except (zipfile.BadZipFile, OSError):
+        raise store.ValidationError("That file is not a readable .zip.")
+    lower = [n.lower() for n in names]
+    if not [n for n in lower if n.endswith(".inf")]:
+        raise store.ValidationError(
+            "There is no .inf file in that package, so Windows has no driver to install. "
+            "Zip the vendor's extracted driver folder, not the installer .exe.")
+    return {"infs": len([n for n in lower if n.endswith(".inf")]),
+            "cats": len([n for n in lower if n.endswith(".cat")]),
+            "files": len(names)}
+
+
+def driver_warning(info: dict) -> str:
+    """A note when a package looks like the PC will refuse it."""
+    if not info.get("cats"):
+        return ("This package has no .cat file. Windows refuses a driver whose files are not "
+                "vouched for by a signature catalogue, so it will probably fail on the PC. Zip "
+                "the vendor's driver folder exactly as extracted - every file, nothing edited.")
+    return ""
+
+
+def printer_driver_dir():
+    return kind_dir(PRINTER_DRIVERS)
+
+
 def store_printer_driver(entry_id: str, file_storage) -> dict:
     """Save a driver package (.zip of .inf files) staged with a printer."""
     if not (file_storage.filename or "").lower().endswith(".zip"):
@@ -79,14 +110,14 @@ def delete_printer_driver(entry: dict) -> None:
     f = entry.get("driver_file")
     if f:
         try:
-            (kind_dir(PRINTER_DRIVERS) / f).unlink()
+            (printer_driver_dir() / f).unlink()
         except FileNotFoundError:
             pass
 
 
 def printer_driver_present(entry: dict) -> bool:
     f = entry.get("driver_file")
-    return bool(f) and (kind_dir(PRINTER_DRIVERS) / f).exists()
+    return bool(f) and (printer_driver_dir() / f).exists()
 
 
 HOTFIX_DIR = "updates"

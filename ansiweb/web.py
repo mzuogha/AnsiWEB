@@ -867,6 +867,8 @@ def create_app(start_background: bool = True) -> Flask:
             driver = request.files.get("driver_package")
             if driver and driver.filename:
                 printer.update(payloads.store_printer_driver(printer["id"], driver))
+                _warn_about_driver("drivers", {"file": printer.get("driver_file")},
+                                   payloads.printer_driver_dir())
             cfg.setdefault("printers", []).append(printer)
             store.save(cfg)
             staged = " The driver is staged and will be installed before the printer." \
@@ -912,6 +914,8 @@ def create_app(start_background: bool = True) -> Flask:
                 raise store.ValidationError("Choose a driver package (.zip of the vendor's .inf files).")
             cfg["printers"][idx].update(payloads.store_printer_driver(pid, f))
             store.save(cfg)
+            _warn_about_driver("drivers", {"file": cfg["printers"][idx].get("driver_file")},
+                               payloads.printer_driver_dir())
             flash(f"Driver staged for '{printer['name']}'. It is installed on each PC before the printer.", "ok")
         except store.ValidationError as exc:
             flash(str(exc), "error")
@@ -1046,6 +1050,19 @@ def create_app(start_background: bool = True) -> Flask:
                                run_modes=payloads.RUN_MODES, reports=load_reports(),
                                job_kind="deploy_files")
 
+    def _warn_about_driver(kind: str, entry: dict, folder=None) -> None:
+        """Say so at upload time when a driver package looks like Windows will refuse it."""
+        if kind != "drivers" or not entry.get("file"):
+            return
+        try:
+            info = payloads.inspect_driver_zip((folder or payloads.kind_dir(kind)) / entry["file"])
+        except store.ValidationError as exc:
+            flash(str(exc), "error")
+            return
+        warn = payloads.driver_warning(info)
+        if warn:
+            flash(warn, "error")
+
     def payload_fields(kind: str, entry: dict) -> dict:
         """The form fields shared by adding and editing a driver, script or registry file."""
         f = request.form
@@ -1079,6 +1096,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "enabled": True,
             })
             entry.update(payloads.store_file(kind, entry["id"], f))
+            _warn_about_driver(kind, entry)
             cfg.setdefault(kind, []).append(entry)
             store.save(cfg)
             flash(f"{payloads.KINDS[kind]['label']} '{name}' uploaded.", "ok")
@@ -1105,6 +1123,7 @@ def create_app(start_background: bool = True) -> Flask:
                 f = request.files.get("payload")
                 if f and f.filename:
                     entry.update(payloads.store_file(kind, entry["id"], f))
+                    _warn_about_driver(kind, entry)
                 cfg[kind][idx] = entry
                 store.save(cfg)
                 flash("Saved.", "ok")

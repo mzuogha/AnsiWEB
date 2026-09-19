@@ -4,6 +4,26 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.18.1"
+  date: "2026-09-18"
+  summary: >-
+    Clearer job summaries when something fails, and a fix for staging a printer
+    driver.
+  fixed:
+    - "A job summary counted AnsiWEB's own error handling as failed tasks, so
+       one failure on a PC read as three. Only the task that actually failed is
+       listed now."
+    - "Staging a driver with a printer failed with an internal error, because
+       the warning about a missing .cat file looked for a helper that was not
+       there."
+    - A job that failed on a PC is recorded as failed rather than a warning;
+       an unreachable PC stays a warning, which is a different thing.
+  changed:
+    - "The Help page and the installation guide explain the driver error
+       'the hash for the file is not present in the specified catalog file':
+       the .zip is incomplete or something in it was altered, so the vendor's
+       folder needs re-zipping exactly as extracted."
+
 - version: "1.18.0"
   date: "2026-09-17"
   summary: >-

@@ -226,6 +226,20 @@ _STATUS_LABEL = {"failed": "FAILED", "fatal": "FAILED", "unreachable": "UNREACHA
                  "changed": "changed", "ok": "ok", "skipping": "skipped"}
 
 
+# The playbook's own error handling: useful to Ansible, noise in a summary that
+# is meant to say what happened on the PC.
+_BOOKKEEPING = {"Say which task failed", "Keep the job's failed status",
+                "What was applied on this PC"}
+
+
+# The playbook's own error handling: these report a failure rather than being
+# one, so they are left out of the summary.
+# ("Gathering Facts" stays in: an unreachable PC shows up there, which is
+# exactly what the summary should report.)
+_BOOKKEEPING = {"Say which task failed", "Keep the job's failed status",
+                "What was applied on this PC"}
+
+
 def summarise_run(text: str) -> str:
     """A short 'what each task did' list, from Ansible's output."""
     tasks: list = []
@@ -242,6 +256,10 @@ def summarise_run(text: str) -> str:
         raw = _CANONICAL.get(result.group(1), result.group(1))
         status = _STATUS_LABEL.get(raw, raw)
         host = result.group(2).strip()
+        if current in _BOOKKEEPING:
+            continue
+        if current in _BOOKKEEPING:
+            continue
         if current not in index:
             index[current] = {}
             tasks.append(current)
@@ -344,7 +362,11 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
         rc = 1
     finally:
         prune_logs()
-        status = "success" if rc == 0 else ("warning" if rc == 2 else "failed")
+        # rc 2 means "some hosts failed", which is a failure, not a warning.
+        # rc 4 is "some hosts were unreachable", which is worth distinguishing.
+        status = {0: "success", 4: "warning"}.get(rc, "failed")
+        if rc == 2 and "failed=0" in log_path(job_id).read_text(errors="replace"):
+            status = "warning"          # nothing actually failed on a PC
         log(f"[{_stamp()}] Finished with status: {status}")
         fh.close()
         with _db_lock, _conn() as c:

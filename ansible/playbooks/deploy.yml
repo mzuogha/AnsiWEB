@@ -40,8 +40,8 @@
         - name: What was applied on this PC
           tags: [always]
           ansible.builtin.debug:
-            vars:
-              done: "{{ aw_results | default([]) }}"
-            msg: "{{ [inventory_hostname ~ ' - ' ~ (done | length | string) ~ ' item(s):'] +
-                     (done | map(attribute='name') | zip(done | map(attribute='status'))
-                           | map('join', ' = ') | list) }}"
+            msg: "{{ [inventory_hostname ~ ' - '
+                     ~ ((aw_results | default([])) | length | string) ~ ' item(s):']
+                     + ((aw_results | default([])) | map(attribute='name') | list
+                        | zip((aw_results | default([])) | map(attribute='status') | list)
+                        | map('join', ' = ') | list) }}"

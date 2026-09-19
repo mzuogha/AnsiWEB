@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.18.1 - 2026-09-18
+
+Clearer job summaries when something fails, and a fix for staging a printer driver.
+
+
+### Changed
+
+- The Help page and the installation guide explain the driver error 'the hash for the file is not present in the specified catalog file': the .zip is incomplete or something in it was altered, so the vendor's folder needs re-zipping exactly as extracted.
+
+
+### Fixed
+
+- A job summary counted AnsiWEB's own error handling as failed tasks, so one failure on a PC read as three. Only the task that actually failed is listed now.
+- Staging a driver with a printer failed with an internal error, because the warning about a missing .cat file looked for a helper that was not there.
+- A job that failed on a PC is recorded as failed rather than a warning; an unreachable PC stays a warning, which is a different thing.
+
+
 ## 1.18.0 - 2026-09-17
 
 Particular Windows updates can be cached on the server and installed from it, with links to what Microsoft and others say about them.

@@ -525,6 +525,20 @@ ok(any("aw_results" in str(_t) for _t in _wrapper["always"]),
    "and the summary lists what was applied")
 
 # ---------------------------------------------------------------- what each task did
+# The playbook's own error handling should not appear as extra failures
+_noisy = jobs.summarise_run("""
+TASK [ansiweb_apps : Add the driver for IT Ricoh to the Windows driver store] ***
+fatal: [PC-A]: FAILED! => {"msg": "catalogue mismatch"}
+TASK [Say which task failed] ***
+ok: [PC-A]
+TASK [Keep the job's failed status] ***
+fatal: [PC-A]: FAILED! => {"msg": "stopped at"}
+TASK [What was applied on this PC] ***
+ok: [PC-A]
+""")
+ok(_noisy.count("[x]") == 1, "only the task that really failed is marked failed")
+ok("Keep the job's failed status" not in _noisy, "AnsiWEB's own bookkeeping is left out")
+ok("Add the driver for IT Ricoh" in _noisy, "and the real cause is named")
 sample = """
 TASK [ansiweb_apps : Load the plan] ***
 ok: [PC-A]
@@ -555,6 +569,22 @@ ok("Failed:" not in jobs.summarise_run("""
 TASK [ansiweb_apps : Install apps] ***
 ok: [PC-A]
 """), "and no failure list")
+# the playbook's own error handling reports a failure rather than being one
+_book = jobs.summarise_run("""
+TASK [ansiweb_apps : Add the driver for IT Ricoh to the Windows driver store] ***
+fatal: [PC-A]: FAILED! => {"msg": "catalog hash"}
+TASK [Say which task failed] ***
+ok: [PC-A]
+TASK [Keep the job's failed status] ***
+fatal: [PC-A]: FAILED! => {"msg": "stopped at"}
+TASK [What was applied on this PC] ***
+ok: [PC-A]
+""")
+ok("Add the driver" in _book, "a real failure is reported")
+ok("Keep the job" not in _book and "Say which task failed" not in _book,
+   "AnsiWEB's own error handling is not listed as tasks")
+ok(_book.count("[x]") == 1, "so one failure reads as one failure")
+
 ok(jobs.summarise_run("nothing that looks like ansible") == "",
    "output that is not a playbook run is left alone")
 ok("[x] Gathering Facts" in jobs.summarise_run("""

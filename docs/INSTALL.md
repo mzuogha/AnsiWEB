@@ -607,6 +607,7 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | PC can't download installers | On the PC: `curl http://<server-ip>/software/apps/` should give `403` (listings are off, which means the server is answering). If it times out, check the route and firewalls. |
 | A driver fails to install | The `.zip` must hold the `.inf` files themselves, not a vendor installer. The job log shows the `pnputil` exit code. |
 | Updates time out | Expected on PCs that are far behind. Raise the timeout in Settings and run the job again. |
+| A driver fails with "the hash for the file is not present in the specified catalog file" | The package's signature catalogue does not match its files: the .zip is incomplete or something was altered. Re-zip the vendor's folder exactly as extracted, including the `.cat` and any subfolders. |
 | A printer fails with "the driver is not available" | Either no driver package is staged with that printer, or the driver name does not match the one in the .inf. Attach the package on the Printers page and check the name. |
 | An uninstall reports "no silent uninstaller" | That program can only be removed interactively, so AnsiWEB left it alone. Remove it by hand, or use a script with the vendor's own switches. |
 | An uninstall matched nothing | The pattern does not match the name under Windows Settings → Apps → Installed apps on that PC. Check a PC's page in Reports for the exact names. |
