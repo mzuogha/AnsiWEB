@@ -848,6 +848,7 @@ def create_app(start_background: bool = True) -> Flask:
             "location": f.get("location", "").strip(),
             "default": f.get("default") == "on",
             "remove": f.get("remove") == "on",
+            "driver_allow_unsigned": f.get("driver_allow_unsigned") == "on",
             # "targets" may hold all / site: / group: entries and individual pc: entries
             "targets": request.form.getlist("targets") or ["all"],
             # A driver package uploaded on the drivers page can be linked here
@@ -1071,6 +1072,8 @@ def create_app(start_background: bool = True) -> Flask:
             "targets": request.form.getlist("targets") or ["all"],
             "notes": f.get("notes", "").strip(),
         })
+        if kind == "drivers":
+            entry["allow_unsigned"] = f.get("allow_unsigned") == "on"
         if kind == "scripts":
             entry.update({"arguments": f.get("arguments", "").strip(),
                           "timeout": int(f.get("timeout") or 1800),

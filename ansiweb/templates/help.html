@@ -251,10 +251,13 @@ sudo systemctl start ansiweb</pre>
       <td>It has been off or unreachable since its last deployment. Test the connection from its page; the
         threshold is in Settings.</td></tr>
     <tr><td>A driver fails with "the hash for the file is not present in the specified catalog file"</td>
-      <td>Windows will not install a driver whose signature catalogue does not match its files. The .zip is
-        incomplete or something in it was altered. Re-zip the vendor's driver folder exactly as extracted — every
-        file, including the .cat and any subfolders, nothing edited or renamed. Zipping only the .inf always fails
-        this way. If the vendor ships separate x86 and x64 folders, upload the one matching the PCs.</td></tr>
+      <td>Windows will not install a driver whose files do not match its signature catalogue. The job log now says
+        which <code>.cat</code> the <code>.inf</code> asks for and whether it sits beside it — a common cause is a
+        package where the <code>.inf</code> is at the top and its catalogue is in an architecture subfolder, in
+        which case upload that subfolder instead. Otherwise the package is partial, mixed from two versions, or for
+        a different Windows version. If you trust the package, tick <b>Install even if Windows rejects the
+        signature</b> on the driver (or the printer's staged driver) and run the job again: AnsiWEB retries with
+        DISM's check bypassed.</td></tr>
     <tr><td>An uninstall left a program in place</td>
       <td>Either the pattern matched nothing, or the program has no silent uninstaller. The job log says which.</td></tr>
     <tr><td>Signed out while working</td>

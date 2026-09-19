@@ -22,6 +22,12 @@
   </div>
   {% endif %}
   <label>Notes<input name="notes" value="{{ entry.notes or '' }}"></label>
+  {% if kind == 'drivers' %}
+  <label class="check"><input type="checkbox" name="allow_unsigned" {{ 'checked' if entry.allow_unsigned }}>
+    Install even if Windows rejects the signature</label>
+  <p class="muted small">Retries with DISM's signature check bypassed when Windows will not vouch for the
+  package. Only for a package you obtained from the vendor and trust.</p>
+  {% endif %}
   {{ target_picker(targets, chosen=entry.targets or []) }}
   {{ pc_picker(pcs, chosen=entry.targets or [], label='individual PCs') }}
   <h3>Replace the file</h3>

@@ -84,6 +84,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
                 "state_key": f"{kind}-{e['id']}-{(e.get('sha256') or '')[:12]}",
                 "targets": e.get("targets") or ["all"],
             }
+            if kind == "drivers":
+                item["allow_unsigned"] = bool(e.get("allow_unsigned"))
             item["win_file"] = f"{PC_CACHE}\\{e['file']}"
             item["win_state"] = f"{PC_STATE}\\{item['state_key']}.done"
             item["win_unpack"] = f"{PC_CACHE}\\{e['id']}"
@@ -131,6 +133,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "location": p.get("location", ""), "default": bool(p.get("default")),
             "remove": bool(p.get("remove")), "targets": p.get("targets") or ["all"],
             "driver_file": "", "driver_url": "", "driver_sha256": "", "driver_source": "",
+            "allow_unsigned": bool(p.get("driver_allow_unsigned")),
             "driver_unpack": PC_CACHE + "\\printer-" + p["id"], "driver_win_file": "",
         }
         # A driver uploaded on the drivers page and linked to this printer wins;
@@ -144,6 +147,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
                 "driver_url": f"{base}/drivers/{linked['file']}",
                 "driver_sha256": linked.get("sha256", ""),
                 "driver_source": f"linked to the '{linked['name']}' driver",
+            "allow_unsigned": bool(linked.get("allow_unsigned")),
                 "driver_win_file": PC_CACHE + "\\" + linked["file"],
             })
         elif payloads.printer_driver_present(p):
@@ -152,6 +156,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
                 "driver_url": f"{base}/printers/{p['driver_file']}",
                 "driver_sha256": p.get("driver_sha256", ""),
                 "driver_source": "staged with this printer",
+                "allow_unsigned": bool(p.get("driver_allow_unsigned")),
                 "driver_win_file": PC_CACHE + "\\" + p["driver_file"],
             })
         printers.append(item)

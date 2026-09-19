@@ -5,6 +5,26 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 1.19.0 - 2026-09-19
+
+A driver Windows will not vouch for can be installed anyway, and the signature error now says what is actually wrong.
+
+
+### New
+
+- 'Install even if Windows rejects the signature', on an uploaded driver and on a printer's staged driver. AnsiWEB retries with DISM's signature check bypassed and records that it did so. Off unless asked for.
+
+
+### Changed
+
+- The signature error now reads the .inf, names the catalogue it asks for, and says whether that file is beside it, elsewhere in the package, or missing. A package whose .inf sits above its catalogue - common with printer drivers that ship x86 and x64 subfolders - is now obvious rather than a guess.
+
+
+### Fixed
+
+- A successful driver install was reported as a failure: the loop used 'continue' inside a switch, which leaves the switch rather than the loop, so pnputil's success fell through to the error path.
+
+
 ## 1.18.1 - 2026-09-18
 
 Clearer job summaries when something fails, and a fix for staging a printer driver.

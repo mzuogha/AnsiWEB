@@ -22,6 +22,7 @@
       ansible.windows.win_powershell:
         parameters:
           Folder: "{{ item_def.driver_unpack }}"
+          AllowUnsigned: "{{ item_def.allow_unsigned | default(false) | bool }}"
         script: "{{ lookup('ansible.builtin.file', 'install_driver.ps1') }}"
       register: aw_printer_driver
 

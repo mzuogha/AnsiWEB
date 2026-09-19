@@ -1206,6 +1206,36 @@ cache.get_json = _real_get_json
 cache._search_cache.clear()
 c.post("/apps/thunderbird/delete", data={"csrf": tok}, follow_redirects=True)
 
+# ------------------------------------------------ installing a driver Windows will not vouch for
+r = c.post("/files/add", data={"csrf": tok, "name": "Ricoh printer driver", "run_mode": "once",
+                               "targets": ["all"], "allow_unsigned": "on",
+                               "payload": (zip_bytes(["oemsetup.inf", "ricoh.cat"]), "ricoh.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("uploaded" in r.text, "a driver can be uploaded with the signature check waived")
+drv_u = [d for d in store.load()["drivers"] if d["name"] == "Ricoh printer driver"][0]
+ok(drv_u["allow_unsigned"] is True, "the choice is stored")
+plan_u = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+planned = [d for d in plan_u["drivers"] if d["id"] == drv_u["id"]][0]
+ok(planned["allow_unsigned"] is True, "and reaches the PCs in the plan")
+ok("Install even if Windows rejects the signature" in c.get(f"/drivers/{drv_u['id']}/edit").text,
+   "the driver's own page offers it")
+# off by default
+r = c.post("/files/add", data={"csrf": tok, "name": "Ordinary driver", "run_mode": "once",
+                               "targets": ["all"],
+                               "payload": (zip_bytes(["net.inf", "net.cat"]), "net.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+plain = [d for d in store.load()["drivers"] if d["name"] == "Ordinary driver"][0]
+ok(not plain.get("allow_unsigned"), "and is off unless asked for")
+# a printer's staged driver has the same switch
+r = c.post("/printers/add", data={"csrf": tok, "name": "Ricoh MP", "host": "10.0.0.21",
+                                  "driver": "RICOH PCL6", "driver_allow_unsigned": "on",
+                                  "targets": ["all"]}, follow_redirects=True)
+pr_u = [p for p in store.load()["printers"] if p["name"] == "Ricoh MP"][0]
+ok(pr_u["driver_allow_unsigned"] is True, "a printer can waive it for its staged driver")
+c.post(f"/printers/{pr_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+c.post(f"/drivers/{drv_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+c.post(f"/drivers/{plain['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+
 # ---------------------------------------------------------------- cached Windows updates
 r = c.get("/updates")
 ok(r.status_code == 200 and "No updates cached here" in r.text, "the updates page starts empty")

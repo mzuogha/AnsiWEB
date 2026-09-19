@@ -4,6 +4,26 @@
 # Each entry: version, date (YYYY-MM-DD), summary, and any of the lists
 # added / changed / fixed / removed.
 
+- version: "1.19.0"
+  date: "2026-09-19"
+  summary: >-
+    A driver Windows will not vouch for can be installed anyway, and the
+    signature error now says what is actually wrong.
+  added:
+    - "'Install even if Windows rejects the signature', on an uploaded driver
+       and on a printer's staged driver. AnsiWEB retries with DISM's signature
+       check bypassed and records that it did so. Off unless asked for."
+  changed:
+    - "The signature error now reads the .inf, names the catalogue it asks for,
+       and says whether that file is beside it, elsewhere in the package, or
+       missing. A package whose .inf sits above its catalogue - common with
+       printer drivers that ship x86 and x64 subfolders - is now obvious rather
+       than a guess."
+  fixed:
+    - "A successful driver install was reported as a failure: the loop used
+       'continue' inside a switch, which leaves the switch rather than the
+       loop, so pnputil's success fell through to the error path."
+
 - version: "1.18.1"
   date: "2026-09-18"
   summary: >-

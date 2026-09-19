@@ -88,6 +88,8 @@ printer up again does nothing if it is already correct.</p>
       <label>Location (optional)<input name="location" placeholder="2nd floor, east"></label>
       <label>Comment (optional)<input name="comment"></label>
     </div>
+    <label class="check"><input type="checkbox" name="driver_allow_unsigned"> Install the driver even if Windows
+      rejects its signature</label>
     <label class="check"><input type="checkbox" name="default"> Make it the default printer</label>
     <label class="check"><input type="checkbox" name="remove"> Remove this printer from the PCs instead of adding it</label>
     {{ target_picker(targets, heading='Install on') }}
