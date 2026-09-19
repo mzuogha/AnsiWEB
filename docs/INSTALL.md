@@ -408,19 +408,6 @@ the target.
 > Scripts run with full system rights on every PC they target. Read anything you did not write yourself, and test it
 > on one PC before pointing it at a site.
 
-### 9. Install Windows updates (optional)
-
-**Settings → Windows updates**:
-
-1. Tick **Install Windows updates during deployments**.
-2. Choose the categories you want — security, critical and rollups are a sensible baseline.
-3. Leave **Where updates come from** on the default unless you want to bypass or insist on a WSUS server.
-4. Decide whether Windows may reboot PCs. With it off, PCs needing a reboot are listed at the end of the job.
-5. Set a schedule, for example Saturdays at 22:00, then try it on one PC first with **Install updates now**.
-
-Updates can take hours per PC, so they run last in a deployment and have their own timeout. AnsiWEB does not change
-which update service a PC uses; if you want PCs pointed at a WSUS server, upload a `.reg` file on the Drivers, scripts & registry page.
-
 ### 10. Set the time zone and clock (optional)
 
 **Settings → Time and time zone** pushes clock settings to the PCs:

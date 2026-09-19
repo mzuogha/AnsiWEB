@@ -67,59 +67,6 @@
   {% else %}<p class="muted small">No logo uploaded.</p>{% endif %}
 </section>
 
-<section class="panel" id="updates">
-  <h2>Windows updates</h2>
-  <p class="muted small">Optional. Installs Windows updates on the PCs, using whichever update service each PC is
-  already set to. Updates can take hours, so they run last in a deployment and are usually best left to a schedule
-  outside working hours.</p>
-  {% set upd = cfg.updates %}
-  <form method="post" action="{{ url_for('settings_updates') }}" class="form">{{ csrf() }}
-    <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if upd.enabled }}>
-      Install Windows updates during deployments</label>
-    <h3>Which updates</h3>
-    <div class="checks">
-      {% for value, label in update_categories %}
-      <label class="check"><input type="checkbox" name="categories" value="{{ value }}"
-        {{ 'checked' if value in upd.categories }}> {{ label }}</label>
-      {% endfor %}
-    </div>
-    <div class="row">
-      <label>Where updates come from<select name="source">
-        {% for value, label in update_sources.items() %}
-        <option value="{{ value }}" {{ 'selected' if value == upd.source }}>{{ label }}</option>{% endfor %}
-      </select></label>
-      <label>Give up after (minutes)<input name="timeout_minutes" type="number" min="10" max="1440"
-        value="{{ upd.timeout_minutes }}"></label>
-    </div>
-    <label>Skip these updates<textarea name="exclude" rows="2"
-      placeholder="KB5001234, Windows Malicious Software Removal Tool">{{ upd.exclude | join(', ') }}</textarea>
-      <small>KB numbers or parts of an update title, comma-separated or one per line.</small></label>
-    <label class="check"><input type="checkbox" name="reboot" {{ 'checked' if upd.reboot }}>
-      Let Windows reboot the PC when updates need it</label>
-    <p class="muted small">With this off, PCs that need a reboot are listed at the end of the job instead.</p>
-
-    <h3>Install on</h3>
-    <div class="checks">
-      {% for t in targets %}
-      <label class="check"><input type="checkbox" name="targets" value="{{ t }}" {{ 'checked' if t in upd.targets }}> {{ target_label(t) }}</label>
-      {% endfor %}
-    </div>
-
-    <h3>Schedule</h3>
-    {% set us = cfg.schedules.updates %}
-    <div class="sched">
-      <label class="check"><input type="checkbox" name="sched_enabled" {{ 'checked' if us.enabled }}>
-        Install updates on all PCs at</label>
-      <input name="sched_time" value="{{ us.time }}" class="short" pattern="[0-2][0-9]:[0-5][0-9]"> on
-      {% for d, label in days %}<label class="check inline"><input type="checkbox" name="sched_days" value="{{ d }}"
-        {{ 'checked' if d in us.days }}> {{ label }}</label>{% endfor %}
-    </div>
-    <div class="formactions"><button class="btn primary">Save update settings</button></div>
-  </form>
-  {{ job_button('updates', 'Install updates now', 'all', 'btn',
-     'Install Windows updates on the targeted PCs now? This can take hours.') }}
-</section>
-
 <section class="panel" id="time">
   <h2>Time and time zone</h2>
   <p class="muted small">Optional. Pushes a time zone to the PCs and points them at your time servers, then forces a

@@ -5,6 +5,21 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.0.0 - 2026-09-19
+
+Windows updates are no longer part of AnsiWEB, and a printer's driver signature check can be switched without re-making the printer.
+
+
+### New
+
+- Allow unsigned driver, on each printer: switch the driver signature check off - or back on - for a printer that already exists, rather than having to delete it and add it again. A printer with the check off is marked on the page.
+
+
+### Removed
+
+- Windows updates: both the per-PC settings that told Windows to fetch its own updates, and the page that cached particular updates on the server. Nothing on the PCs changes - Windows keeps whatever update arrangement it already has, and updates already installed stay installed. WSUS or Windows Update remain the way to do this; a .reg file on the drivers, scripts and registry page can point PCs at a WSUS server.
+
+
 ## 1.19.0 - 2026-09-19
 
 A driver Windows will not vouch for can be installed anyway, and the signature error now says what is actually wrong.

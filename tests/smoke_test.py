@@ -337,55 +337,6 @@ c.post("/scripts/set-power-plan/edit", data={"csrf": tok, "name": "Set power pla
 plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(plan["scripts"][0]["state_key"] != old_key, "replacing the file changes the state key")
 
-# ---------------------------------------------------------------- Windows updates
-r = c.get("/settings")
-ok("Windows updates" in r.text and "Security updates" in r.text, "Settings offers an updates panel")
-r = c.post("/settings/updates", data={"csrf": tok, "enabled": "on",
-                                      "categories": ["SecurityUpdates", "CriticalUpdates"],
-                                      "exclude": "KB5001234, Malicious Software Removal",
-                                      "source": "managed_server", "reboot": "on",
-                                      "timeout_minutes": "240", "targets": ["site:HQ"],
-                                      "sched_enabled": "on", "sched_time": "22:30",
-                                      "sched_days": ["sat", "sun"]}, follow_redirects=True)
-ok("Update settings saved" in r.text, "update settings save")
-u = store.load()["updates"]
-ok(u["categories"] == ["SecurityUpdates", "CriticalUpdates"], "categories stored")
-ok(u["exclude"] == ["KB5001234", "Malicious Software Removal"], "exclusions split into a list")
-ok(u["source"] == "managed_server" and u["reboot"] is True and u["timeout_minutes"] == 240,
-   "source, reboot and timeout stored")
-ok(store.load()["schedules"]["updates"] == {"enabled": True, "time": "22:30", "days": ["sat", "sun"]},
-   "update schedule stored")
-plan_u = json.load(open(os.path.join(DATA, "deploy_plan.json")))
-ok(plan_u["updates"]["enabled"] and plan_u["updates"]["timeout_minutes"] == 240, "updates reach the plan")
-ok(plan_u["hosts"]["PC-HQ-001"]["update"] is True, "targeted PCs get updates")
-ok(plan_u["hosts"]["PC-BR1-009"]["update"] is False, "PCs outside the target do not")
-ok("is not a Windows update category" in
-   c.post("/settings/updates", data={"csrf": tok, "categories": ["Nonsense"], "source": "default",
-                                     "timeout_minutes": "180", "targets": ["all"]},
-          follow_redirects=True).text, "an unknown category is rejected")
-ok("Choose at least one update category" in
-   c.post("/settings/updates", data={"csrf": tok, "enabled": "on", "source": "default",
-                                     "timeout_minutes": "180", "targets": ["all"]},
-          follow_redirects=True).text, "turning updates on with no category is refused")
-ok("between 10 and 1440" in
-   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
-                                     "timeout_minutes": "5", "targets": ["all"]},
-          follow_redirects=True).text, "an unreasonable timeout is rejected")
-ok("not a valid pattern" in
-   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
-                                     "exclude": "(", "timeout_minutes": "180", "targets": ["all"]},
-          follow_redirects=True).text, "a broken exclusion pattern is rejected")
-ok("must be HH:MM" in
-   c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
-                                     "timeout_minutes": "180", "targets": ["all"],
-                                     "sched_time": "99:99"}, follow_redirects=True).text,
-   "a bad schedule time is rejected")
-ok(jobs.DEPLOY_TAGS.get("updates") == "updates", "an updates-only job exists")
-# leave updates off for the rest of the test
-c.post("/settings/updates", data={"csrf": tok, "categories": ["SecurityUpdates"], "source": "default",
-                                  "timeout_minutes": "180", "targets": ["all"], "sched_time": "22:00"},
-       follow_redirects=True)
-
 # ---------------------------------------------------------------- time and time zone
 r = c.get("/settings")
 ok("Time and time zone" in r.text and "W. Europe Standard Time" in r.text,
@@ -685,14 +636,12 @@ json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending":
                       "detail": "1 of 1 driver file(s) added"},
                      {"kind": "scripts", "id": "set-power-plan", "name": "Set power plan",
                       "status": "ran (exit 0)", "detail": "done"},
-                     {"kind": "updates", "id": "windows-updates", "name": "Windows updates",
-                      "status": "3 installed (reboot needed)", "detail": "2026-09 Cumulative Update"}]},
+]},
           open(os.path.join(DATA, "reports/PC-HQ-001.json"), "w"))
 r = c.get("/reports")
 ok("PC-HQ-001" in r.text and "Windows 11 Pro" in r.text, "report page shows the PC")
 ok("reboot pending" in r.text, "pending reboot is visible")
 ok("Intel NIC" in r.text, "driver result is visible")
-ok("3 installed" in r.text, "Windows update result is visible")
 csv_text = c.get("/reports/export.csv").text
 ok("PC-HQ-001" in csv_text and "7-Zip" in csv_text and "Dell OptiPlex" in csv_text, "CSV export")
 ok("activated" in csv_text.splitlines()[0], "CSV has an activation column")
@@ -1232,76 +1181,18 @@ r = c.post("/printers/add", data={"csrf": tok, "name": "Ricoh MP", "host": "10.0
                                   "targets": ["all"]}, follow_redirects=True)
 pr_u = [p for p in store.load()["printers"] if p["name"] == "Ricoh MP"][0]
 ok(pr_u["driver_allow_unsigned"] is True, "a printer can waive it for its staged driver")
+ok("unsigned driver allowed" in c.get("/printers").text, "and the page says so")
+# an existing printer can be switched without being re-made
+r = c.post(f"/printers/{pr_u['id']}/unsigned", data={"csrf": tok}, follow_redirects=True)
+ok("only accept a driver Windows vouches for" in r.text, "the bypass can be switched off again")
+ok(not [p for p in store.load()["printers"] if p["id"] == pr_u["id"]][0]["driver_allow_unsigned"],
+   "and the change is stored")
+r = c.post(f"/printers/{pr_u['id']}/unsigned", data={"csrf": tok}, follow_redirects=True)
+ok("Set up now" in r.text and "even if Windows rejects" in r.text,
+   "and back on, with what to do next")
 c.post(f"/printers/{pr_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 c.post(f"/drivers/{drv_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 c.post(f"/drivers/{plain['id']}/delete", data={"csrf": tok}, follow_redirects=True)
-
-# ---------------------------------------------------------------- cached Windows updates
-r = c.get("/updates")
-ok(r.status_code == 200 and "No updates cached here" in r.text, "the updates page starts empty")
-ok("not a substitute for WSUS" in r.text, "and is honest about what it is not")
-# adding by KB, with the package uploaded at the same time
-msu = b"MSCF" + b"\x00" * 64          # stands in for a .msu
-r = c.post("/updates/add", data={"csrf": tok, "kb": "5034123",
-                                 "title": "2026-09 Cumulative Update",
-                                 "targets": ["site:HQ"],
-                                 "package": (io.BytesIO(msu), "windows11.0-kb5034123-x64.msu")},
-           content_type="multipart/form-data", follow_redirects=True)
-ok("KB5034123 is cached" in r.text, "an update can be cached")
-hf = store.load()["updates"]["cached"][0]
-ok(hf["kb"] == "KB5034123" and hf["sha256"] and hf["file"].startswith("KB5034123"),
-   "it is stored under its KB number and checksummed")
-ok(os.path.exists(os.path.join(DATA, "cache/updates", hf["file"])), "the package is on disk")
-plan_hf = json.load(open(os.path.join(DATA, "deploy_plan.json")))
-ok(plan_hf["hotfixes"][0]["url"].endswith(f"/updates/{hf['file']}"), "PCs are told where to fetch it")
-ok("KB5034123" in plan_hf["hosts"]["PC-HQ-001"]["hotfixes"], "the targeted PC gets it")
-ok("KB5034123" not in plan_hf["hosts"]["PC-BR1-009"]["hotfixes"], "others do not")
-# what it refuses
-for bad, why in [({"kb": "nonsense"}, "a KB number that is not one"),
-                 ({"kb": "KB12"}, "too short a KB number"),
-                 ({"kb": "KB5034123"}, "the same KB twice")]:
-    resp = c.post("/updates/add", data={"csrf": tok, "targets": ["all"], **bad}, follow_redirects=True)
-    ok("flash error" in resp.text, f"{why} is refused")
-ok("must be a .msu" in c.post("/updates/add",
-                             data={"csrf": tok, "kb": "KB5099999", "targets": ["all"],
-                                   "package": (io.BytesIO(b"x"), "setup.exe")},
-                             content_type="multipart/form-data",
-                             follow_redirects=True).text.replace("is a .msu", "must be a .msu"),
-   "a package that is not an update is refused")
-# an entry with no package yet, then uploading one
-r = c.post("/updates/add", data={"csrf": tok, "kb": "KB5088888", "targets": ["all"]},
-           follow_redirects=True)
-ok("Upload its .msu" in r.text, "an entry without a package says so")
-ok("no package yet" in c.get("/updates").text, "and is marked on the page")
-r = c.post("/updates/KB5088888/package", data={"csrf": tok,
-                                               "package": (io.BytesIO(msu), "kb5088888.msu")},
-           content_type="multipart/form-data", follow_redirects=True)
-ok("KB5088888 is cached" in r.text, "the package can be added later")
-# where to read about it
-body = c.get("/updates").text
-ok("support.microsoft.com/help/5034123" in body, "links to Microsoft's article for the KB")
-ok("catalog.update.microsoft.com" in body, "and to the Update Catalog")
-ok("release-health" in body, "and to the known-issues page")
-# the catalogue lookup is best-effort and says so when it fails
-_real_text = cache.get_text
-cache.get_text = lambda url, *a, **k: (_ for _ in ()).throw(cache.CacheError("connection refused"))
-r = c.post("/updates/KB5034123/lookup", data={"csrf": tok}, follow_redirects=True)
-ok("Could not reach the Microsoft Update Catalog" in r.text, "a catalogue outage is explained")
-ok("upload it instead" in r.text, "with the reliable alternative named")
-cache.get_text = lambda url, *a, **k: '<a id="abc_link" href="#">2026-09 Cumulative Update for x64</a>'
-r = c.post("/updates/KB5034123/lookup", data={"csrf": tok}, follow_redirects=True)
-ok("The catalogue lists" in r.text, "and a successful lookup reports what it found")
-cache.get_text = _real_text
-# installing, and removing
-wait_for_jobs()
-r = c.post("/updates/KB5034123/run", data={"csrf": tok, "target": "all"}, follow_redirects=True)
-wait_for_jobs()
-ok(jobs.last_job("hotfix") is not None, "a cached update can be installed on demand")
-ok(jobs.DEPLOY_TAGS.get("hotfix") == "hotfix", "with its own job tag")
-ok("hotfix" in [p[0] for p in jobs.DEPLOY_PARTS], "and its own tickbox on the deploy page")
-r = c.post("/updates/KB5088888/delete", data={"csrf": tok}, follow_redirects=True)
-ok("PCs that already have it keep it" in r.text, "removing one explains what it does not do")
-ok(not os.path.exists(os.path.join(DATA, "cache/updates", "KB5088888.msu")), "and deletes the package")
 
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")

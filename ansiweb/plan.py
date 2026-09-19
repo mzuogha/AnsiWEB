@@ -166,29 +166,6 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "targets": e.get("targets") or ["all"],
     } for e in cfg.get("uninstalls", []) if e.get("enabled", True)]
 
-    upd = cfg.get("updates") or {}
-    updates = {
-        "enabled": bool(upd.get("enabled")),
-        "categories": list(upd.get("categories") or []),
-        "exclude": [str(x) for x in (upd.get("exclude") or [])],
-        "source": upd.get("source", "default"),
-        "reboot": bool(upd.get("reboot")),
-        "timeout_minutes": int(upd.get("timeout_minutes") or 180),
-        "targets": upd.get("targets") or ["all"],
-    }
-
-    hotfixes = []
-    for hf in (upd.get("cached") or []):
-        if not hf.get("enabled", True) or not payloads.hotfix_present(hf):
-            continue
-        hotfixes.append({
-            "kb": hf["kb"], "title": hf.get("title", ""), "file": hf["file"],
-            "url": f"{base}/updates/{hf['file']}",
-            "sha256": hf.get("sha256", ""),
-            "win_file": PC_CACHE + "\\" + hf["file"],
-            "targets": hf.get("targets") or ["all"],
-        })
-
     tm = cfg.get("time") or {}
     clock = {
         "enabled": bool(tm.get("enabled")),
@@ -216,8 +193,6 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         entry["hostname"] = pc["name"] if pc.get("sync_hostname") else ""
         entry["activate"] = activation["enabled"] and pc_matches(pc, activation["targets"])
         entry["set_time"] = clock["enabled"] and pc_matches(pc, clock["targets"])
-        entry["update"] = updates["enabled"] and pc_matches(pc, updates["targets"])
-        entry["hotfixes"] = [h["kb"] for h in hotfixes if pc_matches(pc, h["targets"])]
         entry["uninstalls"] = [u["id"] for u in uninstalls if pc_matches(pc, u["targets"])]
         entry["printers"] = [pr["id"] for pr in printers if pc_matches(pc, pr["targets"])]
         entry["shares"] = [sh["id"] for sh in shares if pc_matches(pc, sh["targets"])]
@@ -238,8 +213,6 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
         "printers": printers,
         "uninstalls": uninstalls,
         "time": clock,
-        "updates": updates,
-        "hotfixes": hotfixes,
         "activation": activation,
         "apps": apps,
         "drivers": payload_sets["drivers"],

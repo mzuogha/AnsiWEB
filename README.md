@@ -34,7 +34,6 @@ Built for workgroup environments with **no Active Directory and no Intune**. A s
 - **Device drivers.** Upload a .zip containing the .inf files; PCs unpack it and add it to the Windows driver store with pnputil.
 - **Scripts.** Upload .ps1, .cmd or .bat files and run them on chosen PCs, once, on change, or at every deployment, with exit codes and output captured.
 - **Registry files.** Upload .reg files and have them merged on chosen PCs.
-- **Windows updates.** Install Windows updates on the PCs by category, with exclusions, optional reboots and a weekly schedule.
 - **Time and time zone.** Push a time zone and your own time servers to the PCs, and force a clock resync.
 - **Windows activation.** Store a product key once and have AnsiWEB install and activate it on the PCs it manages, either with your own key or against a KMS host.
 - **Rename PCs.** Rename a PC in AnsiWEB, and optionally have Windows renamed to match at the next deployment.
@@ -171,7 +170,7 @@ An added app comes with a suggested detection pattern — worth checking on its 
 
 ## Choosing what to deploy
 
-**Deploy** opens a page rather than starting immediately. Everything is ticked by default — the same as a plain deployment — so you can untick whatever you want left alone this time: applications, drivers, scripts, registry files, shared folders, printers, time, activation, computer name, Windows updates, inventory. Parts with nothing configured are marked, so an empty tick is obvious.
+**Deploy** opens a page rather than starting immediately. Everything is ticked by default — the same as a plain deployment — so you can untick whatever you want left alone this time: applications, drivers, scripts, registry files, shared folders, printers, time, activation, computer name, inventory. Parts with nothing configured are marked, so an empty tick is obvious.
 
 Under it you choose where: all PCs, a site, a group, or individual PCs from a list. Picking everything runs the whole deployment; picking some runs only those parts.
 
@@ -260,29 +259,6 @@ sudo ansiweb set-password jane
 ## Built-in help
 
 The **Help** page in the web interface has copyable commands for deploying on Ubuntu Server and under WSL, preparing a PC, taking backups, and checking common problems. It fills in your own server address.
-
-## Caching particular updates
-
-The **Windows Updates** page holds specific updates on the server and installs them from it — for PCs with no route to Microsoft, or when one fix is wanted on one set of PCs. Download the `.msu` from the [Microsoft Update Catalog](https://www.catalog.update.microsoft.com/), upload it against its KB number, choose which PCs, and install. A Look up button asks the catalogue what it lists for a KB, though that page has no supported interface and sometimes cannot be read; the upload always works.
-
-Each entry links to Microsoft's article for the KB, its catalogue entry, the Windows release health page for known issues, and a search for what others are reporting. AnsiWEB links out rather than quoting: there is no dependable source of "reviews" for a Windows update worth repeating inside a deployment tool.
-
-**This is not WSUS.** It caches the updates you name, not the whole catalogue. For every PC to get everything automatically without reaching Microsoft, use WSUS and point the PCs at it.
-
-## Windows updates
-
-Optional, and off by default. **Settings → Windows updates** takes:
-
-- **Which updates** — security, critical, rollups, Defender definitions, drivers and so on. At least one is required.
-- **Where updates come from** — whatever each PC is already set to, Microsoft Windows Update directly, or the PC's WSUS only. AnsiWEB does not change which update service a PC uses; to point PCs at a WSUS server, upload a `.reg` file on the Drivers, scripts & registry page.
-- **Give up after** — a per-PC timeout in minutes, 180 by default.
-- **Skip these updates** — KB numbers or parts of an update title, e.g. `KB5001234`.
-- **Let Windows reboot the PC** — off by default, in which case PCs needing a reboot are listed at the end of the job instead.
-- **Install on** and a **schedule** — updates run last in a deployment, or on their own with **Install updates now**, or weekly at a time you set.
-
-Each PC reports how many updates were found, installed and failed, which update titles went on, and whether a reboot is still needed. A PC where an update fails is marked failed so it stands out on the Reports page.
-
-Updates genuinely can take hours on a PC that is behind, which is why the timeout is generous and a weekly window outside working hours is the usual choice.
 
 ## Time and time zone
 

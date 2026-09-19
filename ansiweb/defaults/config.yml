@@ -17,19 +17,6 @@ settings:
   site_name: ""            # shown beside the logo on the sign-in page
   logo_file: ""            # uploaded logo, e.g. logo.png (see Settings)
 
-# Windows updates installed on the PCs.
-updates:
-  enabled: false
-  categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
-  exclude: []              # KB numbers or title patterns to skip, e.g. [KB5001234]
-  source: default          # default, windows_update (ignore WSUS), managed_server (WSUS only)
-  reboot: false            # let Windows reboot the PC when updates need it
-  timeout_minutes: 180
-  targets: [all]
-  # Update packages cached here and installed from this server, for PCs with no
-  # route to Microsoft. Each: {kb, title, file, sha256, size, targets, notes}
-  cached: []
-
 # Clock settings pushed to the PCs: time zone and where they get the time from.
 time:
   enabled: false
@@ -55,10 +42,6 @@ schedules:
     enabled: false
     time: "19:00"          # push missing apps and settings to all PCs
     days: [mon, tue, wed, thu, fri]
-  updates:
-    enabled: false
-    time: "22:00"          # install Windows updates
-    days: [sat]
 
 sites: [HQ]
 # {name, ip, site, groups: [], sync_hostname: false, notes: ""}

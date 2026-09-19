@@ -23,8 +23,6 @@ KINDS = {
     "rename": "Apply computer names",
     "activate": "Activate Windows",
     "set_time": "Set the time and time zone",
-    "updates": "Install Windows updates",
-    "hotfix": "Install cached updates",
     "printers": "Set up printers",
     "shares": "Set up shared folders",
     "inventory": "Collect inventory from PCs",
@@ -45,8 +43,6 @@ DEPLOY_TAGS = {
     "rename": "hostname",
     "activate": "activation",
     "set_time": "time",
-    "updates": "updates",
-    "hotfix": "hotfix",
     "printers": "printers",
     "shares": "shares",
     "inventory": "inventory",
@@ -186,8 +182,6 @@ DEPLOY_PARTS = [
     ("time", "Time and time zone", "set the time zone and time source"),
     ("activation", "Windows activation", "activate Windows if it is not already"),
     ("hostname", "Computer name", "rename Windows to match AnsiWEB"),
-    ("hotfix", "Cached updates", "install the update packages held on this server"),
-    ("updates", "Windows updates", "install updates (this can take hours)"),
     ("inventory", "Inventory", "collect the installed-software list"),
 ]
 
@@ -434,7 +428,6 @@ def scheduler_tick() -> None:
             except JobBusy:
                 pass
 
-    _schedule_updates(cfg, sch, now)
 
     dep = sch.get("deploy", {})
     if dep.get("enabled") and cfg.get("pcs") and _due_daily("deploy", dep, now, dep.get("days", [])):
@@ -444,20 +437,6 @@ def scheduler_tick() -> None:
             kv_set("sched:deploy", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
         except JobBusy:
             pass
-
-
-def _schedule_updates(cfg, sch, now) -> None:
-    upd = sch.get("updates", {})
-    if not (upd.get("enabled") and cfg.get("pcs")):
-        return
-    if not _due_daily("updates", upd, now, upd.get("days", [])):
-        return
-    try:
-        start("updates", "all", trigger="schedule")
-        hh, mm = map(int, upd["time"].split(":"))
-        kv_set("sched:updates", now.replace(hour=hh, minute=mm, second=0, microsecond=0).isoformat())
-    except JobBusy:
-        pass
 
 
 def start_scheduler() -> None:

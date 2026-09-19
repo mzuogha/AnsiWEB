@@ -18,7 +18,6 @@
     <a href="{{ url_for('apps_page') }}" class="{{ 'active' if ep.startswith('app') }}">Apps &amp; Cache</a>
     <a href="{{ url_for('pcs_page') }}" class="{{ 'active' if ep.startswith('pc') }}">PCs</a>
     <a href="{{ url_for('shares_page') }}" class="{{ 'active' if ep.startswith('share') or ep == 'file_sharing_save' }}">Shared Folders</a>
-    <a href="{{ url_for('updates_page') }}" class="{{ 'active' if ep.startswith('hotfix') or ep == 'updates_page' }}">Windows Updates</a>
     <a href="{{ url_for('printers_page') }}" class="{{ 'active' if ep.startswith('printer') }}">Printers</a>
     <a href="{{ url_for('resources_page', group='files') }}" class="{{ 'active' if ep.startswith('resource') }}">Drivers, Scripts &amp; Registry</a>
     <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory &amp; Uninstall</a>

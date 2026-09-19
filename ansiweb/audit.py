@@ -42,7 +42,6 @@ ACTIONS = {
     "settings_secret": "Changed a stored secret",
     "settings_activation": "Changed activation settings",
     "settings_time": "Changed time settings",
-    "settings_updates": "Changed update settings",
     "settings_backup": "Downloaded a backup",
     "settings_restore": "Restored a backup",
     "own_password": "Changed their own password",

@@ -28,7 +28,7 @@ ENDPOINT_PERMISSIONS = {
     "first_password": users.VIEW,
     "coffee": users.VIEW,
     "dismiss": users.VIEW,
-    "printers_page": users.VIEW, "shares_page": users.VIEW, "updates_page": users.VIEW,
+    "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
     "prepare_script": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
@@ -43,15 +43,13 @@ ENDPOINT_PERMISSIONS = {
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
     "app_search_add": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
-    "hotfix_add": users.MANAGE_CONTENT, "hotfix_delete": users.MANAGE_CONTENT,
-    "hotfix_package": users.MANAGE_CONTENT, "hotfix_lookup": users.MANAGE_CONTENT,
-    "hotfix_run": users.RUN_JOBS,
     "share_add": users.MANAGE_CONTENT, "share_delete": users.MANAGE_CONTENT,
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
     "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
-    "printer_driver": users.MANAGE_CONTENT,
+    "printer_driver": users.MANAGE_CONTENT, "printer_signature": users.MANAGE_CONTENT,
     "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
+    "printer_unsigned": users.MANAGE_CONTENT,
     # An ad-hoc uninstall from the Inventory page is an operational action, so
     # helpdesk can do it; adding a standing uninstall entry still needs more.
     "inventory_uninstall": users.RUN_JOBS,
@@ -723,107 +721,6 @@ def create_app(start_background: bool = True) -> Flask:
             flash("File and printer sharing settings saved. Run 'Set up all' to apply them.", "ok")
         return redirect(url_for("shares_page"))
 
-    # ---- cached Windows updates ---------------------------------------------------
-    @app.route("/updates")
-    def updates_page():
-        cfg = store.load()
-        entries = []
-        reports = load_reports()
-        for hf in (cfg.get("updates", {}).get("cached") or []):
-            # Which PCs have reported this update, from what they said they installed
-            on_pcs = [name for name, r in reports.items()
-                      if any(hf["kb"].lower() in (str(i.get("detail", "")) + str(i.get("name", ""))).lower()
-                             for i in (r.get("results") or []))]
-            entries.append({**hf, "present": payloads.hotfix_present(hf),
-                            "links": cache.kb_links(hf["kb"]), "on_pcs": on_pcs})
-        return render_template("updates.html", cfg=cfg, entries=entries,
-                               settings=cfg.get("updates", {}),
-                               targets=store.target_choices(cfg))
-
-    def find_hotfix(cfg, kb):
-        for i, hf in enumerate(cfg.get("updates", {}).get("cached") or []):
-            if hf["kb"].upper() == kb.upper():
-                return i, hf
-        abort(404)
-
-    @app.route("/updates/add", methods=["POST"])
-    def hotfix_add():
-        cfg = store.load()
-        f = request.form
-        try:
-            kb = cache.normalise_kb(f.get("kb", ""))
-            cached = cfg.setdefault("updates", {}).setdefault("cached", [])
-            if any(h["kb"].upper() == kb for h in cached):
-                raise store.ValidationError(f"{kb} is already listed.")
-            entry = {"kb": kb, "title": f.get("title", "").strip(), "enabled": True,
-                     "notes": f.get("notes", "").strip(),
-                     "targets": request.form.getlist("targets") or ["all"]}
-            upload = request.files.get("package")
-            if upload and upload.filename:
-                entry.update(payloads.store_hotfix(kb, upload))
-            cached.append(entry)
-            store.save(cfg)
-            if entry.get("file"):
-                flash(f"{kb} is cached and ready to install.", "ok")
-            else:
-                flash(f"{kb} added. Upload its .msu to be able to install it from here.", "ok")
-        except (store.ValidationError, cache.CacheError) as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("updates_page"))
-
-    @app.route("/updates/<kb>/package", methods=["POST"])
-    def hotfix_package(kb):
-        cfg = store.load()
-        idx, hf = find_hotfix(cfg, kb)
-        f = request.files.get("package")
-        try:
-            if not f or not f.filename:
-                raise store.ValidationError("Choose the .msu file downloaded from the catalogue.")
-            cfg["updates"]["cached"][idx].update(payloads.store_hotfix(hf["kb"], f))
-            store.save(cfg)
-            flash(f"{hf['kb']} is cached and ready to install.", "ok")
-        except store.ValidationError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("updates_page"))
-
-    @app.route("/updates/<kb>/lookup", methods=["POST"])
-    def hotfix_lookup(kb):
-        """Best-effort: ask the catalogue what it has for this KB."""
-        cfg = store.load()
-        idx, hf = find_hotfix(cfg, kb)
-        try:
-            found = cache.catalog_lookup(hf["kb"])
-            if found and not cfg["updates"]["cached"][idx].get("title"):
-                cfg["updates"]["cached"][idx]["title"] = found[0]["title"][:120]
-                store.save(cfg)
-            flash("The catalogue lists: " + "; ".join(f["title"] for f in found[:4]), "ok")
-        except cache.CacheError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("updates_page"))
-
-    @app.route("/updates/<kb>/delete", methods=["POST"])
-    def hotfix_delete(kb):
-        cfg = store.load()
-        idx, hf = find_hotfix(cfg, kb)
-        del cfg["updates"]["cached"][idx]
-        if save_or_flash(cfg):
-            if hf.get("file"):
-                (payloads.hotfix_dir() / hf["file"]).unlink(missing_ok=True)
-            flash(f"{hf['kb']} removed from the cache. PCs that already have it keep it.", "ok")
-        return redirect(url_for("updates_page"))
-
-    @app.route("/updates/<kb>/run", methods=["POST"])
-    def hotfix_run(kb):
-        cfg = store.load()
-        _, hf = find_hotfix(cfg, kb)
-        try:
-            job_id = jobs.start("hotfix", scoped_target(cfg, request.form.get("target", "all")),
-                                trigger=f"manual ({session.get('user')})", only=hf["kb"])
-        except (jobs.JobBusy, ValueError, store.ValidationError) as exc:
-            flash(str(exc), "error")
-            return redirect(url_for("updates_page"))
-        return redirect(url_for("job_view", job_id=job_id))
-
     # ---- printers ------------------------------------------------------------------
     @app.route("/printers")
     def printers_page():
@@ -892,6 +789,33 @@ def create_app(start_background: bool = True) -> Flask:
         cfg["printers"][idx]["enabled"] = not printer.get("enabled", True)
         if save_or_flash(cfg):
             flash(f"'{printer['name']}' {'enabled' if cfg['printers'][idx]['enabled'] else 'disabled'}.", "ok")
+        return redirect(url_for("printers_page"))
+
+    @app.route("/printers/<pid>/signature", methods=["POST"])
+    def printer_signature(pid):
+        """Flip whether this printer's driver may bypass Windows' signature check."""
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        allow = not printer.get("driver_allow_unsigned")
+        cfg["printers"][idx]["driver_allow_unsigned"] = allow
+        if save_or_flash(cfg):
+            flash(f"'{printer['name']}': the driver will {'be installed even if' if allow else 'only install if'} "
+                  f"Windows {'rejects' if allow else 'accepts'} its signature.", "ok")
+        return redirect(url_for("printers_page"))
+
+    @app.route("/printers/<pid>/unsigned", methods=["POST"])
+    def printer_unsigned(pid):
+        """Turn the driver signature check off (or back on) for one printer."""
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        now_on = not printer.get("driver_allow_unsigned")
+        cfg["printers"][idx]["driver_allow_unsigned"] = now_on
+        if save_or_flash(cfg):
+            if now_on:
+                flash(f"'{printer['name']}' will be installed even if Windows rejects its driver's "
+                      "signature. Press 'Set up now' to try again.", "ok")
+            else:
+                flash(f"'{printer['name']}' will only accept a driver Windows vouches for.", "ok")
         return redirect(url_for("printers_page"))
 
     @app.route("/printers/<pid>/delete", methods=["POST"])
@@ -1740,32 +1664,7 @@ def create_app(start_background: bool = True) -> Flask:
                                secret_names=vault.ANSIBLE_SECRET_NAMES, https=https,
                                targets=store.target_choices(cfg),
                                timezones=store.COMMON_TIMEZONES,
-                               update_categories=store.UPDATE_CATEGORIES,
-                               update_sources=store.UPDATE_SOURCES)
-
-    @app.route("/settings/updates", methods=["POST"])
-    def settings_updates():
-        cfg = store.load()
-        f = request.form
-        try:
-            cfg["updates"].update({
-                "enabled": f.get("enabled") == "on",
-                "categories": request.form.getlist("categories"),
-                "exclude": [x.strip() for x in re.split(r"[,\n]+", f.get("exclude", "")) if x.strip()],
-                "source": f.get("source", "default"),
-                "reboot": f.get("reboot") == "on",
-                "timeout_minutes": int(f.get("timeout_minutes") or 180),
-                "targets": request.form.getlist("targets") or ["all"],
-            })
-            cfg["schedules"]["updates"] = {"enabled": f.get("sched_enabled") == "on",
-                                           "time": f.get("sched_time", "22:00"),
-                                           "days": request.form.getlist("sched_days")}
-        except ValueError:
-            flash("The update timeout must be a number of minutes.", "error")
-            return redirect(url_for("settings_page"))
-        if save_or_flash(cfg):
-            flash("Update settings saved.", "ok")
-        return redirect(url_for("settings_page"))
+)
 
     @app.route("/settings/time", methods=["POST"])
     def settings_time():
