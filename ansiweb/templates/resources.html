@@ -73,10 +73,9 @@ internet access. Each PC records what it has already applied, so repeat deployme
       <label>Timeout in seconds<input name="timeout" type="number" value="1800" min="10" max="86400"></label>
       <label class="check"><input type="checkbox" name="reboot"> Reboot the PC after it runs</label>
     </div>
-    <label class="check"><input type="checkbox" name="allow_unsigned"> Install even if Windows rejects the
-      signature (drivers only)</label>
-    <p class="muted small">Windows refuses a driver whose files do not match its signature catalogue. Ticking this
-    retries with the check bypassed, which is worth doing only for a package you got from the vendor and trust.</p>
+    <label>Only use these .inf files (drivers, optional)<input name="inf_filter" placeholder="MPC*">
+      <small>A vendor package often holds several .inf files and not all are meant to be installed. Leave empty
+      to try them all.</small></label>
     <p class="muted small">The settings above apply to scripts only; they are ignored for a driver package
     or a registry file.</p>
     <label>Notes (optional)<input name="notes"></label>

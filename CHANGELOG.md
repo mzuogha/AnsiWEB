@@ -5,6 +5,42 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.1.0 - 2026-09-19
+
+A driver package is no longer thrown away because one .inf in it is unsigned.
+
+
+### New
+
+- 'Only use these .inf files' on a driver and on a printer's staged driver, for packages where you want particular ones - for example MPC*.
+
+
+### Fixed
+
+- Vendor packages often hold several .inf files, and not all are meant to be installed - Ricoh's oemsetup.inf, for instance, is not covered by its own catalogue. AnsiWEB stopped at the first one Windows refused and reported the whole package as failed, discarding the model drivers that had just installed successfully. Each .inf is now tried on its own; the run succeeds if the package produced a usable driver, and the ones Windows would not accept are listed in the report.
+
+
+### Removed
+
+- 'Install even if Windows rejects the signature'. It used DISM /ForceUnsigned, which only works on an offline image and failed with 'This command can only be used with an offline image' on a running PC. Windows 10 and 11 enforce driver signing and AnsiWEB cannot turn that off, so the option is gone rather than left promising something it cannot do.
+
+
+## 2.0.1 - 2026-09-19
+
+Driver packages that contain more than just drivers now install properly.
+
+
+### Fixed
+
+- A vendor package usually holds several .inf files, and some are not signed drivers at all - installer stubs and model lists the catalogue does not cover. Windows refuses those, and AnsiWEB was treating the first refusal as the whole package failing, so packages whose drivers had in fact installed were reported as failed. Each .inf is now handled on its own: the drivers Windows accepts are installed, anything refused is skipped and named in the report, and the job only fails if nothing installed at all.
+- Files that appear twice in a package - common where a vendor ships an extracted copy beside the original - are imported once rather than twice.
+
+
+### Removed
+
+- The 'install even if Windows rejects the signature' option, which could not work: it used DISM /ForceUnsigned, which applies only to an offline image and fails on a running PC. In its place each driver and printer has 'Stop if Windows rejects any file in the package', off by default, for anyone who would rather a partial package were treated as a failure.
+
+
 ## 2.0.0 - 2026-09-19
 
 Windows updates are no longer part of AnsiWEB, and a printer's driver signature check can be switched without re-making the printer.

@@ -23,13 +23,11 @@ printer up again does nothing if it is already correct.</p>
   <tr class="{{ 'dim' if not p.enabled }}">
     <td><b>{{ p.name }}</b>
       {% if p.default %}<span class="pill">default</span>{% endif %}
-      {% if p.driver_allow_unsigned %}<span class="pill warning" title="Windows' driver signature check is bypassed for this printer">unsigned driver allowed</span>{% endif %}
-      {% if p.driver_allow_unsigned %}<span class="pill warning" title="Windows' signature check is bypassed for this driver">unsigned allowed</span>{% endif %}
       {% if p.remove %}<span class="pill failed">removes it</span>{% endif %}
       {% if p.location or p.comment %}<br><span class="muted small">{{ p.location }} {{ p.comment }}</span>{% endif %}
       {% if p.notes %}<br><span class="err small">{{ p.notes }}</span>{% endif %}</td>
     <td class="small">{{ p.host }}:{{ p.port }}</td>
-    <td class="small">{{ p.driver or '—' }}</td>
+    <td class="small">{{ p.driver or '—' }}{% if p.driver_inf %}<br><span class="muted">.inf: {{ p.driver_inf }}</span>{% endif %}</td>
     <td class="small">
       {% if p.driver_ref %}<span class="pill st-pinned">linked</span><br>
         <span class="muted">{{ (drivers | selectattr('id', 'equalto', p.driver_ref) | map(attribute='name') | first) or p.driver_ref }}</span>
@@ -52,13 +50,8 @@ printer up again does nothing if it is already correct.</p>
             class="inline row tight">{{ csrf() }}
         <input type="file" name="driver_package" accept=".zip" class="short">
         <button class="btn small">{{ 'Replace driver' if driver_present(p) else 'Stage driver' }}</button></form>
-      <form method="post" action="{{ url_for('printer_signature', pid=p.id) }}" class="inline">{{ csrf() }}
-        <button class="btn small" title="Whether this printer's driver may be installed when Windows will not
-          vouch for its signature">{{ 'Require signature' if p.driver_allow_unsigned else 'Allow unsigned' }}</button></form>
       <form method="post" action="{{ url_for('printer_toggle', pid=p.id) }}" class="inline">{{ csrf() }}
         <button class="btn small">{{ 'Disable' if p.enabled else 'Enable' }}</button></form>
-      <form method="post" action="{{ url_for('printer_unsigned', pid=p.id) }}" class="inline">{{ csrf() }}
-        <button class="btn small" title="Whether to install this printer's driver even if Windows rejects its signature">{{ 'Require signed driver' if p.driver_allow_unsigned else 'Allow unsigned driver' }}</button></form>
       <form method="post" action="{{ url_for('printer_delete', pid=p.id) }}" class="inline"
             data-confirm="Remove {{ p.name }} from AnsiWEB? It stays on the PCs.">{{ csrf() }}
         <button class="btn small danger">Delete</button></form>
@@ -95,8 +88,9 @@ printer up again does nothing if it is already correct.</p>
       <label>Location (optional)<input name="location" placeholder="2nd floor, east"></label>
       <label>Comment (optional)<input name="comment"></label>
     </div>
-    <label class="check"><input type="checkbox" name="driver_allow_unsigned"> Install the driver even if Windows
-      rejects its signature</label>
+    <label>Only use these .inf files (optional)<input name="driver_inf" placeholder="MPC*">
+      <small>A vendor package often holds several. Leave empty to try them all: AnsiWEB installs the ones
+      Windows accepts and reports any it does not.</small></label>
     <label class="check"><input type="checkbox" name="default"> Make it the default printer</label>
     <label class="check"><input type="checkbox" name="remove"> Remove this printer from the PCs instead of adding it</label>
     {{ target_picker(targets, heading='Install on') }}

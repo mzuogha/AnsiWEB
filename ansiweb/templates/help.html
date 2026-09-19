@@ -250,13 +250,13 @@ sudo systemctl start ansiweb</pre>
       <td>It has been off or unreachable since its last deployment. Test the connection from its page; the
         threshold is in Settings.</td></tr>
     <tr><td>A driver fails with "the hash for the file is not present in the specified catalog file"</td>
-      <td>Windows will not install a driver whose files do not match its signature catalogue. The job log now says
-        which <code>.cat</code> the <code>.inf</code> asks for and whether it sits beside it — a common cause is a
-        package where the <code>.inf</code> is at the top and its catalogue is in an architecture subfolder, in
-        which case upload that subfolder instead. Otherwise the package is partial, mixed from two versions, or for
-        a different Windows version. If you trust the package, tick <b>Install even if Windows rejects the
-        signature</b> on the driver (or the printer's staged driver) and run the job again: AnsiWEB retries with
-        DISM's check bypassed.</td></tr>
+      <td>Windows refuses an <code>.inf</code> its catalogue does not cover. Vendor packages often include helper
+        <code>.inf</code> files that were never signed — Ricoh's <code>oemsetup.inf</code> is one — so AnsiWEB
+        installs the ones Windows accepts, reports the rest, and only fails when none can be installed. If you want
+        only particular ones, put a pattern such as <code>MPC*</code> in <b>Only use these .inf files</b>. If every
+        <code>.inf</code> is refused, the package is partial, altered or for another Windows version: download it
+        again from the vendor. Windows 10 and 11 enforce driver signing on a running PC and it cannot be turned
+        off from here.</td></tr>
     <tr><td>An uninstall left a program in place</td>
       <td>Either the pattern matched nothing, or the program has no silent uninstaller. The job log says which.</td></tr>
     <tr><td>Signed out while working</td>

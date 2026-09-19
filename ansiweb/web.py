@@ -47,9 +47,8 @@ ENDPOINT_PERMISSIONS = {
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
     "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
-    "printer_driver": users.MANAGE_CONTENT, "printer_signature": users.MANAGE_CONTENT,
+    "printer_driver": users.MANAGE_CONTENT,
     "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
-    "printer_unsigned": users.MANAGE_CONTENT,
     # An ad-hoc uninstall from the Inventory page is an operational action, so
     # helpdesk can do it; adding a standing uninstall entry still needs more.
     "inventory_uninstall": users.RUN_JOBS,
@@ -745,7 +744,7 @@ def create_app(start_background: bool = True) -> Flask:
             "location": f.get("location", "").strip(),
             "default": f.get("default") == "on",
             "remove": f.get("remove") == "on",
-            "driver_allow_unsigned": f.get("driver_allow_unsigned") == "on",
+            "driver_inf": f.get("driver_inf", "").strip()[:80],
             # "targets" may hold all / site: / group: entries and individual pc: entries
             "targets": request.form.getlist("targets") or ["all"],
             # A driver package uploaded on the drivers page can be linked here
@@ -789,33 +788,6 @@ def create_app(start_background: bool = True) -> Flask:
         cfg["printers"][idx]["enabled"] = not printer.get("enabled", True)
         if save_or_flash(cfg):
             flash(f"'{printer['name']}' {'enabled' if cfg['printers'][idx]['enabled'] else 'disabled'}.", "ok")
-        return redirect(url_for("printers_page"))
-
-    @app.route("/printers/<pid>/signature", methods=["POST"])
-    def printer_signature(pid):
-        """Flip whether this printer's driver may bypass Windows' signature check."""
-        cfg = store.load()
-        idx, printer = find_printer(cfg, pid)
-        allow = not printer.get("driver_allow_unsigned")
-        cfg["printers"][idx]["driver_allow_unsigned"] = allow
-        if save_or_flash(cfg):
-            flash(f"'{printer['name']}': the driver will {'be installed even if' if allow else 'only install if'} "
-                  f"Windows {'rejects' if allow else 'accepts'} its signature.", "ok")
-        return redirect(url_for("printers_page"))
-
-    @app.route("/printers/<pid>/unsigned", methods=["POST"])
-    def printer_unsigned(pid):
-        """Turn the driver signature check off (or back on) for one printer."""
-        cfg = store.load()
-        idx, printer = find_printer(cfg, pid)
-        now_on = not printer.get("driver_allow_unsigned")
-        cfg["printers"][idx]["driver_allow_unsigned"] = now_on
-        if save_or_flash(cfg):
-            if now_on:
-                flash(f"'{printer['name']}' will be installed even if Windows rejects its driver's "
-                      "signature. Press 'Set up now' to try again.", "ok")
-            else:
-                flash(f"'{printer['name']}' will only accept a driver Windows vouches for.", "ok")
         return redirect(url_for("printers_page"))
 
     @app.route("/printers/<pid>/delete", methods=["POST"])
@@ -997,7 +969,9 @@ def create_app(start_background: bool = True) -> Flask:
             "notes": f.get("notes", "").strip(),
         })
         if kind == "drivers":
-            entry["allow_unsigned"] = f.get("allow_unsigned") == "on"
+            # Optional: only install the .inf files matching this, for packages
+            # that hold several and not all of them are wanted.
+            entry["inf_filter"] = f.get("inf_filter", "").strip()[:80]
         if kind == "scripts":
             entry.update({"arguments": f.get("arguments", "").strip(),
                           "timeout": int(f.get("timeout") or 1800),

@@ -1155,44 +1155,28 @@ cache.get_json = _real_get_json
 cache._search_cache.clear()
 c.post("/apps/thunderbird/delete", data={"csrf": tok}, follow_redirects=True)
 
-# ------------------------------------------------ installing a driver Windows will not vouch for
+# ------------------------------------------------ a package whose .inf files are not all usable
 r = c.post("/files/add", data={"csrf": tok, "name": "Ricoh printer driver", "run_mode": "once",
-                               "targets": ["all"], "allow_unsigned": "on",
-                               "payload": (zip_bytes(["oemsetup.inf", "ricoh.cat"]), "ricoh.zip")},
+                               "targets": ["all"], "inf_filter": "MPC*",
+                               "payload": (zip_bytes(["MPC3000_.inf", "oemsetup.inf", "ricoh.cat"]),
+                                           "ricoh.zip")},
            content_type="multipart/form-data", follow_redirects=True)
-ok("uploaded" in r.text, "a driver can be uploaded with the signature check waived")
-drv_u = [d for d in store.load()["drivers"] if d["name"] == "Ricoh printer driver"][0]
-ok(drv_u["allow_unsigned"] is True, "the choice is stored")
-plan_u = json.load(open(os.path.join(DATA, "deploy_plan.json")))
-planned = [d for d in plan_u["drivers"] if d["id"] == drv_u["id"]][0]
-ok(planned["allow_unsigned"] is True, "and reaches the PCs in the plan")
-ok("Install even if Windows rejects the signature" in c.get(f"/drivers/{drv_u['id']}/edit").text,
-   "the driver's own page offers it")
-# off by default
-r = c.post("/files/add", data={"csrf": tok, "name": "Ordinary driver", "run_mode": "once",
-                               "targets": ["all"],
-                               "payload": (zip_bytes(["net.inf", "net.cat"]), "net.zip")},
-           content_type="multipart/form-data", follow_redirects=True)
-plain = [d for d in store.load()["drivers"] if d["name"] == "Ordinary driver"][0]
-ok(not plain.get("allow_unsigned"), "and is off unless asked for")
-# a printer's staged driver has the same switch
+ok("uploaded" in r.text, "a driver package can name which .inf files to use")
+drv_f = [d for d in store.load()["drivers"] if d["name"] == "Ricoh printer driver"][0]
+ok(drv_f["inf_filter"] == "MPC*", "the filter is stored")
+plan_f = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok([d for d in plan_f["drivers"] if d["id"] == drv_f["id"]][0]["inf_filter"] == "MPC*",
+   "and reaches the PCs in the plan")
+ok("Only use these .inf files" in c.get(f"/drivers/{drv_f['id']}/edit").text,
+   "the driver's page offers it")
 r = c.post("/printers/add", data={"csrf": tok, "name": "Ricoh MP", "host": "10.0.0.21",
-                                  "driver": "RICOH PCL6", "driver_allow_unsigned": "on",
+                                  "driver": "RICOH PCL6", "driver_inf": "MPC*",
                                   "targets": ["all"]}, follow_redirects=True)
-pr_u = [p for p in store.load()["printers"] if p["name"] == "Ricoh MP"][0]
-ok(pr_u["driver_allow_unsigned"] is True, "a printer can waive it for its staged driver")
-ok("unsigned driver allowed" in c.get("/printers").text, "and the page says so")
-# an existing printer can be switched without being re-made
-r = c.post(f"/printers/{pr_u['id']}/unsigned", data={"csrf": tok}, follow_redirects=True)
-ok("only accept a driver Windows vouches for" in r.text, "the bypass can be switched off again")
-ok(not [p for p in store.load()["printers"] if p["id"] == pr_u["id"]][0]["driver_allow_unsigned"],
-   "and the change is stored")
-r = c.post(f"/printers/{pr_u['id']}/unsigned", data={"csrf": tok}, follow_redirects=True)
-ok("Set up now" in r.text and "even if Windows rejects" in r.text,
-   "and back on, with what to do next")
-c.post(f"/printers/{pr_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
-c.post(f"/drivers/{drv_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
-c.post(f"/drivers/{plain['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+pr_f = [p for p in store.load()["printers"] if p["name"] == "Ricoh MP"][0]
+ok(pr_f["driver_inf"] == "MPC*", "a printer can do the same for its staged driver")
+ok(".inf: MPC*" in c.get("/printers").text, "and the page shows it")
+c.post(f"/printers/{pr_f['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+c.post(f"/drivers/{drv_f['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
