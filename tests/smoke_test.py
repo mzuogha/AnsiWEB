@@ -1347,6 +1347,59 @@ ok("[data-tip]:hover::after" not in _css,
    "the old in-element tooltip, which scrolling containers clipped, is gone")
 ok("document.body.appendChild(box)" in _js, "it is attached to the page body")
 
+# ------------------------------------------- PCs that report their own address
+_secret = vault.app_secret("checkin_token")
+ok(_secret and len(_secret) > 20, "a check-in token is generated at startup")
+anon2 = app.test_client()
+ok(anon2.post("/checkin", data={"name": "PC-HQ-001"}).status_code == 403,
+   "checking in without the token is refused")
+ok(anon2.post("/checkin", data={"name": "PC-HQ-001", "token": "wrong"}).status_code == 403,
+   "and with the wrong one")
+r = anon2.post("/checkin", data={"name": "PC-HQ-001", "token": _secret},
+               environ_overrides={"REMOTE_ADDR": "10.7.7.7"})
+ok(r.status_code == 200, "a known PC can report in")
+_pc = [pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]
+ok(_pc["seen_ip"] == "10.7.7.7" and _pc.get("seen_at"), "its address and the time are recorded")
+hosts_yml = open(os.path.join(DATA, "inventory", "hosts.yml")).read()
+ok("10.7.7.7" in hosts_yml, "and the inventory uses the address it reported")
+# the address comes from the connection, not from anything the caller says
+anon2.post("/checkin", data={"name": "PC-HQ-001", "token": _secret, "ip": "1.2.3.4"},
+           headers={"X-Forwarded-For": "6.6.6.6"}, environ_overrides={"REMOTE_ADDR": "10.7.7.8"})
+_pc = [pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]
+ok(_pc["seen_ip"] == "10.7.7.8",
+   "a claimed address and a spoofed forwarding header are both ignored")
+anon2.post("/checkin", data={"name": "PC-HQ-001", "token": _secret},
+           headers={"X-Forwarded-For": "10.7.7.9"}, environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
+ok([pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]["seen_ip"] == "10.7.7.9",
+   "but the header is honoured when the request came through our own proxy")
+ok(anon2.post("/checkin", data={"name": "NOT-A-PC", "token": _secret}).status_code == 404,
+   "an unknown PC is not added by checking in")
+ok(anon2.post("/checkin", data={"name": "../etc", "token": _secret}).status_code == 400,
+   "and a name that is not a computer name is refused")
+ok(not any(_secret in (e.get("detail") or "") for e in audit.entries(limit=200)),
+   "the token is never written to the audit trail")
+# a PC can be added with no address at all
+r = c.post("/pcs/add", data={"csrf": tok, "name": "PC-DHCP-01", "ip": "", "site": "HQ"},
+           follow_redirects=True)
+ok(any(pc["name"] == "PC-DHCP-01" for pc in store.load()["pcs"]),
+   "a PC can be added without an address")
+ok("PC-DHCP-01" in open(os.path.join(DATA, "inventory", "hosts.yml")).read(),
+   "and is reached by name until it reports one")
+ok("neither an IP address nor a host name" in
+   c.post("/pcs/add", data={"csrf": tok, "name": "PC-BAD-01", "ip": "not an address!",
+                            "site": "HQ"}, follow_redirects=True).text,
+   "but nonsense in that box is still refused")
+c.post("/pcs/PC-DHCP-01/delete", data={"csrf": tok}, follow_redirects=True)
+
+# downloads are restricted to http and https
+for _bad in ("file:///etc/passwd", "ftp://host/x"):
+    try:
+        cache.check_url(_bad)
+        ok(False, f"{_bad} is refused")
+    except cache.CacheError:
+        ok(True, f"{_bad} is refused")
+ok(cache.check_url("https://example.com/x.msi"), "an ordinary download is allowed")
+
 # --------------------------------------------- why an app deployment failed
 ok("exited with 1603" in jobs.install_hint("win_package failed with exit code 1603"),
    "a common installer exit code is explained")

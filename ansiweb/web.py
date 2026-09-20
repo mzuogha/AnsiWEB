@@ -1,6 +1,7 @@
 """AnsiWEB web interface."""
 import copy
 import csv
+import hmac
 import io
 import os
 import re
@@ -12,7 +13,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
                    send_file, send_from_directory, session, url_for)
 
 from . import (__version__, audit, backup, cache, infparse, jobs, paths, payloads, release,
-               report_state, store, users, vault)
+               report_state, store, users, util, vault)
 
 # What each route needs. Anything not listed here requires an administrator,
 # so a new route is never accidentally open to a lesser role.
@@ -73,6 +74,9 @@ DAY_LABELS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"),
 def create_app(start_background: bool = True) -> Flask:
     paths.ensure_dirs()
     users.migrate()
+    if not vault.app_secret("checkin_token"):
+        # PCs prove themselves with this when reporting their address
+        vault.set_app_secret("checkin_token", pysecrets.token_urlsafe(32))
     vault.ensure_vault_pass()
     vault.ensure_ansible_vault()
     jobs.init_db()
@@ -99,6 +103,20 @@ def create_app(start_background: bool = True) -> Flask:
         name = (s.get("logo_file") or "").strip()
         return {"logo": name if name and (paths.BRANDING_DIR / name).exists() else "",
                 "site_name": (s.get("site_name") or "").strip()}
+
+    def client_address() -> str:
+        """Where a request really came from.
+
+        X-Forwarded-For is set by whoever sent the request, so it is only worth
+        anything when the request reached us from our own nginx on this machine.
+        """
+        direct = request.remote_addr or ""
+        if direct in ("127.0.0.1", "::1"):
+            forwarded = request.headers.get("X-Forwarded-For", "")
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+        return direct
 
     def idle_timeout() -> int:
         """Seconds of inactivity before the web session is signed out."""
@@ -128,7 +146,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.before_request
     def protect():
-        if request.endpoint in ("static", "logo"):
+        if request.endpoint in ("static", "logo", "checkin"):
             return None
 
         # Sign out an idle session, whichever page is asked for
@@ -287,7 +305,7 @@ def create_app(start_background: bool = True) -> Flask:
     def login():
         if request.method == "POST":
             name = request.form.get("username", "")
-            source = request.headers.get("X-Forwarded-For", request.remote_addr or "-").split(",")[0].strip()
+            source = client_address() or "-"
             wait = users.locked_for(name, source)
             if wait:
                 flash(f"Too many failed attempts. Try again in {wait // 60 + 1} minute(s).", "error")
@@ -310,6 +328,38 @@ def create_app(start_background: bool = True) -> Flask:
     def coffee():
         cfg = store.load()
         return render_template("coffee.html", cfg=cfg), 418
+
+    @app.route("/checkin", methods=["POST"])
+    def checkin():
+        """A PC telling AnsiWEB where it is.
+
+        DHCP moves PCs about, so each one reports in at startup and hourly. No
+        session: the PC proves itself with the shared token, and the address is
+        taken from the connection rather than from what the PC claims, so a
+        stolen token cannot redirect deployments at some other machine.
+        """
+        token = vault.app_secret("checkin_token")
+        given = (request.headers.get("X-AnsiWEB-Token")
+                 or request.form.get("token", "")).strip()
+        if not token or not given or not hmac.compare_digest(token, given):
+            return Response("no", status=403, mimetype="text/plain")
+
+        name = (request.form.get("name") or "").strip()
+        if not store.NAME_RE.match(name or ""):
+            return Response("bad name", status=400, mimetype="text/plain")
+
+        source = client_address()
+        cfg = store.load()
+        for pc in cfg.get("pcs", []):
+            if pc["name"].lower() == name.lower():
+                pc["seen_ip"] = source
+                pc["seen_at"] = util.now()
+                store.save(cfg)
+                return Response("ok", status=200, mimetype="text/plain")
+        # An unknown PC is recorded so it can be added, but nothing is deployed
+        # to it until somebody does that deliberately.
+        jobs.kv_set(f"unknown-pc:{name.lower()}", f"{source} {util.now()}")
+        return Response("unknown", status=404, mimetype="text/plain")
 
     @app.route("/logo")
     def logo():
@@ -1400,6 +1450,7 @@ def create_app(start_background: bool = True) -> Flask:
         text = (paths.SCRIPTS_DIR / "Prepare-AnsibleHost.cmd").read_text(encoding="utf-8")
         text = text.replace("__CONTROL_NODE_IP__", cfg["settings"].get("server_ip") or "")
         text = text.replace("__ACCOUNT_NAME__", cfg["settings"].get("pc_account") or "Admin")
+        text = text.replace("__CHECKIN_TOKEN__", vault.app_secret("checkin_token") or "__CHECKIN_TOKEN__")
         # Batch files want CRLF, and no byte-order mark
         return Response(text.replace("\n", "\r\n").encode("ascii", "replace"),
                         mimetype="application/octet-stream",

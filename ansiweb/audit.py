@@ -9,7 +9,7 @@ import datetime as dt
 from . import jobs, util
 
 # Form fields that must never be written to the log
-SECRET_FIELDS = {"password", "new", "confirm", "current", "value", "product_key", "csrf",
+SECRET_FIELDS = {"password", "new", "confirm", "current", "value", "product_key", "csrf", "token",
                  "vault_ansible_svc_password", "vault_windows_product_key"}
 MAX_DETAIL = 500
 

@@ -1,3 +1,29 @@
+- version: "2.7.0"
+  date: "2026-09-20"
+  summary: >-
+    PCs on DHCP can report their own address, a security policy, and fixes from
+    an audit of the new code.
+  added:
+    - "A PC's address is now optional. Each PC reports where it is when it
+       starts and every hour, so DHCP can move it about; AnsiWEB uses the
+       address it last reported. With nothing reported it falls back to what
+       you typed, and then to the PC's name."
+    - "The prep script registers that check-in as a scheduled task and reports
+       in straight away. The PC proves itself with a token that only permits
+       reporting an address."
+    - "SECURITY.md: how to report a vulnerability privately, what is in scope,
+       and the design decisions that are deliberate rather than bugs."
+  fixed:
+    - "Found in the audit of the check-in endpoint: the X-Forwarded-For header
+       is set by whoever sends the request, so trusting it would have let
+       anyone holding the token point a PC's address anywhere - sending that
+       PC's deployment, and the management credentials, to an address of their
+       choosing. It is now only trusted from our own nginx on this machine."
+    - The check-in token was being written into the audit trail. It is treated
+      as a secret there now, like passwords and product keys.
+    - "Downloads are restricted to http and https: a file:// URL in an app
+       entry would have made the server read its own filesystem."
+
 - version: "2.6.0"
   date: "2026-09-20"
   summary: >-

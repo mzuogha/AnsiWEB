@@ -68,7 +68,20 @@ def update_manifest_entry(key: str, **values) -> dict:
 
 
 # ---- HTTP helpers ------------------------------------------------------------
+ALLOWED_SCHEMES = ("http", "https")
+
+
+def check_url(url: str) -> str:
+    """Refuse anything but http and https: a file:// URL in an app entry would
+    make the server read its own filesystem instead of downloading."""
+    scheme = urllib.parse.urlparse(url or "").scheme.lower()
+    if scheme not in ALLOWED_SCHEMES:
+        raise CacheError(f"Only http and https downloads are allowed, not '{scheme or url[:20]}'.")
+    return url
+
+
 def _request(url: str, token: str = "", accept: str = ""):
+    check_url(url)
     headers = {"User-Agent": USER_AGENT}
     if accept:
         headers["Accept"] = accept

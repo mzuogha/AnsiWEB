@@ -213,6 +213,8 @@ Now the dashboard counts PCs that have not reported within **Treat a PC as not r
 
 ## Security notes
 
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
 Worth understanding before you deploy:
 
 - **The cache on port 80 is unauthenticated.** Anyone who can reach the server can download anything under `/software/` — not just installers, but uploaded scripts, `.reg` files and driver packages. Never put a password or key inside a script. To limit it to your own PCs, add `allow`/`deny` lines to the `location /software/` block in `/etc/nginx/sites-available/ansiweb`.

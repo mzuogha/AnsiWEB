@@ -188,10 +188,17 @@ def validate(cfg: dict) -> None:
         if pc["name"].lower() in names:
             raise ValidationError(f"Duplicate PC name '{pc['name']}'")
         names.add(pc["name"].lower())
-        try:
-            ipaddress.ip_address(pc.get("ip", ""))
-        except ValueError:
-            raise ValidationError(f"{pc['name']}: '{pc.get('ip')}' is not a valid IP address")
+        # An address is optional: with DHCP a PC reports its own, and failing
+        # that AnsiWEB reaches it by name. What is typed must still make sense.
+        typed = (pc.get("ip") or "").strip()
+        if typed:
+            try:
+                ipaddress.ip_address(typed)
+            except ValueError:
+                if not HOSTNAME_RE.match(typed):
+                    raise ValidationError(
+                        f"{pc['name']}: '{typed}' is neither an IP address nor a host name. "
+                        "Leave it empty to let the PC report its own address.")
         if pc.get("site") not in cfg.get("sites", []):
             raise ValidationError(f"{pc['name']}: site '{pc.get('site')}' does not exist")
     tm = cfg.get("time") or {}
@@ -332,7 +339,10 @@ def write_inventory(cfg: dict) -> None:
     sites = {}
     groups = {}
     for pc in cfg.get("pcs", []):
-        host = {"ansible_host": pc["ip"]}
+        # Prefer the address the PC itself last reported (DHCP moves it about),
+        # then anything typed in, which may be a name rather than an address.
+        host = {"ansible_host": (pc.get("seen_ip") or pc.get("ip")
+                                 or pc.get("hostname") or pc["name"])}
         sites.setdefault("site_" + slug(pc["site"]), {})[pc["name"]] = host
         for g in pc.get("groups", []):
             groups.setdefault("grp_" + slug(g), {})[pc["name"]] = None

@@ -17,6 +17,7 @@ set "ACCOUNT=__ACCOUNT_NAME__"
 set "PORT=5985"
 set "RULE=AnsiWEB WinRM"
 set "LOG=%ProgramData%\AnsiWEB\prepare-log.txt"
+set "CHECKIN_TOKEN=__CHECKIN_TOKEN__"
 
 if not exist "%ProgramData%\AnsiWEB" mkdir "%ProgramData%\AnsiWEB" >nul 2>&1
 echo. >> "%LOG%"
@@ -121,6 +122,20 @@ netsh advfirewall firewall add rule name="%RULE%" dir=in action=allow ^
     protocol=TCP localport=%PORT% remoteip=%SERVER% >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed_firewall
 echo        TCP %PORT% open to %SERVER% only
+
+rem --- 4b. report this PC's address to AnsiWEB, now and at every startup -------
+rem DHCP moves PCs about, so AnsiWEB is told where this one is rather than
+rem relying on a fixed address. The token only permits reporting in.
+if not "%CHECKIN_TOKEN%"=="__CHECKIN_TOKEN__" (
+    echo  [4b/5] Reporting this PC's address to AnsiWEB
+    set "REPORTCMD=curl.exe -s -m 20 -X POST http://%SERVER%/checkin -d name=%COMPUTERNAME% -H "X-AnsiWEB-Token: %CHECKIN_TOKEN%""
+    %REPORTCMD% >>"%LOG%" 2>&1
+    schtasks /create /tn "AnsiWEB check-in" /ru SYSTEM /sc onstart /delay 0001:00 /f ^
+        /tr "cmd /c %REPORTCMD%" >>"%LOG%" 2>&1
+    schtasks /create /tn "AnsiWEB check-in hourly" /ru SYSTEM /sc hourly /f ^
+        /tr "cmd /c %REPORTCMD%" >>"%LOG%" 2>&1
+    echo        reporting at startup and hourly
+)
 
 rem --- 5. check the result ---------------------------------------------------
 echo  [5/5] Checking
