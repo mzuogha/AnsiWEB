@@ -1908,4 +1908,14 @@ def setup_warnings(cfg: dict) -> list:
     act = cfg.get("activation") or {}
     if act.get("enabled") and act.get("mode") == "mak" and not s.get("vault_windows_product_key"):
         w.append(("Windows activation is on but no product key is stored.", "settings_page"))
+
+    # Apps that are switched on but have no installer cached will not deploy,
+    # and a deployment that skips them still finishes cleanly - so say it here.
+    plan = store.read_json(paths.PLAN_FILE, {})
+    waiting = [x for x in (plan.get("skipped") or []) if x.get("kind") == "apps"]
+    if waiting:
+        names = ", ".join(x["name"] for x in waiting[:4])
+        more = f" and {len(waiting) - 4} more" if len(waiting) > 4 else ""
+        w.append((f"{len(waiting)} app(s) are not in the cache yet, so they will not install: "
+                  f"{names}{more}. Run 'Check for updates now'.", "apps_page"))
     return w

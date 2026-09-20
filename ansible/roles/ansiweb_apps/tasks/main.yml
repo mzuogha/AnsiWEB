@@ -84,6 +84,22 @@
   when: aw_host.activate | default(false) | bool
   tags: [activation]
 
+# A deployment that finds nothing to do looks identical to one that worked.
+# Say which it is, and why, rather than reporting a silent success.
+- name: Explain why no applications will be installed
+  tags: [apps]
+  ansible.builtin.debug:
+    msg: >-
+      No applications are ready for {{ inventory_hostname }}.
+      {% set mine = aw_plan.skipped | default([]) | selectattr('kind', 'equalto', 'apps') | list %}
+      {% if mine %}{{ mine | length }} app(s) are configured but not in the cache:
+      {% for a in mine %}{{ a.name }} ({{ a.reason }}){% if not loop.last %}, {% endif %}{% endfor %}.
+      Press 'Check for updates now' on the Apps & Cache page to download them.
+      {% elif aw_plan.apps | default([]) | length == 0 %}No applications are enabled in AnsiWEB.
+      {% else %}The apps in the standard set are not targeted at this PC; check their 'Install on'
+      setting.{% endif %}
+  when: aw_apps | length == 0
+
 - name: Check installed app versions
   ansible.builtin.include_tasks: detect.yml
   tags: [apps, inventory]

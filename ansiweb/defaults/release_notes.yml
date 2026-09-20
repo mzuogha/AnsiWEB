@@ -1,3 +1,22 @@
+- version: "2.3.0"
+  date: "2026-09-20"
+  summary: >-
+    A deployment that installs nothing now says so instead of reporting
+    success.
+  fixed:
+    - "An app with no installer in the cache is left out of the plan, so a
+       deployment had nothing to do and finished as a success with an empty
+       report. The job now names the PCs where nothing was applied and why -
+       usually apps that are configured but not yet downloaded - and is
+       recorded as a warning rather than a success."
+    - "The PC itself is told too: when a deployment finds no applications ready
+       for it, the log lists the ones waiting to be cached, or says that none
+       are enabled or that none are targeted at that PC."
+  added:
+    - The dashboard warns when apps are switched on but have no installer
+      cached, with a link to run an update check, so it is visible before a
+      deployment rather than after.
+
 - version: "2.2.0"
   date: "2026-09-20"
   summary: >-

@@ -234,6 +234,14 @@ _BOOKKEEPING = {"Say which task failed", "Keep the job's failed status",
                 "What was applied on this PC"}
 
 
+_NOTHING_RE = re.compile(r"^\s*- '?([\w.-]+) - 0 item\(s\)", re.M)
+
+
+def applied_nothing(text: str) -> list:
+    """PCs the playbook reported as having had nothing applied."""
+    return _NOTHING_RE.findall(text)
+
+
 def summarise_run(text: str) -> str:
     """A short 'what each task did' list, from Ansible's output."""
     tasks: list = []
@@ -294,6 +302,13 @@ def summarise_run(text: str) -> str:
         lines.append("")
         lines.append("Everything above the first failure was applied; anything after it did not run")
         lines.append("on that PC. Fix the cause and run the job again - re-running is safe.")
+    idle = applied_nothing(text)
+    if idle:
+        lines.append("")
+        lines.append("Nothing was applied on: " + ", ".join(idle))
+        lines.append("Tasks ran, but no application, driver, script or setting was due. The lines")
+        lines.append("above say why - most often the apps are not in the cache yet, or nothing is")
+        lines.append("targeted at these PCs.")
     lines.append("=" * 64)
     return "\n".join(lines)
 
@@ -359,6 +374,11 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
         # rc 2 means "some hosts failed", which is a failure, not a warning.
         # rc 4 is "some hosts were unreachable", which is worth distinguishing.
         status = {0: "success", 4: "warning"}.get(rc, "failed")
+        if status == "success" and kind.startswith("deploy"):
+            # A deployment that applied nothing is not a failure, but calling it
+            # a success hides the fact that nothing happened.
+            if applied_nothing(log_path(job_id).read_text(errors="replace")):
+                status = "warning"
         if rc == 2 and "failed=0" in log_path(job_id).read_text(errors="replace"):
             status = "warning"          # nothing actually failed on a PC
         log(f"[{_stamp()}] Finished with status: {status}")

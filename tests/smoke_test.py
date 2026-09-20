@@ -475,6 +475,38 @@ ok(any("failed" in str(_t).lower() for _t in _wrapper["rescue"]),
 ok(any("aw_results" in str(_t) for _t in _wrapper["always"]),
    "and the summary lists what was applied")
 
+# ------------------------------------------- a deployment that applies nothing says so
+idle_log = """
+TASK [ansiweb_apps : Install or upgrade apps] ***
+skipping: [PC-A]
+TASK [What was applied on this PC] ***
+ok: [PC-A] =>
+    msg:
+    - 'PC-A - 0 item(s):'
+"""
+ok(jobs.applied_nothing(idle_log) == ["PC-A"], "a PC that had nothing applied is spotted")
+idle_summary = jobs.summarise_run(idle_log)
+ok("Nothing was applied on: PC-A" in idle_summary, "and the summary says so plainly")
+ok("not in the cache yet" in idle_summary, "with the usual reason")
+busy_log = """
+TASK [ansiweb_apps : Install or upgrade apps] ***
+changed: [PC-A]
+TASK [What was applied on this PC] ***
+ok: [PC-A] =>
+    msg:
+    - 'PC-A - 3 item(s):'
+"""
+ok(not jobs.applied_nothing(busy_log), "a deployment that did something is not flagged")
+ok("Nothing was applied" not in jobs.summarise_run(busy_log), "and its summary stays quiet")
+
+# apps that are configured but not cached are called out before you deploy
+_plan = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(any(x["kind"] == "apps" for x in _plan.get("skipped", [])) or _plan["apps"],
+   "the plan records apps it could not include")
+_dash = c.get("/").text
+if any(x["kind"] == "apps" for x in _plan.get("skipped", [])):
+    ok("not in the cache yet" in _dash, "and the dashboard warns about them")
+
 # ---------------------------------------------------------------- what each task did
 # The playbook's own error handling should not appear as extra failures
 _noisy = jobs.summarise_run("""
