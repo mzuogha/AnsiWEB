@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.5.0 - 2026-09-20
+
+PCs can be moved between sites, editing one is easier to find, and there is a dark mode.
+
+
+### New
+
+- Move a PC to another site from its row, or tick several and move them together. The message says what that changes: what a PC is given is decided by its site.
+- An Edit button on each PC row. The page behind it was always there - behind the PC's name - but nothing said so.
+- A light and dark switch at the foot of the sidebar. It follows the system setting until you choose, is remembered in that browser, and is applied before the page is drawn so a dark page never flashes white.
+
+
+### Changed
+
+- Panels, code, inputs and the coloured notices all take their colours from variables now, so both themes stay consistent.
+
+
 ## 2.4.0 - 2026-09-20
 
 Tooltips that are no longer clipped, printing defaults per printer, and sites can be renamed.

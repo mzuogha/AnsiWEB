@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {% if session.user %}<meta name="idle-timeout" content="{{ idle_timeout }}">{% endif %}
+  <script>
+    // Applied before anything is drawn, so a dark page never flashes white
+    (function () {
+      try {
+        var saved = localStorage.getItem('ansiweb-theme');
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+      } catch (e) { /* private browsing, stay with the system setting */ }
+    })();
+  </script>
 </head>
 <body>
 {% if session.user %}
@@ -35,6 +44,9 @@
     <button class="link">Sign out {{ session.user }}</button>
     {% if role_label %}<div class="rolebadge">{{ role_label }}{% if my_scope %} · {{ scope_label }}{% endif %}</div>{% endif %}
   </form>
+  <button class="themetoggle" type="button" data-theme-toggle
+          data-tip="Switch between light and dark. Remembered in this browser; left alone it follows your system setting.">
+    <span class="themelabel">Theme</span></button>
   <div class="ver"><a href="{{ url_for('release_notes') }}">v{{ version }} - what's new</a></div>
 </aside>
 {% endif %}

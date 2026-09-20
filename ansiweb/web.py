@@ -57,7 +57,7 @@ ENDPOINT_PERMISSIONS = {
     "uninstall_toggle": users.MANAGE_CONTENT, "uninstall_preview": users.MANAGE_CONTENT,
     "uninstall_run": users.MANAGE_CONTENT, "resource_delete": users.MANAGE_CONTENT,
     # the PC list
-    "pc_add": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS, "pc_connection": users.ADMIN,
+    "pc_add": users.MANAGE_PCS, "pc_delete": users.MANAGE_PCS, "pc_move": users.MANAGE_PCS, "pc_connection": users.ADMIN,
     "pc_import": users.MANAGE_PCS, "sites": users.MANAGE_PCS, "report_delete": users.MANAGE_PCS,
 }
 # POSTs to these endpoints need more than the GET does
@@ -1232,6 +1232,36 @@ def create_app(start_background: bool = True) -> Flask:
         if save_or_flash(cfg):
             (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
             flash(f"Removed {name}.", "ok")
+        return redirect(url_for("pcs_page"))
+
+    @app.route("/pcs/move", methods=["POST"])
+    def pc_move():
+        """Move one or several PCs to another site."""
+        cfg = store.load()
+        site = request.form.get("site", "").strip()
+        names = [n for n in request.form.getlist("pcs") if n]
+        one = request.form.get("pc", "").strip()
+        if one:
+            names = [one]
+        if site not in cfg.get("sites", []):
+            flash("Choose a site that exists.", "error")
+            return redirect(url_for("pcs_page"))
+        if not names:
+            flash("Tick the PCs to move first.", "error")
+            return redirect(url_for("pcs_page"))
+        moved = []
+        for pc in cfg["pcs"]:
+            if pc["name"] in names and pc_allowed(cfg, pc["name"]):
+                if pc.get("site") != site:
+                    pc["site"] = site
+                    moved.append(pc["name"])
+        if not moved:
+            flash("Nothing to move: those PCs are already at that site.", "ok")
+            return redirect(url_for("pcs_page"))
+        if save_or_flash(cfg):
+            flash(f"Moved {len(moved)} PC(s) to {site}: {', '.join(moved[:6])}"
+                  f"{' and more' if len(moved) > 6 else ''}. What each PC gets is decided by site, "
+                  "so check the deployment still suits them.", "ok")
         return redirect(url_for("pcs_page"))
 
     @app.route("/pcs/import", methods=["POST"])

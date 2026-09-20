@@ -1347,6 +1347,53 @@ ok("[data-tip]:hover::after" not in _css,
    "the old in-element tooltip, which scrolling containers clipped, is gone")
 ok("document.body.appendChild(box)" in _js, "it is attached to the page body")
 
+# ------------------------------------------------- editing and moving PCs
+body = c.get("/pcs").text
+ok(">Edit</a>" in body, "each PC row has an Edit button")
+ok("Move ticked PCs" in body, "and several can be moved at once")
+edit = c.get("/pcs/PC-HQ-001/edit").text
+ok('name="site"' in edit and 'name="ip"' in edit and 'name="user"' in edit,
+   "the edit page covers site, address and who it belongs to")
+r = c.post("/pcs/PC-HQ-001/edit", data={"csrf": tok, "name": "PC-HQ-001", "ip": "192.168.1.99",
+                                        "site": "HQ", "user": "Jane Doe", "groups": "finance"},
+           follow_redirects=True)
+edited = [pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]
+ok(edited["ip"] == "192.168.1.99" and edited["user"] == "Jane Doe" and "finance" in edited["groups"],
+   "an existing PC can be edited")
+# moving one PC
+r = c.post("/pcs/move", data={"csrf": tok, "pc": "PC-HQ-001", "site": "Branch1"},
+           follow_redirects=True)
+ok("Moved 1 PC(s) to Branch1" in r.text, "a PC can be moved to another site")
+ok([pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]["site"] == "Branch1",
+   "and the move is stored")
+ok("deployment still suits them" in r.text, "with a word about what that changes")
+# and several together
+r = c.post("/pcs/move", data={"csrf": tok, "pcs": ["PC-HQ-001", "PC-BR1-009"], "site": "HQ"},
+           follow_redirects=True)
+ok("Moved 2 PC(s) to HQ" in r.text, "several PCs move together")
+r = c.post("/pcs/move", data={"csrf": tok, "pcs": ["PC-HQ-001"], "site": "HQ"},
+           follow_redirects=True)
+ok("already at that site" in r.text, "moving one that is already there says so")
+ok("Choose a site that exists" in c.post("/pcs/move", data={"csrf": tok, "pc": "PC-HQ-001",
+                                                            "site": "Nowhere"},
+                                         follow_redirects=True).text, "an unknown site is refused")
+ok("Tick the PCs to move" in c.post("/pcs/move", data={"csrf": tok, "site": "HQ"},
+                                    follow_redirects=True).text, "and moving nothing is refused")
+c.post("/pcs/move", data={"csrf": tok, "pc": "PC-BR1-009", "site": "Branch1"}, follow_redirects=True)
+
+# the theme switch
+_css = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/style.css")).read()
+_js = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/app.js")).read()
+_base = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/templates/base.html")).read()
+ok('[data-theme="dark"]' in _css, "there is a dark palette")
+ok("prefers-color-scheme: dark" in _css, "which follows the system setting by default")
+ok("data-theme-toggle" in _base and "themetoggle" in _css, "and a switch in the sidebar")
+ok("localStorage.setItem('ansiweb-theme'" in _js, "the choice is remembered in the browser")
+ok("localStorage.getItem('ansiweb-theme')" in _base,
+   "and applied before the page is drawn, so it does not flash")
+ok("background: #fff;" not in _css, "panels use a variable, so they follow the theme")
+ok("data-theme-toggle" in c.get("/").text, "the switch is on the page")
+
 # ------------------------------------------------------------ renaming a site
 _before = store.load()
 _pcs_at_hq = [pc["name"] for pc in _before["pcs"] if pc.get("site") == "HQ"]

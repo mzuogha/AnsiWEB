@@ -122,6 +122,31 @@ document.addEventListener('click', function (e) {
   });
 })();
 
+// Light and dark
+(function () {
+  var root = document.documentElement;
+
+  function systemDark() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function current() {
+    return root.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light');
+  }
+  function label() {
+    document.querySelectorAll('.themelabel').forEach(function (el) {
+      el.textContent = current() === 'dark' ? 'Light mode' : 'Dark mode';
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-theme-toggle]')) return;
+    var next = current() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('ansiweb-theme', next); } catch (err) { /* nothing to do */ }
+    label();
+  });
+  label();
+})();
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

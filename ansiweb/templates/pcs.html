@@ -68,12 +68,26 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 </form>
 {% if query %}<p class="muted small">{{ visible | length }} of {{ total }} PCs match "{{ query }}".</p>{% endif %}
 
+{% if can(perms.pcs) %}
+<form method="post" action="{{ url_for('pc_move') }}" id="movepcs" class="row tight movebar">{{ csrf() }}
+  <span class="muted small">Tick PCs below, then move them together:</span>
+  <select name="site" aria-label="Site to move the ticked PCs to">
+    {% for s in cfg.sites %}<option>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="btn small">Move ticked PCs</button>
+</form>
+{% endif %}
+
 <table class="list">
-  <tr><th>PC</th><th>Assigned to{{ tip("Who uses this PC. Searchable, so you do not have to remember PC names.") }}</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync{{ tip("Whether AnsiWEB renames Windows to match the name here at the next deployment.") }}</th><th>Apps</th><th>Last report</th><th></th></tr>
+  <tr>{% if can(perms.pcs) %}<th></th>{% endif %}<th>PC</th><th>Assigned to{{ tip("Who uses this PC. Searchable, so you do not have to remember PC names.") }}</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync{{ tip("Whether AnsiWEB renames Windows to match the name here at the next deployment.") }}</th><th>Apps</th><th>Last report</th><th></th></tr>
   {% for pc in visible %}
   {% set rep = reports.get(pc.name) %}
   {% set assigned = (plan.hosts or {}).get(pc.name, {}).get('apps', []) %}
   <tr>
+    {% if can(perms.pcs) %}
+    <td><input type="checkbox" name="pcs" value="{{ pc.name }}" form="movepcs"
+               aria-label="Select {{ pc.name }}"></td>
+    {% endif %}
     <td><a href="{{ url_for('pc_edit', name=pc.name) }}"><b>{{ pc.name }}</b></a></td>
     <td>{{ pc.user or '—' }}</td>
     <td>{{ pc.ip }}</td>
@@ -100,6 +114,14 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
       <a class="btn small primary" href="{{ url_for('deploy_page', target='pc:' ~ pc.name) }}">Deploy…</a>
       {% endif %}
       {% if can(perms.pcs) %}
+      <a class="btn small" href="{{ url_for('pc_edit', name=pc.name) }}">Edit</a>
+      <form method="post" action="{{ url_for('pc_move') }}" class="inline row tight">{{ csrf() }}
+        <input type="hidden" name="pc" value="{{ pc.name }}">
+        <select name="site" aria-label="Move {{ pc.name }} to another site">
+          {% for s in cfg.sites %}<option {{ 'selected' if s == pc.site }}>{{ s }}</option>{% endfor %}
+        </select>
+        <button class="btn small" data-tip="Move this PC to the site shown. What a PC is given is
+          decided by its site, so its deployment may change.">Move</button></form>
       <form method="post" action="{{ url_for('pc_delete', name=pc.name) }}" class="inline"
             data-confirm="Remove {{ pc.name }} from AnsiWEB? Nothing is changed on the PC itself.">{{ csrf() }}
         <button class="btn small danger" title="Remove this PC from AnsiWEB">Remove</button></form>

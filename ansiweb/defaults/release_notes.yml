@@ -1,3 +1,21 @@
+- version: "2.5.0"
+  date: "2026-09-20"
+  summary: >-
+    PCs can be moved between sites, editing one is easier to find, and there is
+    a dark mode.
+  added:
+    - "Move a PC to another site from its row, or tick several and move them
+       together. The message says what that changes: what a PC is given is
+       decided by its site."
+    - "An Edit button on each PC row. The page behind it was always there -
+       behind the PC's name - but nothing said so."
+    - "A light and dark switch at the foot of the sidebar. It follows the
+       system setting until you choose, is remembered in that browser, and is
+       applied before the page is drawn so a dark page never flashes white."
+  changed:
+    - Panels, code, inputs and the coloured notices all take their colours from
+      variables now, so both themes stay consistent.
+
 - version: "2.4.0"
   date: "2026-09-20"
   summary: >-
