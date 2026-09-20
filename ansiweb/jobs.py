@@ -313,6 +313,33 @@ def summarise_run(text: str) -> str:
     return "\n".join(lines)
 
 
+INSTALL_HINTS = {
+    "1603": "the installer hit a general failure - often it is already part-installed, "
+            "or needs a reboot first",
+    "1618": "another installation was already running on that PC; try again shortly",
+    "1619": "the installer file could not be opened - the download may be truncated",
+    "1620": "the file is not a valid installer package",
+    "1625": "policy on that PC forbids the installation",
+    "3010": "it installed but wants a reboot; add 3010 to the app's success codes if that is fine",
+}
+
+
+def install_hint(text: str) -> str:
+    """Point at the likely cause when an app installer fails."""
+    for code, meaning in INSTALL_HINTS.items():
+        if f"exit code {code}" in text or f"rc={code}" in text or f"return code {code}" in text:
+            return (f"\nOne of the installers exited with {code}: {meaning}.\n"
+                    "The app's page has an 'extra success codes' box if that code is acceptable,\n"
+                    "and an 'arguments' box if it needs different silent switches.\n")
+    if "checksum" in text.lower():
+        return ("\nA download did not match its checksum. Run 'Check for updates now' on the\n"
+                "Apps & Cache page to fetch the installer again, then deploy.\n")
+    if "cannot reach the AnsiWEB cache" in text:
+        return ("\nThe PC could not reach this server's cache on port 80. Everything a PC installs\n"
+                "comes from there, so nothing can proceed until that works.\n")
+    return ""
+
+
 def _ping_hint(cfg) -> str:
     """What to check when a connection test fails, given how AnsiWEB is set up."""
     mode = (cfg.get("settings") or {}).get("pc_connection", "https")
@@ -355,7 +382,12 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             # kind decides them, and a plain deployment runs everything.
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
                                           extra=extra, tags=tags or DEPLOY_TAGS[kind]), log)
-            summary = summarise_run(log_path(job_id).read_text(errors="replace"))
+            body = log_path(job_id).read_text(errors="replace")
+            if rc != 0:
+                hint = install_hint(body)
+                if hint:
+                    log(hint)
+            summary = summarise_run(body)
             if summary:
                 log(summary)
             store.regenerate_all()

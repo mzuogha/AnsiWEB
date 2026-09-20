@@ -100,6 +100,32 @@
       setting.{% endif %}
   when: aw_apps | length == 0
 
+- name: Check the PC can reach the AnsiWEB cache
+  tags: [always]
+  when: (aw_apps | length > 0) or (aw_drivers | length > 0) or (aw_scripts | length > 0)
+        or (aw_registry | length > 0)
+  block:
+    - name: Ask for the cache over HTTP
+      ansible.windows.win_uri:
+        url: "{{ aw_plan.software_url }}/"
+        method: GET
+        status_code: [200, 403, 404]
+        timeout: 20
+      register: aw_reachable
+      changed_when: false
+  rescue:
+    - name: Say why nothing can be downloaded
+      ansible.builtin.fail:
+        msg: >-
+          {{ inventory_hostname }} cannot reach the AnsiWEB cache at
+          {{ aw_plan.software_url }}/, so no installer, driver or script can be fetched.
+          Check, in this order: the PC can reach this server at all (ping it);
+          port 80 is open on the server ('sudo ufw allow 80/tcp');
+          nginx is running ('systemctl status nginx');
+          and, if the /software/ location has allow/deny lines, that this PC's
+          address is allowed. The underlying error was:
+          {{ aw_reachable.msg | default('no response') }}
+
 - name: Check installed app versions
   ansible.builtin.include_tasks: detect.yml
   tags: [apps, inventory]

@@ -5,6 +5,18 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.6.0 - 2026-09-20
+
+A failed app deployment now says what went wrong.
+
+
+### New
+
+- Before downloading anything, a PC checks it can reach this server's cache on port 80. If it cannot, the job says so plainly and lists what to check, instead of every app failing in turn with a download error.
+- Common installer exit codes are explained in the job log - already part-installed, another installation in progress, a truncated download, policy blocking it - along with where to put an extra success code or different silent switches.
+- A download that does not match its checksum now points at re-running the update check rather than leaving a bare mismatch.
+
+
 ## 2.5.0 - 2026-09-20
 
 PCs can be moved between sites, editing one is easier to find, and there is a dark mode.

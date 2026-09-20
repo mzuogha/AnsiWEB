@@ -1347,6 +1347,22 @@ ok("[data-tip]:hover::after" not in _css,
    "the old in-element tooltip, which scrolling containers clipped, is gone")
 ok("document.body.appendChild(box)" in _js, "it is attached to the page body")
 
+# --------------------------------------------- why an app deployment failed
+ok("exited with 1603" in jobs.install_hint("win_package failed with exit code 1603"),
+   "a common installer exit code is explained")
+ok("already running" in jobs.install_hint("exit code 1618"), "so is a busy installer")
+ok("Check for updates now" in jobs.install_hint("checksum mismatch on 7zip.msi"),
+   "a bad download points at re-caching it")
+ok("port 80" in jobs.install_hint("PC-A cannot reach the AnsiWEB cache at http://10.0.0.1/software/"),
+   "and an unreachable cache is named as the cause")
+ok(jobs.install_hint("some unrelated failure") == "", "anything else adds no noise")
+_role_yaml = open(os.path.join(os.path.dirname(__file__), "..",
+                               "ansible/roles/ansiweb_apps/tasks/main.yml")).read()
+ok("Check the PC can reach the AnsiWEB cache" in _role_yaml,
+   "the PC checks it can reach the cache before downloading anything")
+ok("software_url" in json.load(open(os.path.join(DATA, "deploy_plan.json"))),
+   "and the plan tells it where that is")
+
 # ------------------------------------------------- editing and moving PCs
 body = c.get("/pcs").text
 ok(">Edit</a>" in body, "each PC row has an Edit button")
