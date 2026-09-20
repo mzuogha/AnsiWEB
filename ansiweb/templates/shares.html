@@ -37,11 +37,12 @@ read, change or full access. Setting one up again does nothing if it is already 
   </form>
 </section>
 
+<div class="tablewrap">
 <table class="list">
   <tr><th>Share</th><th>Folder on the PC</th><th>Who can use it</th><th>On</th><th>Status</th><th></th></tr>
   {% for sh in shares %}
   <tr class="{{ 'dim' if not sh.enabled }}">
-    <td><b>{{ sh.name }}</b>{% if sh.remove %} <span class="pill failed">removes it</span>{% endif %}
+    <td><a href="{{ url_for('share_edit', sid=sh.id) }}"><b>{{ sh.name }}</b></a>{% if sh.remove %} <span class="pill failed">removes it</span>{% endif %}
       {% if sh.description %}<br><span class="muted small">{{ sh.description }}</span>{% endif %}</td>
     <td class="small"><code>{{ sh.path }}</code></td>
     <td class="small">
@@ -58,6 +59,7 @@ read, change or full access. Setting one up again does nothing if it is already 
         <button class="btn small primary" {{ 'disabled' if not sh.enabled }}>Set up now</button></form>
       {% endif %}
       {% if can(perms.content) %}
+      <a class="btn small" href="{{ url_for('share_edit', sid=sh.id) }}">Edit</a>
       <form method="post" action="{{ url_for('share_toggle', sid=sh.id) }}" class="inline">{{ csrf() }}
         <button class="btn small">{{ 'Disable' if sh.enabled else 'Enable' }}</button></form>
       <form method="post" action="{{ url_for('share_delete', sid=sh.id) }}" class="inline"
@@ -70,6 +72,7 @@ read, change or full access. Setting one up again does nothing if it is already 
   <tr><td colspan="6" class="muted">No shared folders yet.</td></tr>
   {% endfor %}
 </table>
+</div>
 
 {% if can(perms.content) %}
 <section class="panel">

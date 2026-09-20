@@ -133,7 +133,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "location": p.get("location", ""), "default": bool(p.get("default")),
             "remove": bool(p.get("remove")), "targets": p.get("targets") or ["all"],
             "driver_file": "", "driver_url": "", "driver_sha256": "", "driver_source": "",
-            "inf_filter": p.get("driver_inf", ""),
+            "driver_inf": p.get("driver_inf", ""),
             "driver_unpack": PC_CACHE + "\\printer-" + p["id"], "driver_win_file": "",
         }
         # A driver uploaded on the drivers page and linked to this printer wins;
@@ -156,7 +156,7 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
                 "driver_url": f"{base}/printers/{p['driver_file']}",
                 "driver_sha256": p.get("driver_sha256", ""),
                 "driver_source": "staged with this printer",
-                "inf_filter": p.get("driver_inf", ""),
+                "driver_inf": p.get("driver_inf", ""),
                 "driver_win_file": PC_CACHE + "\\" + p["driver_file"],
             })
         printers.append(item)

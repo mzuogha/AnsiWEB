@@ -80,6 +80,30 @@ document.addEventListener('click', function (e) {
   if (marker) marker.classList.toggle('tip-open');
 });
 
+// The driver model list carries which .inf offers each model
+document.addEventListener('change', function (e) {
+  if (!e.target.matches('select[name="driver"].modellist')) return;
+  var chosen = e.target.options[e.target.selectedIndex];
+  var hidden = e.target.form.querySelector('input[name="inf"]');
+  if (hidden && chosen) hidden.value = chosen.getAttribute('data-inf') || '';
+});
+document.addEventListener('submit', function (e) {
+  var list = e.target.querySelector('select[name="driver"].modellist');
+  if (!list) return;
+  var chosen = list.options[list.selectedIndex];
+  var hidden = e.target.querySelector('input[name="inf"]');
+  if (hidden && chosen && !hidden.value) hidden.value = chosen.getAttribute('data-inf') || '';
+});
+
+// Picking a printer model also records which .inf offers it
+document.addEventListener('change', function (e) {
+  if (!e.target.matches('select[name="driver"]')) return;
+  var option = e.target.selectedOptions[0];
+  var form = e.target.closest('form');
+  var hidden = form && form.querySelector('.inf-of-model');
+  if (option && hidden) hidden.value = option.getAttribute('data-inf') || '';
+});
+
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {
   var msg = e.target.getAttribute('data-confirm');

@@ -27,6 +27,14 @@
     placeholder="MPC*"><small>Leave empty to try every .inf in the package.</small></label>
   {% endif %}
   {{ target_picker(targets, chosen=entry.targets or []) }}
+  {% if models %}
+  <h3>Printer models in this package</h3>
+  <p class="muted small">{{ models | length }} model(s). Use one of these as the driver name on the Printers
+  page — it has to match exactly.</p>
+  <div class="checks scroll">
+    {% for m in models %}<div class="small"><code>{{ m }}</code></div>{% endfor %}
+  </div>
+  {% endif %}
   {{ pc_picker(pcs, chosen=entry.targets or [], label='individual PCs') }}
   <h3>Replace the file</h3>
   <p class="muted small">Uploading a new file makes PCs apply it again, even where the old one already ran

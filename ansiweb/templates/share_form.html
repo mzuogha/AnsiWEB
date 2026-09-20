@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_picker, tip with context %}
+{% block title %}{{ share.name }}{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>{{ share.name }}</h1>
+  <div class="actions"><a class="btn" href="{{ url_for('shares_page') }}">Back to Shared Folders</a></div>
+</div>
+
+<form method="post" class="panel form">{{ csrf() }}
+  <div class="row">
+    <label>Share name<input name="name" required value="{{ share.name }}">
+      <small>What people see: <code>\\PC-NAME\{{ share.name }}</code></small></label>
+    <label>Folder on the PC<input name="path" required value="{{ share.path }}"></label>
+    <label>Description<input name="description" value="{{ share.description or '' }}"></label>
+  </div>
+
+  <h2>Who can use it{{ tip("Accounts or groups exactly as Windows names them, comma-separated. Anyone not listed here loses access when this is applied, so the share matches what AnsiWEB says.") }}</h2>
+  <div class="row">
+    <label>Read access<input name="read" value="{{ (share.read or []) | join(', ') }}"
+      placeholder="Everyone"></label>
+    <label>Change access<input name="change" value="{{ (share.change or []) | join(', ') }}"
+      placeholder="CORP\Team"></label>
+    <label>Full access<input name="full" value="{{ (share.full or []) | join(', ') }}"
+      placeholder="Administrators"></label>
+  </div>
+  <p class="muted small">Leave all three empty to accept whatever Windows sets by default. Applying a change
+  rewrites the share's permissions on every PC it covers, so anyone granted access by hand is removed.</p>
+
+  <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if share.enabled }}>
+    Active</label>
+  <label class="check"><input type="checkbox" name="remove" {{ 'checked' if share.remove }}>
+    Remove this share from the PCs instead of creating it (the folder is left alone)</label>
+
+  {{ target_picker(targets, chosen=share.targets or [], heading='Create on') }}
+
+  <div class="formactions">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('shares_page') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

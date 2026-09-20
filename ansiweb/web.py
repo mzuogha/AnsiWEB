@@ -11,7 +11,7 @@ from datetime import timedelta
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template, request,
                    send_file, send_from_directory, session, url_for)
 
-from . import (__version__, audit, backup, cache, jobs, paths, payloads, release,
+from . import (__version__, audit, backup, cache, infparse, jobs, paths, payloads, release,
                report_state, store, users, vault)
 
 # What each route needs. Anything not listed here requires an administrator,
@@ -44,6 +44,7 @@ ENDPOINT_PERMISSIONS = {
     "app_search_add": users.MANAGE_CONTENT,
     "app_refresh": users.MANAGE_CONTENT, "resource_add": users.MANAGE_CONTENT,
     "share_add": users.MANAGE_CONTENT, "share_delete": users.MANAGE_CONTENT,
+    "share_edit": users.MANAGE_CONTENT,
     "share_toggle": users.MANAGE_CONTENT, "share_run": users.RUN_JOBS,
     "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
@@ -677,6 +678,35 @@ def create_app(start_background: bool = True) -> Flask:
                 return i, sh
         abort(404)
 
+    @app.route("/shares/<sid>/edit", methods=["GET", "POST"])
+    def share_edit(sid):
+        cfg = store.load()
+        idx, share = find_share(cfg, sid)
+        if request.method == "POST":
+            f = request.form
+
+            def accounts(field):
+                return [a.strip() for a in re.split(r"[,\n]+", f.get(field, "")) if a.strip()]
+
+            try:
+                cfg["shares"][idx].update({
+                    "name": f.get("name", "").strip() or share["name"],
+                    "path": f.get("path", "").strip(),
+                    "description": f.get("description", "").strip(),
+                    "enabled": f.get("enabled") == "on",
+                    "read": accounts("read"), "change": accounts("change"), "full": accounts("full"),
+                    "remove": f.get("remove") == "on",
+                    "targets": request.form.getlist("targets") or ["all"],
+                })
+                store.save(cfg)
+                flash(f"'{cfg['shares'][idx]['name']}' saved. Press 'Set up now' to apply the change "
+                      "to the PCs.", "ok")
+                return redirect(url_for("shares_page"))
+            except store.ValidationError as exc:
+                flash(str(exc), "error")
+        return render_template("share_form.html", cfg=cfg, share=cfg["shares"][idx],
+                               targets=store.target_choices(cfg))
+
     @app.route("/shares/<sid>/toggle", methods=["POST"])
     def share_toggle(sid):
         cfg = store.load()
@@ -728,7 +758,34 @@ def create_app(start_background: bool = True) -> Flask:
                                targets=store.target_choices(cfg),
                                pcs=[pc for pc in cfg.get("pcs", []) if pc_allowed(cfg, pc["name"])],
                                driver_present=payloads.printer_driver_present,
+                               package_models=package_models,
                                drivers=[d for d in cfg.get("drivers", []) if d.get("enabled", True)])
+
+    def package_models(printer) -> dict:
+        """The models a printer's driver package offers, if it has one."""
+        if payloads.printer_driver_present(printer):
+            return infparse.models_in_zip(payloads.printer_driver_dir() / printer["driver_file"])
+        linked = next((d for d in store.load().get("drivers", [])
+                       if d.get("id") == printer.get("driver_ref")), None)
+        if linked and payloads.present("drivers", linked):
+            return infparse.models_in_zip(payloads.kind_dir("drivers") / linked["file"])
+        return {"models": [], "infs": [], "error": ""}
+
+    @app.route("/printers/<pid>/driver-name", methods=["POST"])
+    def printer_driver_name(pid):
+        """Pick which model in the package this printer should use."""
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        chosen = request.form.get("driver", "").strip()
+        if not chosen:
+            flash("Choose a model from the package.", "error")
+            return redirect(url_for("printers_page"))
+        cfg["printers"][idx]["driver"] = chosen
+        # Install only the .inf that offers it, rather than the whole archive
+        cfg["printers"][idx]["driver_inf"] = request.form.get("inf", "").strip()
+        if save_or_flash(cfg):
+            flash(f"'{printer['name']}' will use the '{chosen}' driver. Press 'Set up now' to apply it.", "ok")
+        return redirect(url_for("printers_page"))
 
     def printer_from_form(existing=None):
         f = request.form
@@ -1033,6 +1090,8 @@ def create_app(start_background: bool = True) -> Flask:
                 flash(str(exc), "error")
         return render_template("resource_form.html", kind=kind, meta=payloads.KINDS[kind],
                                group=payloads.GROUP_OF[kind], entry=entry, pcs=visible_pcs(cfg),
+                               models=(infparse.models_in_zip(payloads.kind_dir(kind) / entry["file"])
+                                       if kind == "drivers" and payloads.present(kind, entry) else {}),
                                cfg=cfg, targets=store.target_choices(cfg), run_modes=payloads.RUN_MODES,
                                present=payloads.present(kind, entry))
 

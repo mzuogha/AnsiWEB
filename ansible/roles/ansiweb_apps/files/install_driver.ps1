@@ -7,13 +7,34 @@
 # Windows will not take are reported rather than fatal - unless Strict is set.
 param(
     [string]$Folder,
-    [bool]$Strict = $false
+    [bool]$Strict = $false,
+    # Install only this .inf (by file name), when a printer has been told which
+    # model to use. Empty means every .inf in the package.
+    [string]$OnlyInf = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $all = @(Get-ChildItem -LiteralPath $Folder -Filter *.inf -Recurse -File)
 if (-not $all) { throw "No .inf file was found in the uploaded driver package." }
+
+if ($OnlyInf) {
+    $wanted = @($all | Where-Object { $_.Name -ieq $OnlyInf })
+    if (-not $wanted) {
+        throw ("'$OnlyInf' is not in this driver package. It holds: " +
+               (($all | Select-Object -ExpandProperty Name -Unique) -join ', '))
+    }
+    $all = $wanted
+}
+
+if ($OnlyInf) {
+    $wanted = @($all | Where-Object { $_.Name -ieq $OnlyInf })
+    if (-not $wanted) {
+        throw "'$OnlyInf' is not in this driver package. It holds: " +
+              (($all | ForEach-Object { $_.Name } | Sort-Object -Unique) -join ', ')
+    }
+    $all = $wanted
+}
 
 # Vendor archives often carry the same files twice (an extracted copy beside the
 # original). Importing a file once is enough.

@@ -136,3 +136,15 @@ body.konami .btn.primary { animation: aw-nudge 1.4s ease-in-out infinite; }
 [data-tip]:hover::before, [data-tip]:focus::before, [data-tip].tip-open::before {
   content: ""; position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%);
   border: 6px solid transparent; border-top-color: #0f172a; z-index: 60; pointer-events: none; }
+
+select.modellist { min-width: 260px; max-width: 100%; margin: 6px 0; }
+
+.tablewrap { overflow-x: auto; }
+details.rowactions > summary { display: inline-block; list-style: none; cursor: pointer; }
+details.rowactions > summary::-webkit-details-marker { display: none; }
+details.rowactions[open] > summary { margin-bottom: 6px; }
+details.rowactions .form { min-width: 260px; }
+
+.tablewrap { overflow-x: auto; }
+.rowremove { min-width: 230px; margin: 0; }
+.rowremove label { margin-bottom: 4px; }

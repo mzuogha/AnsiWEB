@@ -37,7 +37,8 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
 <p class="muted small">{{ total }} program/version combination(s){% if total > rows|length %}, showing the first
   {{ rows|length }}{% endif %}.</p>
 
-<table class="list">
+<div class="tablewrap">
+<div class="tablewrap"><table class="list">
   <tr><th>Program</th><th>Version</th><th>Publisher</th><th>Type</th><th>PCs</th><th>Which</th>
     {% if can(perms.run) %}<th>Remove from</th>{% endif %}</tr>
   {% for r in rows %}
@@ -47,21 +48,25 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
     <td class="small">{{ r.publisher or '—' }}</td>
     <td class="small">{{ r.arch }}</td>
     <td>{{ r.pcs | length }}</td>
-    <td class="small muted">{{ r.pcs[:8] | join(', ') }}{% if r.pcs|length > 8 %} and {{ r.pcs|length - 8 }} more{% endif %}</td>
+    <td class="small muted" {% if r.pcs %}data-tip="{{ r.pcs | join(', ') }}"{% endif %}>
+      {{ r.pcs[:3] | join(', ') }}{% if r.pcs|length > 3 %} and {{ r.pcs|length - 3 }} more{% endif %}</td>
     {% if can(perms.run) %}
-    <td class="nowrap">
-      <form method="post" action="{{ url_for('inventory_uninstall') }}" class="inline row tight"
-            data-confirm="Uninstall {{ r.name }}? Preview first unless you are sure.">{{ csrf() }}
-        <input type="hidden" name="program" value="{{ r.name }}">
-        <input type="hidden" name="q" value="{{ query }}">
-        <select name="target" class="short">
-          <option value="{{ 'pc:' ~ pc_filter if pc_filter else 'all' }}">
-            {{ pc_filter if pc_filter else 'all PCs' }}</option>
-          {% for pc in r.pcs %}<option value="pc:{{ pc }}">{{ pc }}</option>{% endfor %}
-        </select>
-        <button class="btn small" title="Report what would happen, changing nothing">Preview</button>
-        <input name="confirm" placeholder="REMOVE" size="8" autocomplete="off">
-        <button class="btn small danger" title="Uninstall it">Uninstall</button>
+    <td>
+      <form method="post" action="{{ url_for('inventory_uninstall') }}" class="form tight rowremove"
+            data-confirm="Uninstall {{ r.name }}?">{{ csrf() }}
+          <input type="hidden" name="program" value="{{ r.name }}">
+          <input type="hidden" name="q" value="{{ query }}">
+          <label>From<select name="target">
+            <option value="{{ 'pc:' ~ pc_filter if pc_filter else 'all' }}">
+              {{ pc_filter if pc_filter else 'every PC that has it' }}</option>
+            {% for pc in r.pcs %}<option value="pc:{{ pc }}">{{ pc }}</option>{% endfor %}
+          </select></label>
+        <div class="row tight">
+          <button class="btn small" title="Report what would happen, changing nothing">Preview</button>
+          <input name="confirm" placeholder="type REMOVE" size="11" autocomplete="off"
+                 aria-label="Type REMOVE to confirm">
+          <button class="btn small danger" title="Uninstall it from the chosen PC">Remove</button>
+        </div>
       </form>
     </td>
     {% endif %}
@@ -71,7 +76,7 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
     {% if query or pc_filter %}Nothing matched that search.
     {% else %}No inventory yet. It is collected at the end of each deployment.{% endif %}</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% if can(perms.content) or uninstalls %}
 <section class="panel" id="uninstall">
   <h2>Standing uninstalls</h2>
@@ -79,7 +84,7 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
   program's name in Windows. Nothing is removed until you run it: a normal deployment only reports what
   <em>would</em> go. For a one-off on a single PC, use the Uninstall button on a row above instead.</p>
 
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>What to remove</th><th>Matches programs named</th><th>On</th><th>Status</th><th></th></tr>
     {% for e in uninstalls %}
     <tr class="{{ 'dim' if not e.enabled }}">
@@ -87,7 +92,7 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
       <td class="small"><code>{{ e.detect_pattern }}</code></td>
       <td class="small">{% for t in e.targets %}{{ target_label(t) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
       <td>{% if e.enabled %}<span class="pill st-ok">active</span>{% else %}<span class="pill st-disabled">disabled</span>{% endif %}</td>
-      <td class="nowrap">
+      <td>
         {% if can(perms.content) %}
         <form method="post" action="{{ url_for('uninstall_preview', uid=e.id) }}" class="inline">{{ csrf() }}
           <input type="hidden" name="target" value="all">
@@ -101,14 +106,14 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
           <button class="btn small">{{ 'Disable' if e.enabled else 'Enable' }}</button></form>
         <form method="post" action="{{ url_for('uninstall_delete', uid=e.id) }}" class="inline"
               data-confirm="Remove this entry? Apps already uninstalled stay uninstalled.">{{ csrf() }}
-          <button class="btn small">Delete</button></form>
+          <button class="btn small danger">Remove entry</button></form>
         {% endif %}
       </td>
     </tr>
     {% else %}
     <tr><td colspan="5" class="muted">No standing uninstalls.</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
 
   {% if can(perms.content) %}
   <h3>Add one</h3>

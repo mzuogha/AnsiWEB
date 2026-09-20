@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.2.0 - 2026-09-20
+
+Pick a printer model out of a driver package, clearer controls on the Inventory page, and shared folder permissions can be edited.
+
+
+### New
+
+- A driver package usually covers a dozen printer families. AnsiWEB now reads the .inf files inside it and lists the models, so a printer can be pointed at one by picking it from a list instead of typing the exact name. Only the .inf offering that model is installed on the PCs, rather than the whole archive.
+- The models in an uploaded driver package are listed on its own page too.
+- Shared folder permissions can be edited: read, change and full access are changed on the share's own page instead of deleting and re-adding it.
+
+
+### Fixed
+
+- The Remove button on each row of the Inventory page sat inside a collapsed section, so the page looked as though it had none. It is a plain button now, and the standing entries say 'Remove entry'.
+- Wide tables on that page scroll rather than pushing their last column off the side.
+
+
 ## 2.1.0 - 2026-09-19
 
 Driver packages that hold more than drivers now install properly, and an option that could never have worked is gone.

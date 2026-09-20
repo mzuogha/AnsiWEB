@@ -919,7 +919,6 @@ ok(store.load()["settings"]["collect_inventory"] is True, "and back on again")
 # ------------------------------------------------ a restored backup still deploys
 # The point is not just that the files come back, but that everything derived
 # from them - inventory, plan, vault - is rebuilt and Ansible still accepts it.
-import shutil as _sh
 import subprocess as _sp
 
 before_cfg = store.load()
@@ -1101,6 +1100,30 @@ r = c.post(f"/shares/{sh['id']}/run", data={"csrf": tok, "target": "all"}, follo
 wait_for_jobs()
 ok(jobs.last_job("shares") is not None, "a share can be set up on its own")
 ok(jobs.DEPLOY_TAGS.get("shares") == "shares", "shares have their own job tag")
+# a share's permissions can be changed after the fact
+r = c.get(f"/shares/{sh['id']}/edit")
+ok(r.status_code == 200 and "Who can use it" in r.text, "a share can be opened for editing")
+ok("CORP\\Team" in r.text, "with its current access shown")
+r = c.post(f"/shares/{sh['id']}/edit", data={"csrf": tok, "name": "Team", "path": r"D:\Shared\Team",
+                                             "description": "Team files", "enabled": "on",
+                                             "read": "Everyone", "change": "CORP\\Team, CORP\\Leads",
+                                             "full": "Administrators", "targets": ["all"]},
+           follow_redirects=True)
+ok("saved" in r.text, "changes save")
+edited = [x for x in store.load()["shares"] if x["id"] == sh["id"]][0]
+ok(edited["change"] == ["CORP\\Team", "CORP\\Leads"], "the new access list is stored")
+ok(edited["full"] == ["Administrators"] and edited["read"] == ["Everyone"], "as are the others")
+ok(edited["targets"] == ["all"], "and the targets")
+plan_sh2 = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(plan_sh2["shares"][0]["change"] == ["CORP\\Team", "CORP\\Leads"], "and it reaches the PCs")
+ok("Edit" in c.get("/shares").text, "the list links to the editor")
+ok("not-a-path" not in c.post(f"/shares/{sh['id']}/edit",
+                              data={"csrf": tok, "name": "Team", "path": "not-a-path",
+                                    "targets": ["all"]}, follow_redirects=True).text.split("value=")[0],
+   "a bad path is refused")
+ok([x for x in store.load()["shares"] if x["id"] == sh["id"]][0]["path"].startswith("D:"),
+   "and the old path is kept")
+
 r = c.post(f"/shares/{sh['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 ok("stay on the PCs" in r.text, "deleting explains the share stays on the PCs")
 
@@ -1177,6 +1200,77 @@ ok(pr_f["driver_inf"] == "MPC*", "a printer can do the same for its staged drive
 ok(".inf: MPC*" in c.get("/printers").text, "and the page shows it")
 c.post(f"/printers/{pr_f['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 c.post(f"/drivers/{drv_f['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+
+# ------------------------------------------------ reading models out of a driver package
+from ansiweb import infparse                                            # noqa: E402
+_ricoh_inf = b"""
+[Version]
+Signature="$Windows NT$"
+Provider=%Ricoh%
+CatalogFile=RICOHJBP.cat
+[Manufacturer]
+%Ricoh%=Ricoh,NTamd64.10.0
+[Ricoh.NTamd64.10.0]
+"RICOH MP C3003 PCL 6" = MPC3003, RICOH_MPC3003
+%MPC4504% = MPC4504, RICOH_MPC4504
+[Strings]
+Ricoh="Ricoh"
+MPC4504="RICOH MP C4504 PCL 6"
+"""
+_pkg = io.BytesIO()
+with zipfile.ZipFile(_pkg, "w") as _z:
+    _z.writestr("disk1/MPC3000_.inf", _ricoh_inf)
+    _z.writestr("disk1/oemsetup.inf", b'[Version]\nSignature="$Windows NT$"\n')
+    _z.writestr("z06594L17/disk1/MPC3000_.inf", _ricoh_inf)      # the duplicate copy vendors ship
+_pkg.seek(0)
+_read = infparse.models_in_zip(_pkg)
+_names = [m["model"] for m in _read["models"]]
+ok(_names == ["RICOH MP C3003 PCL 6", "RICOH MP C4504 PCL 6"],
+   "every model in a package is listed, in order")
+ok(all(m["inf"] == "MPC3000_.inf" for m in _read["models"]),
+   "each model says which .inf offers it")
+ok(len(_read["models"]) == 2, "a duplicate copy of the same .inf is not listed twice")
+ok(infparse.models_in_zip(io.BytesIO(b"not a zip"))["error"], "an unreadable package is reported")
+ok(infparse.models_in_zip(io.BytesIO(_pkg.getvalue()))["models"], "and a readable one is not")
+
+# choosing one of them for a printer
+_pkg.seek(0)
+r = c.post("/printers/add", data={"csrf": tok, "name": "Ricoh IT", "host": "10.0.0.31",
+                                  "driver": "placeholder", "targets": ["all"],
+                                  "driver_package": (_pkg, "ricoh.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("added" in r.text, "a printer can be added with a multi-model package")
+rp = [p for p in store.load()["printers"] if p["name"] == "Ricoh IT"][0]
+body = c.get("/printers").text
+ok("model(s) in the package" in body, "the page offers the models it found")
+ok("RICOH MP C4504 PCL 6" in body, "including one behind a %token%")
+r = c.post(f"/printers/{rp['id']}/driver-name",
+           data={"csrf": tok, "driver": "RICOH MP C4504 PCL 6", "inf": "MPC3000_.inf"},
+           follow_redirects=True)
+ok("will use the &#39;RICOH MP C4504 PCL 6&#39; driver" in r.text or
+   "will use the 'RICOH MP C4504 PCL 6' driver" in r.text, "a model can be chosen")
+rp = [p for p in store.load()["printers"] if p["name"] == "Ricoh IT"][0]
+ok(rp["driver"] == "RICOH MP C4504 PCL 6" and rp["driver_inf"] == "MPC3000_.inf",
+   "the choice and its .inf are stored")
+plan_m = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+chosen = [p for p in plan_m["printers"] if p["name"] == "Ricoh IT"][0]
+ok(chosen["driver_inf"] == "MPC3000_.inf", "so only that .inf is installed on the PCs")
+ok("Choose a model" in c.post(f"/printers/{rp['id']}/driver-name", data={"csrf": tok, "driver": ""},
+                              follow_redirects=True).text, "an empty choice is refused")
+c.post(f"/printers/{rp['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+
+# the inventory row controls are visible rather than hidden behind a summary
+body = c.get("/inventory").text
+ok(">Remove<" in body, "each program row has a visible Remove button")
+ok("Preview" in body, "and a Preview beside it")
+c.post("/uninstalls/add", data={"csrf": tok, "name": "Old viewer", "detect_pattern": "^OldViewer",
+                                "targets": ["all"]}, follow_redirects=True)
+with_entry = c.get("/inventory").text
+ok("Remove entry" in with_entry, "a standing uninstall can be removed")
+ok("Old viewer" in with_entry, "and is listed on the same page")
+_u = [u for u in store.load()["uninstalls"] if u["name"] == "Old viewer"][0]
+c.post(f"/uninstalls/{_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+ok("tablewrap" in body, "wide tables scroll instead of losing their last column")
 
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")

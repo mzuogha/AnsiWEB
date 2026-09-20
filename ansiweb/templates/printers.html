@@ -27,7 +27,27 @@ printer up again does nothing if it is already correct.</p>
       {% if p.location or p.comment %}<br><span class="muted small">{{ p.location }} {{ p.comment }}</span>{% endif %}
       {% if p.notes %}<br><span class="err small">{{ p.notes }}</span>{% endif %}</td>
     <td class="small">{{ p.host }}:{{ p.port }}</td>
-    <td class="small">{{ p.driver or '—' }}{% if p.driver_inf %}<br><span class="muted">.inf: {{ p.driver_inf }}</span>{% endif %}</td>
+    {% set pkg = package_models(p) %}
+    <td class="small">{{ p.driver or '—' }}{% if p.driver_inf %}<br><span class="muted">.inf: {{ p.driver_inf }}</span>{% endif %}
+      {% if pkg.error %}<br><span class="err small">{{ pkg.error }}</span>
+      {% elif pkg.models %}
+        <br><span class="muted">{{ pkg.models | length }} model(s) in the package</span>
+        {% if can(perms.content) %}
+        <details class="rowactions">
+          <summary class="btn small">Choose a model</summary>
+          <form method="post" action="{{ url_for('printer_driver_name', pid=p.id) }}" class="form tight">{{ csrf() }}
+            <label>Model<select name="driver" size="8">
+              {% for m in pkg.models %}
+              <option value="{{ m.model }}" data-inf="{{ m.inf }}"
+                {{ 'selected' if m.model == p.driver }}>{{ m.model }} <span>({{ m.inf }})</span></option>
+              {% endfor %}
+            </select><small>Only the .inf that offers the model you pick is installed on the PCs.</small></label>
+            <input type="hidden" name="inf" value="" class="inf-of-model">
+            <button class="btn small primary">Use this model</button>
+          </form>
+        </details>
+        {% endif %}
+      {% endif %}</td>
     <td class="small">
       {% if p.driver_ref %}<span class="pill st-pinned">linked</span><br>
         <span class="muted">{{ (drivers | selectattr('id', 'equalto', p.driver_ref) | map(attribute='name') | first) or p.driver_ref }}</span>
@@ -74,7 +94,8 @@ printer up again does nothing if it is already correct.</p>
     </div>
     <div class="row">
       <label>Windows driver name<input name="driver" placeholder="HP Universal Printing PCL 6">
-        <small>Exactly as it appears in the driver's .inf — this is the name Windows registers.</small></label>
+        <small>Exactly as it appears in the driver's .inf. Attach a package below and AnsiWEB will list the
+        models it contains, so you can pick one instead of typing it.</small></label>
       <label>Driver package (optional)<input type="file" name="driver_package" accept=".zip">
         <small>A .zip of the vendor's .inf files. Staged here, installed on each PC before the printer.</small></label>
       <label>Or use a driver already uploaded<select name="driver_ref">
