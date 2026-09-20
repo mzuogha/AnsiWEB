@@ -70,6 +70,40 @@ printer up again does nothing if it is already correct.</p>
             class="inline row tight">{{ csrf() }}
         <input type="file" name="driver_package" accept=".zip" class="short">
         <button class="btn small">{{ 'Replace driver' if driver_present(p) else 'Stage driver' }}</button></form>
+      <details class="rowactions">
+        <summary class="btn small">Printing defaults</summary>
+        <form method="post" action="{{ url_for('printer_features', pid=p.id) }}" class="form tight">{{ csrf() }}
+          {% set feats = package_features(p) %}
+          {% if feats %}
+          <p class="muted small">The package mentions:
+            {% for f in feats %}{{ feature_labels[f] }}{% if not loop.last %}, {% endif %}{% endfor %}.
+            Whether this model has them fitted is for the printer to say - it refuses anything it does
+            not support, and the job log records that.</p>
+          {% else %}
+          <p class="muted small">No driver package staged, so there is nothing to read features from.
+            These settings are still applied, and the printer refuses any it does not support.</p>
+          {% endif %}
+          <label>Two-sided<select name="duplex">
+            <option value="" {{ 'selected' if not p.duplex }}>leave as the driver sets it</option>
+            <option value="OneSided" {{ 'selected' if p.duplex == 'OneSided' }}>one-sided</option>
+            <option value="TwoSidedLongEdge" {{ 'selected' if p.duplex == 'TwoSidedLongEdge' }}>two-sided, long edge</option>
+            <option value="TwoSidedShortEdge" {{ 'selected' if p.duplex == 'TwoSidedShortEdge' }}>two-sided, short edge</option>
+          </select></label>
+          <label>Colour<select name="colour">
+            <option value="" {{ 'selected' if not p.colour }}>leave as the driver sets it</option>
+            <option value="Color" {{ 'selected' if p.colour == 'Color' }}>colour</option>
+            <option value="Grayscale" {{ 'selected' if p.colour == 'Grayscale' }}>greyscale</option>
+          </select></label>
+          <label>Collate<select name="collate">
+            <option value="" {{ 'selected' if not p.collate }}>leave as the driver sets it</option>
+            <option value="yes" {{ 'selected' if p.collate == 'yes' }}>on</option>
+            <option value="no" {{ 'selected' if p.collate == 'no' }}>off</option>
+          </select></label>
+          <label>Paper size<input name="paper_size" value="{{ p.paper_size or '' }}" placeholder="A4"
+            size="10"><small>Blank leaves it alone.</small></label>
+          <button class="btn small primary">Save defaults</button>
+        </form>
+      </details>
       <form method="post" action="{{ url_for('printer_toggle', pid=p.id) }}" class="inline">{{ csrf() }}
         <button class="btn small">{{ 'Disable' if p.enabled else 'Enable' }}</button></form>
       <form method="post" action="{{ url_for('printer_delete', pid=p.id) }}" class="inline"

@@ -1304,6 +1304,78 @@ _u = [u for u in store.load()["uninstalls"] if u["name"] == "Old viewer"][0]
 c.post(f"/uninstalls/{_u['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 ok("tablewrap" in body, "wide tables scroll instead of losing their last column")
 
+# ------------------------------------------------------ printer features and tooltips
+_zf = io.BytesIO()
+import zipfile as _zip
+with _zip.ZipFile(_zf, "w") as _z:
+    _z.writestr("disk1/MPC.inf", b'[Manufacturer]\n%R%=R,NTamd64\n[R.NTamd64]\n"RICOH MP C3003"=X.GPD\n')
+    _z.writestr("disk1/MPC.dsc", b"*Feature: Duplex\nStaple finisher\nCollate\nTray 3")
+_zf.seek(0)
+ok(infparse.features_in_zip(_zf) == ["duplex", "staple", "collate", "trays"],
+   "the features a package mentions are read from it")
+ok(infparse.features_in_zip(io.BytesIO(b"not a zip")) == [], "an unreadable package gives none")
+_zf.seek(0)
+r = c.post("/printers/add", data={"csrf": tok, "name": "Feature printer", "host": "10.0.0.78",
+                                  "driver": "RICOH MP C3003", "targets": ["all"],
+                                  "driver_package": (_zf, "ricoh.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+fp = [p for p in store.load()["printers"] if p["name"] == "Feature printer"][0]
+body = c.get("/printers").text
+ok("Printing defaults" in body, "each printer offers its printing defaults")
+ok("Two-sided printing" in body, "and the package's features are shown as a hint")
+r = c.post(f"/printers/{fp['id']}/features",
+           data={"csrf": tok, "duplex": "TwoSidedLongEdge", "colour": "Grayscale",
+                 "collate": "yes", "paper_size": "A4"}, follow_redirects=True)
+ok("Printing defaults saved" in r.text, "they can be saved")
+fp = [p for p in store.load()["printers"] if p["name"] == "Feature printer"][0]
+ok(fp["duplex"] == "TwoSidedLongEdge" and fp["colour"] == "Grayscale"
+   and fp["collate"] == "yes" and fp["paper_size"] == "A4", "and are stored")
+plan_f = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+pf = [p for p in plan_f["printers"] if p["name"] == "Feature printer"][0]
+ok(pf["duplex"] == "TwoSidedLongEdge" and pf["paper_size"] == "A4", "and reach the PCs")
+ok("does not support" in r.text or "not support" in r.text,
+   "with a note that the printer decides what it can do")
+c.post(f"/printers/{fp['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+
+# tooltips are drawn in one floating box, so nothing can clip them
+_css = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/style.css")).read()
+_js = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/app.js")).read()
+ok("#tipbox" in _css and "position: fixed" in _css.split("#tipbox")[1][:200],
+   "the tooltip box is fixed to the window")
+ok("z-index: 9999" in _css.split("#tipbox")[1][:400], "and sits above everything else")
+ok("[data-tip]:hover::after" not in _css,
+   "the old in-element tooltip, which scrolling containers clipped, is gone")
+ok("document.body.appendChild(box)" in _js, "it is attached to the page body")
+
+# ------------------------------------------------------------ renaming a site
+_before = store.load()
+_pcs_at_hq = [pc["name"] for pc in _before["pcs"] if pc.get("site") == "HQ"]
+ok(_pcs_at_hq, "there are PCs at HQ to move")
+c.post("/printers/add", data={"csrf": tok, "name": "HQ site printer", "host": "10.0.0.77",
+                              "driver": "HP", "targets": ["site:HQ"]}, follow_redirects=True)
+r = c.post("/sites", data={"csrf": tok, "action": "rename", "site": "HQ", "new_name": "Head Office"},
+           follow_redirects=True)
+ok("renamed to" in r.text, "a site can be renamed")
+after = store.load()
+ok("Head Office" in after["sites"] and "HQ" not in after["sites"], "the name changes")
+ok(all(pc.get("site") == "Head Office" for pc in after["pcs"] if pc["name"] in _pcs_at_hq),
+   "its PCs move with it")
+_pr = [p for p in after["printers"] if p["name"] == "HQ site printer"][0]
+ok(_pr["targets"] == ["site:Head Office"], "and anything aimed at it follows")
+ok("already a site called" in c.post("/sites", data={"csrf": tok, "action": "rename",
+                                                     "site": "Head Office", "new_name": "Branch1"},
+                                     follow_redirects=True).text,
+   "renaming onto an existing site is refused")
+ok("Enter the new name" in c.post("/sites", data={"csrf": tok, "action": "rename",
+                                                  "site": "Head Office", "new_name": " "},
+                                  follow_redirects=True).text, "an empty new name is refused")
+ok("still has PCs" in c.post("/sites", data={"csrf": tok, "action": "delete", "site": "Head Office"},
+                             follow_redirects=True).text, "a site with PCs cannot be deleted")
+c.post(f"/printers/{_pr['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+c.post("/sites", data={"csrf": tok, "action": "rename", "site": "Head Office", "new_name": "HQ"},
+       follow_redirects=True)
+ok("HQ" in store.load()["sites"], "and back again for the rest of the tests")
+
 # ---------------------------------------------------------------- printers
 r = c.get("/printers")
 ok(r.status_code == 200 and "No printers yet" in r.text, "the printers page starts empty")

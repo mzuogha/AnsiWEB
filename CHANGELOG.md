@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.4.0 - 2026-09-20
+
+Tooltips that are no longer clipped, printing defaults per printer, and sites can be renamed.
+
+
+### New
+
+- Printing defaults on each printer: two-sided, colour, collate and paper size, applied to every PC the printer goes to. The printer itself decides what it supports - anything it refuses is left alone and noted in the job log.
+- AnsiWEB reads a staged driver package and lists the features it mentions - two-sided, colour, stapling, hole punch, collate, extra trays - beside those settings. It is a hint drawn from the package's own files, not a promise about the model in front of you.
+- Sites can be renamed. The PCs at that site follow it, as does anything aimed at it - apps, drivers, scripts, registry files, printers, shares, uninstalls, the time and activation settings, and any user limited to that site - so nothing quietly stops being deployed.
+
+
+### Fixed
+
+- Tooltips were drawn inside the element they belonged to, so a table that scrolls sideways or a panel that clips its contents cut them off. They are now one floating box attached to the page, above everything, which flips below the element when there is no room above and stays on screen at the edges. Hover, keyboard focus and a tap all show it.
+
+
 ## 2.3.0 - 2026-09-20
 
 A deployment that installs nothing now says so instead of reporting success.

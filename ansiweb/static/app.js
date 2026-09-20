@@ -71,38 +71,56 @@ document.addEventListener('click', function (e) {
   });
 })();
 
-// Tooltips are CSS on hover and focus; a tap needs a hand on touch screens.
-document.addEventListener('click', function (e) {
-  var marker = e.target.closest('[data-tip]');
-  document.querySelectorAll('.tip-open').forEach(function (el) {
-    if (el !== marker) el.classList.remove('tip-open');
+// Tooltips: one box on <body>, so nothing can clip it.
+(function () {
+  var box = null;
+
+  function show(el) {
+    var text = el.getAttribute('data-tip');
+    if (!text) return;
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'tipbox';
+      box.setAttribute('role', 'tooltip');
+      document.body.appendChild(box);
+    }
+    box.textContent = text;
+    box.classList.add('on');
+
+    var at = el.getBoundingClientRect();
+    var size = box.getBoundingClientRect();
+    var margin = 8;
+    // Above the element by default, below it when there is no room up there
+    var top = at.top - size.height - margin;
+    if (top < margin) top = at.bottom + margin;
+    var left = at.left + (at.width / 2) - (size.width / 2);
+    left = Math.max(margin, Math.min(left, window.innerWidth - size.width - margin));
+    box.style.top = Math.round(top) + 'px';
+    box.style.left = Math.round(left) + 'px';
+  }
+
+  function hide() {
+    if (box) box.classList.remove('on');
+  }
+
+  document.addEventListener('mouseover', function (e) {
+    var el = e.target.closest('[data-tip]');
+    if (el) show(el); else hide();
   });
-  if (marker) marker.classList.toggle('tip-open');
-});
-
-// The driver model list carries which .inf offers each model
-document.addEventListener('change', function (e) {
-  if (!e.target.matches('select[name="driver"].modellist')) return;
-  var chosen = e.target.options[e.target.selectedIndex];
-  var hidden = e.target.form.querySelector('input[name="inf"]');
-  if (hidden && chosen) hidden.value = chosen.getAttribute('data-inf') || '';
-});
-document.addEventListener('submit', function (e) {
-  var list = e.target.querySelector('select[name="driver"].modellist');
-  if (!list) return;
-  var chosen = list.options[list.selectedIndex];
-  var hidden = e.target.querySelector('input[name="inf"]');
-  if (hidden && chosen && !hidden.value) hidden.value = chosen.getAttribute('data-inf') || '';
-});
-
-// Picking a printer model also records which .inf offers it
-document.addEventListener('change', function (e) {
-  if (!e.target.matches('select[name="driver"]')) return;
-  var option = e.target.selectedOptions[0];
-  var form = e.target.closest('form');
-  var hidden = form && form.querySelector('.inf-of-model');
-  if (option && hidden) hidden.value = option.getAttribute('data-inf') || '';
-});
+  document.addEventListener('focusin', function (e) {
+    var el = e.target.closest('[data-tip]');
+    if (el) show(el);
+  });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+  // A tap on a touch screen has no hover, so treat it as show-then-hide
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-tip]');
+    if (el) { show(el); window.setTimeout(hide, 4000); } else { hide(); }
+  });
+})();
 
 // Confirmation prompts for forms with data-confirm
 document.addEventListener('submit', function (e) {

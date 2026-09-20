@@ -132,6 +132,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "comment": p.get("comment", ""),
             "location": p.get("location", ""), "default": bool(p.get("default")),
             "remove": bool(p.get("remove")), "targets": p.get("targets") or ["all"],
+            "duplex": p.get("duplex", ""), "colour": p.get("colour", ""),
+            "collate": p.get("collate", ""), "paper_size": p.get("paper_size", ""),
             "driver_file": "", "driver_url": "", "driver_sha256": "", "driver_source": "",
             "driver_inf": p.get("driver_inf", ""),
             "driver_unpack": PC_CACHE + "\\printer-" + p["id"], "driver_win_file": "",

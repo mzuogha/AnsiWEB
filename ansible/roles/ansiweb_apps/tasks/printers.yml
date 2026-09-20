@@ -46,6 +46,10 @@
       Comment: "{{ item_def.comment }}"
       Location: "{{ item_def.location }}"
       SetDefault: "{{ item_def.default | bool }}"
+      Duplex: "{{ item_def.duplex | default('') }}"
+      Colour: "{{ item_def.colour | default('') }}"
+      Collate: "{{ item_def.collate | default('') }}"
+      PaperSize: "{{ item_def.paper_size | default('') }}"
       Remove: "{{ item_def.remove | bool }}"
   register: aw_printer
 

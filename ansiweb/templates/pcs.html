@@ -150,9 +150,15 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     <span class="chip">
       {{ s }} <span class="muted small">({{ cfg.pcs|selectattr('site', 'equalto', s)|list|length }} PCs)</span>
       <a class="link" href="{{ url_for('deploy_page', target='site:' ~ s) }}">Deploy…</a>
-      <form method="post" action="{{ url_for('sites') }}" class="inline" data-confirm="Delete site {{ s }}?">{{ csrf() }}
+      <form method="post" action="{{ url_for('sites') }}" class="inline row tight">{{ csrf() }}
+        <input type="hidden" name="action" value="rename"><input type="hidden" name="site" value="{{ s }}">
+        <input name="new_name" value="{{ s }}" size="10" aria-label="Rename {{ s }}">
+        <button class="link" data-tip="Rename this site. Its PCs, anything aimed at it, and any
+          scoped user follow the new name.">Rename</button></form>
+      <form method="post" action="{{ url_for('sites') }}" class="inline"
+            data-confirm="Delete site {{ s }}? It must have no PCs.">{{ csrf() }}
         <input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{{ s }}">
-        <button class="link" title="Delete site">×</button></form>
+        <button class="link" data-tip="Remove this site. Only possible once it has no PCs.">×</button></form>
     </span>
     {% endfor %}
   </div>

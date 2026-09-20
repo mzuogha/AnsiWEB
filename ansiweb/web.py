@@ -49,7 +49,7 @@ ENDPOINT_PERMISSIONS = {
     "file_sharing_save": users.MANAGE_CONTENT,
     "printer_add": users.MANAGE_CONTENT, "printer_delete": users.MANAGE_CONTENT,
     "printer_driver": users.MANAGE_CONTENT,
-    "printer_toggle": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
+    "printer_toggle": users.MANAGE_CONTENT, "printer_features": users.MANAGE_CONTENT, "printer_run": users.RUN_JOBS,
     # An ad-hoc uninstall from the Inventory page is an operational action, so
     # helpdesk can do it; adding a standing uninstall entry still needs more.
     "inventory_uninstall": users.RUN_JOBS,
@@ -755,11 +755,23 @@ def create_app(start_background: bool = True) -> Flask:
     def printers_page():
         cfg = store.load()
         return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
+                               package_features=package_features,
+                               feature_labels=infparse.FEATURE_LABELS,
                                targets=store.target_choices(cfg),
                                pcs=[pc for pc in cfg.get("pcs", []) if pc_allowed(cfg, pc["name"])],
                                driver_present=payloads.printer_driver_present,
                                package_models=package_models,
                                drivers=[d for d in cfg.get("drivers", []) if d.get("enabled", True)])
+
+    def package_features(printer) -> list:
+        """Features the printer's driver package mentions - a hint, not a promise."""
+        if payloads.printer_driver_present(printer):
+            return infparse.features_in_zip(payloads.printer_driver_dir() / printer["driver_file"])
+        linked = next((d for d in store.load().get("drivers", [])
+                       if d.get("id") == printer.get("driver_ref")), None)
+        if linked and payloads.present("drivers", linked):
+            return infparse.features_in_zip(payloads.kind_dir("drivers") / linked["file"])
+        return []
 
     def package_models(printer) -> dict:
         """The models a printer's driver package offers, if it has one."""
@@ -837,6 +849,21 @@ def create_app(start_background: bool = True) -> Flask:
             if p["id"] == pid:
                 return i, p
         abort(404)
+
+    @app.route("/printers/<pid>/features", methods=["POST"])
+    def printer_features(pid):
+        """Printing defaults applied to this printer on every PC."""
+        cfg = store.load()
+        idx, printer = find_printer(cfg, pid)
+        f = request.form
+        cfg["printers"][idx].update({
+            "duplex": f.get("duplex", ""), "colour": f.get("colour", ""),
+            "collate": f.get("collate", ""), "paper_size": f.get("paper_size", "").strip()[:24],
+        })
+        if save_or_flash(cfg):
+            flash(f"Printing defaults saved for '{printer['name']}'. Press 'Set up now' to apply them. "
+                  "Anything this printer does not support is reported and left as it was.", "ok")
+        return redirect(url_for("printers_page"))
 
     @app.route("/printers/<pid>/toggle", methods=["POST"])
     def printer_toggle(pid):
@@ -1272,14 +1299,68 @@ def create_app(start_background: bool = True) -> Flask:
         cfg = store.load()
         name = request.form.get("site", "").strip()
         action = request.form.get("action")
-        if action == "add" and name and name not in cfg["sites"]:
-            cfg["sites"].append(name)
-        elif action == "delete":
+        if action == "add":
+            if not name:
+                flash("Enter a name for the site.", "error")
+            elif name in cfg["sites"]:
+                flash(f"There is already a site called '{name}'.", "error")
+            else:
+                cfg["sites"].append(name)
+                save_or_flash(cfg)
+                flash(f"Site '{name}' added.", "ok")
+            return redirect(url_for("pcs_page"))
+
+        if action == "rename":
+            new = request.form.get("new_name", "").strip()
+            if name not in cfg["sites"]:
+                abort(404)
+            if not new:
+                flash("Enter the new name for the site.", "error")
+            elif new != name and new in cfg["sites"]:
+                flash(f"There is already a site called '{new}'.", "error")
+            elif new != name:
+                cfg["sites"] = [new if x == name else x for x in cfg["sites"]]
+                moved = 0
+                for pc in cfg["pcs"]:
+                    if pc.get("site") == name:
+                        pc["site"] = new
+                        moved += 1
+                # Anything aimed at the old site follows it, so nothing silently
+                # stops being deployed.
+                retargeted = 0
+                for group in ("apps", "drivers", "scripts", "registry", "printers",
+                              "shares", "uninstalls"):
+                    for item in cfg.get(group, []) or []:
+                        targets = item.get("targets") or []
+                        if f"site:{name}" in targets:
+                            item["targets"] = [f"site:{new}" if t == f"site:{name}" else t
+                                               for t in targets]
+                            retargeted += 1
+                for block in ("time", "activation", "file_sharing"):
+                    section = cfg.get(block) or {}
+                    if f"site:{name}" in (section.get("targets") or []):
+                        section["targets"] = [f"site:{new}" if t == f"site:{name}" else t
+                                              for t in section["targets"]]
+                        retargeted += 1
+                for user in users.all_users():
+                    scope = users.scope_of(user)
+                    if f"site:{name}" in scope:
+                        users.set_scope(user["username"],
+                                        [f"site:{new}" if t == f"site:{name}" else t for t in scope])
+                if save_or_flash(cfg):
+                    flash(f"Site renamed to '{new}'. {moved} PC(s) moved with it, and "
+                          f"{retargeted} item(s) that targeted it were updated.", "ok")
+            return redirect(url_for("pcs_page"))
+
+        if action == "delete":
             if any(pc["site"] == name for pc in cfg["pcs"]):
                 flash(f"Site '{name}' still has PCs. Move or remove them first.", "error")
                 return redirect(url_for("pcs_page"))
             cfg["sites"] = [s for s in cfg["sites"] if s != name]
-        save_or_flash(cfg)
+            if save_or_flash(cfg):
+                flash(f"Site '{name}' removed.", "ok")
+            return redirect(url_for("pcs_page"))
+
         return redirect(url_for("pcs_page"))
 
     @app.route("/prepare-script.cmd")

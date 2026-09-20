@@ -121,21 +121,17 @@ body.konami .btn.primary { animation: aw-nudge 1.4s ease-in-out infinite; }
 .ver.egg { color: #64748b; font-size: 11px; padding: 2px 8px 8px; line-height: 1.5; }
 .eggnote { margin-bottom: 10px; }
 
-/* Tooltips: anything with data-tip, and the small (?) marker from the tip() macro */
+/* Tooltips. One floating box on <body>, positioned by app.js: a tooltip drawn
+   inside the element would be clipped by table scrolling and panel overflow. */
 .tip { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
        border-radius: 50%; border: 1px solid var(--line); color: var(--muted); font-size: 10px;
        font-weight: 700; cursor: help; margin-left: 5px; vertical-align: middle; }
 .tip:hover, .tip:focus { color: var(--fg); border-color: var(--muted); outline: none; }
-[data-tip] { position: relative; }
-[data-tip]:hover::after, [data-tip]:focus::after, [data-tip].tip-open::after {
-  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px);
-  transform: translateX(-50%); width: max-content; max-width: 280px; white-space: normal;
-  background: #0f172a; color: #e6edf6; font-size: 12px; font-weight: 400; line-height: 1.45;
-  text-align: left; padding: 7px 9px; border-radius: 6px; z-index: 60;
-  box-shadow: 0 6px 20px rgba(2,6,23,.28); pointer-events: none; }
-[data-tip]:hover::before, [data-tip]:focus::before, [data-tip].tip-open::before {
-  content: ""; position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%);
-  border: 6px solid transparent; border-top-color: #0f172a; z-index: 60; pointer-events: none; }
+#tipbox { position: fixed; z-index: 9999; max-width: 300px; background: #0f172a; color: #e6edf6;
+          font-size: 12px; font-weight: 400; line-height: 1.45; text-align: left; padding: 7px 9px;
+          border-radius: 6px; box-shadow: 0 6px 20px rgba(2, 6, 23, .28); pointer-events: none;
+          opacity: 0; transition: opacity .08s ease; }
+#tipbox.on { opacity: 1; }
 
 select.modellist { min-width: 260px; max-width: 100%; margin: 6px 0; }
 

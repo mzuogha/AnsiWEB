@@ -9,7 +9,12 @@ param(
     [string]$Comment = '',
     [string]$Location = '',
     [bool]$SetDefault = $false,
-    [bool]$Remove = $false
+    [bool]$Remove = $false,
+    # Printing defaults for everyone on the PC. Empty means "leave alone".
+    [string]$Duplex = '',        # OneSided | TwoSidedLongEdge | TwoSidedShortEdge
+    [string]$Colour = '',        # Color | Grayscale
+    [string]$Collate = '',       # yes | no
+    [string]$PaperSize = ''      # e.g. A4, Letter
 )
 
 $ErrorActionPreference = 'Stop'
@@ -79,6 +84,31 @@ if (-not $existing) {
 
 if ($Comment -or $Location) {
     Set-Printer -Name $Name -Comment $Comment -Location $Location
+}
+
+# --- printing defaults -----------------------------------------------------
+# Set-PrintConfiguration refuses a setting the printer does not support, which
+# is the honest answer: the package listing a feature does not mean this model
+# has it fitted.
+$wanted = @{}
+if ($Duplex)    { $wanted['DuplexingMode'] = $Duplex }
+if ($Colour)    { $wanted['Color'] = ($Colour -eq 'Color') }
+if ($Collate)   { $wanted['Collate'] = ($Collate -eq 'yes') }
+if ($PaperSize) { $wanted['PaperSize'] = $PaperSize }
+
+if ($wanted.Count) {
+    $current = Get-PrintConfiguration -PrinterName $Name -ErrorAction SilentlyContinue
+    foreach ($key in $wanted.Keys) {
+        $now = if ($current) { $current.$key } else { $null }
+        if ($null -ne $now -and "$now" -eq "$($wanted[$key])") { continue }
+        try {
+            Set-PrintConfiguration -PrinterName $Name @{ $key = $wanted[$key] } -ErrorAction Stop
+            $steps += "$key set to $($wanted[$key])"
+            $changed = $true
+        } catch {
+            $steps += "$key not supported by this printer, left as it was"
+        }
+    }
 }
 
 # --- default printer -------------------------------------------------------

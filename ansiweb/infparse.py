@@ -121,3 +121,53 @@ def models_in_zip(path) -> dict:
         unique.append(entry)
     unique.sort(key=lambda e: e["model"].lower())
     return {"models": unique[:MAX_MODELS], "infs": infs, "error": ""}
+
+
+# ---- what a printer package appears to support --------------------------------
+# The detail of a printer's features lives in its GPD/PPD data, usually inside a
+# .cab, so this is a hint rather than an inventory: it looks for the names of
+# common features in the package's text files. Windows is the authority - the
+# settings below are applied with Set-PrintConfiguration, which fails plainly if
+# a printer does not support one.
+FEATURE_WORDS = {
+    "duplex": ("duplex", "two-sided", "2-sided"),
+    "colour": ("color", "colour"),
+    "staple": ("staple", "stapling", "finisher"),
+    "punch": ("punch",),
+    "collate": ("collate",),
+    "trays": ("tray", "cassette", "paperfeed"),
+}
+FEATURE_LABELS = {
+    "duplex": "Two-sided printing",
+    "colour": "Colour",
+    "staple": "Stapling or finisher",
+    "punch": "Hole punch",
+    "collate": "Collate",
+    "trays": "Extra paper trays",
+}
+_TEXT_SUFFIXES = (".inf", ".dsc", ".gpd", ".ppd", ".txt", ".rcf")
+
+
+def features_in_zip(path, limit_bytes: int = 8_000_000) -> list:
+    """Common printer features the package mentions, as a hint for the operator."""
+    found = set()
+    read = 0
+    try:
+        with zipfile.ZipFile(path) as z:
+            for info in sorted(z.infolist(), key=lambda i: i.filename.lower()):
+                if info.is_dir() or not info.filename.lower().endswith(_TEXT_SUFFIXES):
+                    continue
+                if info.file_size > MAX_INF_BYTES or read > limit_bytes:
+                    continue
+                read += info.file_size
+                text = _decode(z.read(info)).lower()
+                for key, words in FEATURE_WORDS.items():
+                    if key in found:
+                        continue
+                    if any(w in text for w in words):
+                        found.add(key)
+                if len(found) == len(FEATURE_WORDS):
+                    break
+    except (zipfile.BadZipFile, OSError, KeyError):
+        return []
+    return [k for k in FEATURE_WORDS if k in found]
