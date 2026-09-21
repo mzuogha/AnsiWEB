@@ -5,6 +5,17 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.7.2 - 2026-09-21
+
+Fixes applications being detected but never installed.
+
+
+### Fixed
+
+- The list of applications could reach the PC folded into a single entry, with every app's details collapsed into arrays. Detection then produced one result covering everything, with all the names run together, nothing matched the list of what to install, and the job finished having installed nothing. The script now takes a folded list apart again.
+- If it still cannot make sense of what arrived, it stops and says so rather than quietly installing nothing, and the play checks it received one result per application and a plain list of ids before installing anything.
+
+
 ## 2.7.1 - 2026-09-21
 
 Fixes applications never installing when a deployment covers only part of the work.

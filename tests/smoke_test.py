@@ -586,6 +586,25 @@ _facts = _setup["ansible.builtin.set_fact"]
 ok("aw_detect" in _facts and "aw_inventory" in _facts,
    "results that later tasks read start out empty")
 
+# --------------------------------- the detection result must line up with the apps
+_detect = _y.safe_load(open(os.path.join(os.path.dirname(__file__), "..",
+                                         "ansible/roles/ansiweb_apps/tasks/detect.yml")).read())
+_names = [t.get("name") for t in _detect]
+ok("Check the detection result makes sense" in _names,
+   "detection checks it got one result per application")
+_assert = [t for t in _detect if t.get("name") == "Check the detection result makes sense"][0]
+_conditions = " ".join(_assert["ansible.builtin.assert"]["that"])
+ok("aw_detect.result | length == aw_apps | length" in _conditions,
+   "one result per app, or the job stops")
+ok("select('string')" in _conditions,
+   "and the list of what to install is plain ids, not nested lists")
+_ps = open(os.path.join(os.path.dirname(__file__), "..",
+                        "ansible/roles/ansiweb_apps/files/detect.ps1")).read()
+ok("$apps[0].id -is [array]" in _ps,
+   "the script rebuilds an app list that arrived folded into one entry")
+ok("did not arrive as one entry per app" in _ps,
+   "and refuses to guess if it still cannot make sense of it")
+
 # ------------------------------------------ includes must carry their tags inward
 _role = _role_tasks()
 # Tags on include_tasks cover the include itself, not the tasks it pulls in.

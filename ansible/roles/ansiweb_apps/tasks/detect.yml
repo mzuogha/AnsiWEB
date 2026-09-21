@@ -10,3 +10,17 @@
 - name: Collect apps that need installing or upgrading
   ansible.builtin.set_fact:
     aw_todo: "{{ aw_detect.result | selectattr('needed') | map(attribute='id') | list }}"
+
+# One result per app, each with a plain id. Anything else means the list did not
+# arrive as expected, and the installs would be skipped without a word.
+- name: Check the detection result makes sense
+  ansible.builtin.assert:
+    that:
+      - aw_detect.result | length == aw_apps | length
+      - aw_todo | select('string') | list | length == aw_todo | length
+    fail_msg: >-
+      Detection returned {{ aw_detect.result | length }} result(s) for
+      {{ aw_apps | length }} application(s), and needs {{ aw_todo }}.
+      That does not line up, so nothing has been installed rather than guessing.
+      Please send this job log to whoever maintains AnsiWEB.
+    success_msg: "{{ aw_todo | length }} application(s) to install or upgrade"

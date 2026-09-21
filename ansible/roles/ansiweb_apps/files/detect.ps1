@@ -5,6 +5,39 @@ param(
 )
 
 $apps = @($AppsJson | ConvertFrom-Json)
+
+# Depending on the PowerShell version and how the list reached us, the apps can
+# arrive wrapped in another array, or as a single object. Unwrap one level and
+# make sure what is left really is one entry per app: if it is not, every app
+# collapses into one, every name runs together, and nothing installs.
+while ($apps.Count -eq 1 -and ($apps[0] -is [array] -or $apps[0] -is [System.Collections.IList])) {
+    $apps = @($apps[0])
+}
+# A single entry whose properties are themselves arrays means every app has
+# been folded into one object - the names run together and nothing installs.
+# Take it apart again rather than giving up.
+if ($apps.Count -eq 1 -and $apps[0].id -is [array]) {
+    $folded = $apps[0]
+    $rebuilt = @()
+    for ($i = 0; $i -lt $folded.id.Count; $i++) {
+        $rebuilt += [pscustomobject]@{
+            id        = $folded.id[$i]
+            name      = @($folded.name)[$i]
+            version   = @($folded.version)[$i]
+            mode      = @($folded.mode)[$i]
+            detect    = @($folded.detect)[$i]
+        }
+    }
+    $apps = $rebuilt
+}
+
+foreach ($app in $apps) {
+    if ($null -eq $app.id -or $app.id -is [array]) {
+        throw ("The list of applications did not arrive as one entry per app. " +
+               "AnsiWEB received $($apps.Count) entry/entries, the first with " +
+               "id='$($app.id)' and name='$($app.name)'. Nothing has been changed on this PC.")
+    }
+}
 $keys = @(
     'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
