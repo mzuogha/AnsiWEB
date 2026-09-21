@@ -3,6 +3,7 @@ import copy
 import csv
 import hmac
 import io
+import json
 import os
 import re
 import secrets as pysecrets
@@ -14,6 +15,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
 
 from . import (__version__, audit, backup, cache, infparse, jobs, paths, payloads, release,
                report_state, store, users, util, vault)
+from . import plan as plan_mod
 
 # What each route needs. Anything not listed here requires an administrator,
 # so a new route is never accidentally open to a lesser role.
@@ -37,8 +39,8 @@ ENDPOINT_PERMISSIONS = {
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
     "app_search": users.VIEW,
     # running things
-    "job_start": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
-    "deploy_page": users.RUN_JOBS, "deploy_start": users.RUN_JOBS,
+    "job_start": users.RUN_JOBS, "job_retry": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
+    "deploy_page": users.RUN_JOBS, "deploy_preview": users.RUN_JOBS, "deploy_start": users.RUN_JOBS,
     # what gets deployed
     "app_delete": users.MANAGE_CONTENT,
     "app_upload": users.MANAGE_CONTENT, "app_quick_upload": users.MANAGE_CONTENT,
@@ -1766,6 +1768,52 @@ def create_app(start_background: bool = True) -> Flask:
             "inventory": bool(s.get("collect_inventory", True)),
         }
 
+    @app.route("/deploy/preview")
+    def deploy_preview():
+        """What a deployment would do, per PC, without touching anything."""
+        cfg = store.load()
+        target = request.args.get("target", "all")
+        chosen = [p for p in request.args.getlist("parts")] or [p[0] for p in jobs.DEPLOY_PARTS]
+        plan = store.read_json(paths.PLAN_FILE, {})
+        reports = load_reports()
+        rows = []
+        for pc in visible_pcs(cfg):
+            if not plan_mod.pc_matches(pc, [target]):
+                continue
+            host = (plan.get("hosts") or {}).get(pc["name"], {})
+            report = reports.get(pc["name"]) or {}
+            seen = {a.get("id"): a for a in (report.get("apps") or [])}
+            changes = []
+            if "apps" in chosen:
+                for app_id in host.get("apps", []):
+                    app = next((a for a in plan.get("apps", []) if a["id"] == app_id), None)
+                    if not app:
+                        continue
+                    was = seen.get(app_id)
+                    if was is None:
+                        changes.append(("app", app["name"], f"to {app['version']}", "not checked yet"))
+                    elif was.get("needed"):
+                        changes.append(("app", app["name"], f"to {app['version']}", was.get("reason", "")))
+            for key, label in (("drivers", "driver"), ("scripts", "script"),
+                               ("registry", "registry file"), ("printers", "printer"),
+                               ("shares", "shared folder")):
+                if key not in chosen:
+                    continue
+                for item_id in host.get(key, []):
+                    named = next((x for x in plan.get(key, []) if x.get("id") == item_id), None)
+                    changes.append((label, (named or {}).get("name", item_id), "", ""))
+            if "hostname" in chosen and host.get("hostname"):
+                changes.append(("computer name", host["hostname"], "", "renamed if it differs"))
+            if "time" in chosen and host.get("time"):
+                changes.append(("time settings", "time zone and clock", "", ""))
+            if "activation" in chosen and host.get("activate"):
+                changes.append(("activation", "Windows activation", "", ""))
+            rows.append({"pc": pc, "changes": changes,
+                         "reported": (report.get("time") or ""), "fresh": bool(report)})
+        return render_template("preview.html", cfg=cfg, rows=rows, target=target,
+                               chosen=chosen, parts=jobs.DEPLOY_PARTS,
+                               targets=store.target_choices(cfg))
+
     @app.route("/deploy", methods=["POST"])
     def deploy_start():
         cfg = store.load()
@@ -1788,6 +1836,28 @@ def create_app(start_background: bool = True) -> Flask:
             flash(str(exc), "error")
             return redirect(url_for("deploy_page", target=target))
         return redirect(url_for("job_view", job_id=job_id))
+
+    @app.route("/jobs/<int:job_id>/retry", methods=["POST"])
+    def job_retry(job_id):
+        """Run a job again on just the PCs it failed on."""
+        job = jobs.get_job(job_id)
+        if not job:
+            abort(404)
+        cfg = store.load()
+        failed = [h for h in jobs.kv_get(f"failed-hosts:{job_id}").split(",") if h]
+        mine = [h for h in failed if pc_allowed(cfg, h)]
+        if not mine:
+            flash("There are no failed PCs recorded for that job.", "error")
+            return redirect(url_for("job_view", job_id=job_id))
+        try:
+            args = json.loads(jobs.kv_get(f"job-args:{job_id}") or "{}")
+            new_id = jobs.start(job["kind"], "list:" + ",".join(mine),
+                                trigger=f"retry of #{job_id} ({session.get('user')})",
+                                only=args.get("only", ""), tags=args.get("tags", ""))
+        except (jobs.JobBusy, ValueError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("job_view", job_id=job_id))
+        return redirect(url_for("job_view", job_id=new_id))
 
     @app.route("/jobs/start", methods=["POST"])
     def job_start():

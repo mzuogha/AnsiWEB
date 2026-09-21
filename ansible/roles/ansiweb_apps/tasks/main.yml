@@ -1,317 +1,388 @@
----
-- name: Load the AnsiWEB deployment plan
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_plan: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/deploy_plan.json') | from_json }}"
+  - name: Load the AnsiWEB deployment plan
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_plan: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/deploy_plan.json') | from_json }}"
 
-- name: Work out what this PC should have
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {}) }}"
-    aw_pc_cache: "{{ aw_plan.pc_cache }}"
-    aw_state_dir: "{{ aw_plan.pc_state }}"
-    aw_reboot_needed: false
-    aw_results: []
+  - name: Work out what this PC should have
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_host: "{{ aw_plan.hosts.get(inventory_hostname, {}) }}"
+      aw_pc_cache: "{{ aw_plan.pc_cache }}"
+      aw_state_dir: "{{ aw_plan.pc_state }}"
+      aw_reboot_needed: false
+      aw_results: []
     # Empty results to begin with, so a task that is skipped - by a tag, by a
     # condition, or because the play stopped early - cannot leave a later task
     # referring to something undefined.
-    aw_detect: {"result": []}
-    aw_inventory: {"result": {"apps": [], "count": 0, "truncated": false}}
-
-- name: Select this PC's items
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps | default([])) | list }}"
-    aw_drivers: "{{ aw_plan.drivers | selectattr('id', 'in', aw_host.drivers | default([])) | list }}"
-    aw_scripts: "{{ aw_plan.scripts | selectattr('id', 'in', aw_host.scripts | default([])) | list }}"
-    aw_registry: "{{ aw_plan.registry | selectattr('id', 'in', aw_host.registry | default([])) | list }}"
-    aw_uninstalls: "{{ aw_plan.uninstalls | selectattr('id', 'in', aw_host.uninstalls | default([])) | list }}"
-    aw_printers: "{{ aw_plan.printers | default([]) | selectattr('id', 'in', aw_host.printers | default([])) | list }}"
-    aw_shares: "{{ aw_plan.shares | default([]) | selectattr('id', 'in', aw_host.shares | default([])) | list }}"
-    aw_apply: "{{ aw_uninstall_apply | default(false) }}"
+      aw_detect: {"result": []}
+      aw_inventory: {"result": {"apps": [], "count": 0, "truncated": false}}
+      aw_failed_parts: []
+  - name: Select this PC's items
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_apps: "{{ aw_plan.apps | selectattr('id', 'in', aw_host.apps | default([])) | list }}"
+      aw_drivers: "{{ aw_plan.drivers | selectattr('id', 'in', aw_host.drivers | default([])) | list }}"
+      aw_scripts: "{{ aw_plan.scripts | selectattr('id', 'in', aw_host.scripts | default([])) | list }}"
+      aw_registry: "{{ aw_plan.registry | selectattr('id', 'in', aw_host.registry | default([])) | list
+        }}"
+      aw_uninstalls: "{{ aw_plan.uninstalls | selectattr('id', 'in', aw_host.uninstalls | default([]))
+        | list }}"
+      aw_printers: "{{ aw_plan.printers | default([]) | selectattr('id', 'in', aw_host.printers | default([]))
+        | list }}"
+      aw_shares: "{{ aw_plan.shares | default([]) | selectattr('id', 'in', aw_host.shares | default([]))
+        | list }}"
+      aw_apply: "{{ aw_uninstall_apply | default(false) }}"
 
 # An uninstall started from the Inventory page names the program directly,
 # rather than using a stored entry.
-- name: Use the one-off uninstall this job was given
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_uninstalls:
-      - id: adhoc
-        name: "{{ aw_adhoc_name }}"
-        detect_pattern: "{{ aw_adhoc_pattern }}"
-  when: (aw_adhoc_pattern | default('')) | length > 0
+  - name: Use the one-off uninstall this job was given
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_uninstalls:
+        - id: adhoc
+          name: "{{ aw_adhoc_name }}"
+          detect_pattern: "{{ aw_adhoc_pattern }}"
+    when: (aw_adhoc_pattern | default('')) | length > 0
 
 # aw_only is set when the web interface runs a single item ("Run now"/"Install now").
-- name: Narrow down to one item when asked
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_apps: "{{ aw_apps | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_drivers: "{{ aw_drivers | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_scripts: "{{ aw_scripts | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_registry: "{{ aw_registry | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_uninstalls: "{{ aw_uninstalls | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_printers: "{{ aw_printers | selectattr('id', 'equalto', aw_only) | list }}"
-    aw_shares: "{{ aw_shares | selectattr('id', 'equalto', aw_only) | list }}"
-  when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
+  - name: Narrow down to one item when asked
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_apps: "{{ aw_apps | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_drivers: "{{ aw_drivers | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_scripts: "{{ aw_scripts | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_registry: "{{ aw_registry | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_uninstalls: "{{ aw_uninstalls | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_printers: "{{ aw_printers | selectattr('id', 'equalto', aw_only) | list }}"
+      aw_shares: "{{ aw_shares | selectattr('id', 'equalto', aw_only) | list }}"
+    when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
 
-- name: Create the AnsiWEB working folders on the PC
-  tags: [always]
-  ansible.windows.win_file:
-    path: "{{ item }}"
-    state: directory
-  loop:
-    - "{{ aw_pc_cache }}"
-    - "{{ aw_state_dir }}"
+  - name: Create the AnsiWEB working folders on the PC
+    tags: [always]
+    ansible.windows.win_file:
+      path: "{{ item }}"
+      state: directory
+    loop:
+      - "{{ aw_pc_cache }}"
+      - "{{ aw_state_dir }}"
 
-- name: Rename the PC to match AnsiWEB
-  ansible.builtin.include_tasks:
-    file: hostname.yml
-    apply:
-      tags: [hostname]
-  when: (aw_host.hostname | default('')) | length > 0
-  tags: [hostname]
+  - name: Rename the PC to match AnsiWEB
+    tags: [hostname]
+    block:
+      - name: Rename the PC to match AnsiWEB
+        ansible.builtin.include_tasks:
+          file: hostname.yml
+          apply:
+            tags: [hostname]
+        when: (aw_host.hostname | default('')) | length > 0
+    rescue:
+      - name: Note that the computer name could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the computer name", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Set the time zone and clock
+    tags: [time]
+    block:
+      - name: Set the time zone and clock
+        ansible.builtin.include_tasks:
+          file: time.yml
+          apply:
+            tags: [time]
+        when: aw_host.set_time | default(false) | bool
+    rescue:
+      - name: Note that the time settings could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the time settings", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Activate Windows
+    tags: [activation]
+    block:
+      - name: Activate Windows
+        ansible.builtin.include_tasks:
+          file: activation.yml
+          apply:
+            tags: [activation]
+        when: aw_host.activate | default(false) | bool
+    rescue:
+      - name: Note that Windows activation could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "Windows activation", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Explain why no applications will be installed
+    tags: [apps]
+    ansible.builtin.debug:
+      msg: >-
+        No applications are ready for {{ inventory_hostname }}.
+        {% set mine = aw_plan.skipped | default([]) | selectattr('kind', 'equalto', 'apps') | list %}
+        {% if mine %}{{ mine | length }} app(s) are configured but not in the cache:
+        {% for a in mine %}{{ a.name }} ({{ a.reason }}){% if not loop.last %}, {% endif %}{% endfor %}.
+        Press 'Check for updates now' on the Apps & Cache page to download them.
+        {% elif aw_plan.apps | default([]) | length == 0 %}No applications are enabled in AnsiWEB.
+        {% else %}The apps in the standard set are not targeted at this PC; check their 'Install on'
+        setting.{% endif %}
+    when: aw_apps | length == 0
 
-- name: Set the time zone and clock
-  ansible.builtin.include_tasks:
-    file: time.yml
-    apply:
-      tags: [time]
-  when: aw_host.set_time | default(false) | bool
-  tags: [time]
+  - name: Check the PC can reach the AnsiWEB cache
+    tags: [always]
+    when: (aw_apps | length > 0) or (aw_drivers | length > 0) or (aw_scripts | length > 0) or 
+      (aw_registry | length > 0)
+    block:
+      - name: Ask for the cache over HTTP
+        ansible.windows.win_uri:
+          url: "{{ aw_plan.software_url }}/"
+          method: GET
+          status_code: [200, 403, 404]
+          timeout: 20
+        register: aw_reachable
+        changed_when: false
+    rescue:
+      - name: Say why nothing can be downloaded
+        ansible.builtin.fail:
+          msg: >-
+            {{ inventory_hostname }} cannot reach the AnsiWEB cache at
+            {{ aw_plan.software_url }}/, so no installer, driver or script can be fetched.
+            Check, in this order: the PC can reach this server at all (ping it);
+            port 80 is open on the server ('sudo ufw allow 80/tcp');
+            nginx is running ('systemctl status nginx');
+            and, if the /software/ location has allow/deny lines, that this PC's
+            address is allowed. The underlying error was:
+            {{ aw_reachable.msg | default('no response') }}
 
-- name: Activate Windows
-  ansible.builtin.include_tasks:
-    file: activation.yml
-    apply:
-      tags: [activation]
-  when: aw_host.activate | default(false) | bool
-  tags: [activation]
+  - name: Check installed app versions
+    ansible.builtin.include_tasks:
+      file: detect.yml
+      apply:
+        tags: [apps, inventory]
+    tags: [apps, inventory]
+  - name: Show what will be done
+    ansible.builtin.debug:
+      msg: "{{ (aw_detect.result | default([])) | map(attribute='summary') | list }}"
+    when: aw_detect is defined
+    tags: [apps]
+  - name: Install or upgrade apps
+    tags: [apps]
+    block:
+      - name: Install or upgrade apps
+        ansible.builtin.include_tasks:
+          file: install_app.yml
+          apply:
+            tags: [apps]
+        loop: "{{ aw_apps | selectattr('id', 'in', aw_todo | default([])) | list }}"
+        loop_control:
+          loop_var: app
+          label: "{{ app.name }} {{ app.version }}"
+    rescue:
+      - name: Note that the applications could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the applications", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Turn off Firefox's own updater (policies.json)
+    ansible.builtin.include_tasks:
+      file: firefox_policy.yml
+      apply:
+        tags: [apps]
+    when: aw_apps | selectattr('firefox_disable_updates') | list | length > 0
+    tags: [apps]
+  - name: Install device drivers
+    tags: [drivers]
+    block:
+      - name: Install device drivers
+        ansible.builtin.include_tasks:
+          file: driver.yml
+          apply:
+            tags: [drivers]
+        loop: "{{ aw_drivers }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the drivers could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the drivers", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Merge registry files
+    tags: [registry]
+    block:
+      - name: Merge registry files
+        ansible.builtin.include_tasks:
+          file: registry.yml
+          apply:
+            tags: [registry]
+        loop: "{{ aw_registry }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the registry files could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the registry files", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Run scripts
+    tags: [scripts]
+    block:
+      - name: Run scripts
+        ansible.builtin.include_tasks:
+          file: script.yml
+          apply:
+            tags: [scripts]
+        loop: "{{ aw_scripts }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the scripts could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the scripts", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Turn file and printer sharing on
+    tags: [shares]
+    block:
+      - name: Turn file and printer sharing on
+        ansible.builtin.include_tasks:
+          file: file_sharing.yml
+          apply:
+            tags: [shares]
+        when: aw_host.file_sharing | default(false) | bool
+    rescue:
+      - name: Note that file sharing could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "file sharing", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Set up shared folders
+    tags: [shares]
+    block:
+      - name: Set up shared folders
+        ansible.builtin.include_tasks:
+          file: shares.yml
+          apply:
+            tags: [shares]
+        loop: "{{ aw_shares }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the shared folders could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the shared folders", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Set up printers
+    tags: [printers]
+    block:
+      - name: Set up printers
+        ansible.builtin.include_tasks:
+          file: printers.yml
+          apply:
+            tags: [printers]
+        loop: "{{ aw_printers }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the printers could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the printers", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Uninstall apps that should no longer be on this PC
+    tags: [uninstall]
+    block:
+      - name: Uninstall apps that should no longer be on this PC
+        ansible.builtin.include_tasks:
+          file: uninstall.yml
+          apply:
+            tags: [uninstall]
+        loop: "{{ aw_uninstalls }}"
+        loop_control:
+          loop_var: item_def
+          label: "{{ item_def.name }}"
+    rescue:
+      - name: Note that the uninstalls could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "the uninstalls", "why": (ansible_failed_result.msg
+            | default("failed")) | string | truncate(280, true)}] }}'
+  - name: Reboot where something asked for it
+    tags: [always]
+    ansible.windows.win_reboot:
+      reboot_timeout: 1200
+    when: aw_reboot_needed | bool and aw_plan.allow_reboot | bool
 
-# A deployment that finds nothing to do looks identical to one that worked.
-# Say which it is, and why, rather than reporting a silent success.
-- name: Explain why no applications will be installed
-  tags: [apps]
-  ansible.builtin.debug:
-    msg: >-
-      No applications are ready for {{ inventory_hostname }}.
-      {% set mine = aw_plan.skipped | default([]) | selectattr('kind', 'equalto', 'apps') | list %}
-      {% if mine %}{{ mine | length }} app(s) are configured but not in the cache:
-      {% for a in mine %}{{ a.name }} ({{ a.reason }}){% if not loop.last %}, {% endif %}{% endfor %}.
-      Press 'Check for updates now' on the Apps & Cache page to download them.
-      {% elif aw_plan.apps | default([]) | length == 0 %}No applications are enabled in AnsiWEB.
-      {% else %}The apps in the standard set are not targeted at this PC; check their 'Install on'
-      setting.{% endif %}
-  when: aw_apps | length == 0
+  - name: List PCs that still need a reboot
+    tags: [always]
+    ansible.builtin.debug:
+      msg: "{{ inventory_hostname }} needs a reboot to finish."
+    when: aw_reboot_needed | bool and not (aw_plan.allow_reboot | bool)
 
-- name: Check the PC can reach the AnsiWEB cache
-  tags: [always]
-  when: (aw_apps | length > 0) or (aw_drivers | length > 0) or (aw_scripts | length > 0)
-        or (aw_registry | length > 0)
-  block:
-    - name: Ask for the cache over HTTP
-      ansible.windows.win_uri:
-        url: "{{ aw_plan.software_url }}/"
-        method: GET
-        status_code: [200, 403, 404]
-        timeout: 20
-      register: aw_reachable
-      changed_when: false
-  rescue:
-    - name: Say why nothing can be downloaded
-      ansible.builtin.fail:
-        msg: >-
-          {{ inventory_hostname }} cannot reach the AnsiWEB cache at
-          {{ aw_plan.software_url }}/, so no installer, driver or script can be fetched.
-          Check, in this order: the PC can reach this server at all (ping it);
-          port 80 is open on the server ('sudo ufw allow 80/tcp');
-          nginx is running ('systemctl status nginx');
-          and, if the /software/ location has allow/deny lines, that this PC's
-          address is allowed. The underlying error was:
-          {{ aw_reachable.msg | default('no response') }}
+  - name: Re-check installed app versions for the report
+    tags: [apps, inventory]
+    ansible.builtin.include_tasks:
+      file: detect.yml
+      apply:
+        tags: [apps, inventory]
+    when: (aw_todo | default([])) | length > 0
 
-- name: Check installed app versions
-  ansible.builtin.include_tasks:
-    file: detect.yml
-    apply:
-      tags: [apps, inventory]
-  tags: [apps, inventory]
-
-- name: Show what will be done
-  ansible.builtin.debug:
-    msg: "{{ (aw_detect.result | default([])) | map(attribute='summary') | list }}"
-  when: aw_detect is defined
-  tags: [apps]
-
-- name: Install or upgrade apps
-  ansible.builtin.include_tasks:
-    file: install_app.yml
-    apply:
-      tags: [apps]
-  loop: "{{ aw_apps | selectattr('id', 'in', aw_todo | default([])) | list }}"
-  loop_control:
-    loop_var: app
-    label: "{{ app.name }} {{ app.version }}"
-  tags: [apps]
-
-- name: Turn off Firefox's own updater (policies.json)
-  ansible.builtin.include_tasks:
-    file: firefox_policy.yml
-    apply:
-      tags: [apps]
-  when: aw_apps | selectattr('firefox_disable_updates') | list | length > 0
-  tags: [apps]
-
-- name: Install device drivers
-  ansible.builtin.include_tasks:
-    file: driver.yml
-    apply:
-      tags: [drivers]
-  loop: "{{ aw_drivers }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [drivers]
-
-- name: Merge registry files
-  ansible.builtin.include_tasks:
-    file: registry.yml
-    apply:
-      tags: [registry]
-  loop: "{{ aw_registry }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [registry]
-
-- name: Run scripts
-  ansible.builtin.include_tasks:
-    file: script.yml
-    apply:
-      tags: [scripts]
-  loop: "{{ aw_scripts }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [scripts]
-
-- name: Turn file and printer sharing on
-  ansible.builtin.include_tasks:
-    file: file_sharing.yml
-    apply:
-      tags: [shares]
-  when: aw_host.file_sharing | default(false) | bool
-  tags: [shares]
-
-- name: Set up shared folders
-  ansible.builtin.include_tasks:
-    file: shares.yml
-    apply:
-      tags: [shares]
-  loop: "{{ aw_shares }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [shares]
-
-- name: Set up printers
-  ansible.builtin.include_tasks:
-    file: printers.yml
-    apply:
-      tags: [printers]
-  loop: "{{ aw_printers }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [printers]
-
-- name: Uninstall apps that should no longer be on this PC
-  ansible.builtin.include_tasks:
-    file: uninstall.yml
-    apply:
-      tags: [uninstall]
-  loop: "{{ aw_uninstalls }}"
-  loop_control:
-    loop_var: item_def
-    label: "{{ item_def.name }}"
-  tags: [uninstall]
-
-- name: Reboot where something asked for it
-  tags: [always]
-  ansible.windows.win_reboot:
-    reboot_timeout: 1200
-  when: aw_reboot_needed | bool and aw_plan.allow_reboot | bool
-
-- name: List PCs that still need a reboot
-  tags: [always]
-  ansible.builtin.debug:
-    msg: "{{ inventory_hostname }} needs a reboot to finish."
-  when: aw_reboot_needed | bool and not (aw_plan.allow_reboot | bool)
-
-- name: Re-check installed app versions for the report
-  tags: [apps, inventory]
-  ansible.builtin.include_tasks:
-    file: detect.yml
-    apply:
-      tags: [apps, inventory]
-  when: (aw_todo | default([])) | length > 0
-
-- name: List every installed program for the inventory
-  ansible.windows.win_powershell:
-    script: "{{ lookup('ansible.builtin.file', 'inventory.ps1') }}"
-  register: aw_inventory
-  changed_when: false
-  when: aw_plan.collect_inventory | default(true) | bool
-  tags: [inventory]
-
-- name: Collect facts for the report
-  tags: [always]
-  ansible.windows.win_powershell:
-    script: |
-      $os = Get-CimInstance Win32_OperatingSystem
-      $cs = Get-CimInstance Win32_ComputerSystem
-      $lic = Get-CimInstance SoftwareLicensingProduct `
-             -Filter "ApplicationId = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
-             -ErrorAction SilentlyContinue | Select-Object -First 1
-      $Ansible.Result = [ordered]@{
-        hostname = $env:COMPUTERNAME
-        timezone = (Get-TimeZone).Id
-        local_time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-        activated = if ($lic) { [int]$lic.LicenseStatus -eq 1 } else { $false }
-        os       = $os.Caption
-        build    = $os.BuildNumber
-        model    = "$($cs.Manufacturer) $($cs.Model)".Trim()
-        ram_gb   = [math]::Round($cs.TotalPhysicalMemory / 1GB)
-        serial   = (Get-CimInstance Win32_BIOS).SerialNumber
-        boot     = $os.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
-      }
-      $Ansible.Changed = $false
-  register: aw_facts
-  changed_when: false
+  - name: List every installed program for the inventory
+    ansible.windows.win_powershell:
+      script: "{{ lookup('ansible.builtin.file', 'inventory.ps1') }}"
+    register: aw_inventory
+    changed_when: false
+    when: aw_plan.collect_inventory | default(true) | bool
+    tags: [inventory]
+  - name: Collect facts for the report
+    tags: [always]
+    ansible.windows.win_powershell:
+      script: |
+        $os = Get-CimInstance Win32_OperatingSystem
+        $cs = Get-CimInstance Win32_ComputerSystem
+        $lic = Get-CimInstance SoftwareLicensingProduct `
+               -Filter "ApplicationId = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
+               -ErrorAction SilentlyContinue | Select-Object -First 1
+        $Ansible.Result = [ordered]@{
+          hostname = $env:COMPUTERNAME
+          timezone = (Get-TimeZone).Id
+          local_time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+          activated = if ($lic) { [int]$lic.LicenseStatus -eq 1 } else { $false }
+          os       = $os.Caption
+          build    = $os.BuildNumber
+          model    = "$($cs.Manufacturer) $($cs.Model)".Trim()
+          ram_gb   = [math]::Round($cs.TotalPhysicalMemory / 1GB)
+          serial   = (Get-CimInstance Win32_BIOS).SerialNumber
+          boot     = $os.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+        $Ansible.Changed = $false
+    register: aw_facts
+    changed_when: false
 
 # Read what this PC reported last time, so a job covering only part of a
 # deployment keeps the rest of the report instead of blanking it.
-- name: Read this PC's previous report
-  tags: [always]
-  ansible.builtin.set_fact:
-    aw_prior: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/reports/' ~ inventory_hostname ~ '.json',
-                         errors='ignore') | default('{}', true) | from_json }}"
-  delegate_to: localhost
-  become: false
+  - name: Read this PC's previous report
+    tags: [always]
+    ansible.builtin.set_fact:
+      aw_prior: "{{ lookup('ansible.builtin.file', ansiweb_data ~ '/reports/' ~ inventory_hostname ~ '.json',
+        errors='ignore') | default('{}', true) | from_json }}"
+    delegate_to: localhost
+    become: false
 
-- name: Save the report for the AnsiWEB dashboard
-  tags: [always]
-  ansible.builtin.copy:
-    dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
-    mode: "0644"
-    content: |
-      {{ {'host': inventory_hostname,
-          'time': now(fmt='%Y-%m-%d %H:%M:%S'),
-          'facts': aw_facts.result,
-          'reboot_pending': aw_reboot_needed | bool,
-          'apps': (aw_detect.result | default([])) or (aw_prior.apps | default([])),
-          'inventory': (aw_inventory.result.apps | default([])) or (aw_prior.inventory | default([])),
-          'inventory_count': (aw_inventory.result.count | default(0))
-                             or (aw_prior.inventory_count | default(0)),
-          'inventory_truncated': (aw_inventory.result.truncated | default(false)),
-          'results': aw_results} | to_nice_json }}
-  delegate_to: localhost
+  - name: Save the report for the AnsiWEB dashboard
+    tags: [always]
+    ansible.builtin.copy:
+      dest: "{{ ansiweb_data }}/reports/{{ inventory_hostname }}.json"
+      mode: "0644"
+      content: |
+        {{ {'host': inventory_hostname,
+            'time': now(fmt='%Y-%m-%d %H:%M:%S'),
+            'facts': aw_facts.result,
+            'reboot_pending': aw_reboot_needed | bool,
+            'apps': (aw_detect.result | default([])) or (aw_prior.apps | default([])),
+            'inventory': (aw_inventory.result.apps | default([])) or (aw_prior.inventory | default([])),
+            'inventory_count': (aw_inventory.result.count | default(0))
+                               or (aw_prior.inventory_count | default(0)),
+            'inventory_truncated': (aw_inventory.result.truncated | default(false)),
+            'results': aw_results} | to_nice_json }}
+    delegate_to: localhost
+  - name: Report the parts that could not be applied
+    tags:
+      - always
+    when: aw_failed_parts | length > 0
+    ansible.builtin.fail:
+      msg: '{{ aw_failed_parts | length }} part(s) of this deployment could not be applied on {{ inventory_hostname
+        }}, and everything else was: {% for f in aw_failed_parts %}{{ f.part }} ({{ f.why }}){% if not
+        loop.last %}; {% endif %}{% endfor %}'

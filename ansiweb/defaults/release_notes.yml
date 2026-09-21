@@ -1,3 +1,24 @@
+- version: "2.8.0"
+  date: "2026-09-21"
+  summary: >-
+    One part failing no longer costs the rest, a deployment can be previewed,
+    and a job can be run again on just the PCs it failed on.
+  fixed:
+    - "A failure in one part of a deployment stopped everything after it: a PC
+       with no product key got no applications, drivers or printers either.
+       Each part is now attempted on its own; whatever fails is recorded, the
+       rest still runs, and the job ends by naming the parts that did not
+       apply and why."
+    - "An activation failure said nothing useful, because hiding the product
+       key hid the reason with it. The reason is now reported and the key still
+       never reaches the log."
+  added:
+    - "Preview, from the Deploy page: what each PC would have applied, worked
+       out on this server without touching any PC. It says how recently each PC
+       reported, so it is clear where the picture is stale."
+    - "A job that failed on some PCs offers 'Run again on just those' - the
+       same job, the same parts, only the PCs that failed or were unreachable."
+
 - version: "2.7.2"
   date: "2026-09-21"
   summary: >-

@@ -18,7 +18,20 @@
       KmsPort: "{{ aw_plan.activation.kms_port | int }}"
       SkipIfActivated: "{{ aw_plan.activation.skip_if_activated | bool }}"
   register: aw_activate
+  failed_when: false
   no_log: true              # keeps the product key out of the job log
+
+# no_log hides the reason along with the key, which left an activation failure
+# impossible to diagnose. The script's own message never contains the key, so
+# it can be shown on its own.
+- name: Fail with what activation actually said
+  ansible.builtin.fail:
+    msg: >-
+      Windows activation failed on {{ inventory_hostname }}:
+      {{ (aw_activate.error | default([]) | map(attribute='exception.message') | join('; '))
+         or (aw_activate.msg | default('no message')) }}.
+      The product key itself is never written to this log.
+  when: aw_activate is failed or (aw_activate.result is not defined)
 
 - name: Record the activation result
   ansible.builtin.set_fact:

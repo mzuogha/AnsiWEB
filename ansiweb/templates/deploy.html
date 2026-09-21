@@ -34,6 +34,8 @@ up, and nothing is uninstalled here.</p>
 
   <div class="formactions">
     <button class="btn primary">Start the deployment</button>
+    <a class="btn" href="{{ url_for('deploy_preview', target=target) }}"
+       data-tip="Show what this would do on each PC, without changing anything.">Preview first</a>
     <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a>
   </div>
 </form>

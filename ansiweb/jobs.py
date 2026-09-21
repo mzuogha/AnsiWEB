@@ -1,6 +1,7 @@
 """Background jobs (cache updates, deployments, connectivity tests), their logs,
 and the built-in scheduler."""
 import datetime as dt
+import json
 import os
 import re
 import sqlite3
@@ -204,6 +205,9 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
                             (kind, target, "running", _stamp(), trigger))
             job_id = cur.lastrowid
         _running[kind] = job_id
+    # Remembered so a retry covers exactly what the original job did, rather
+    # than quietly widening to everything of that kind.
+    kv_set(f"job-args:{job_id}", json.dumps({"only": only, "tags": tags}))
     threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc, tags),
                      daemon=True, name=f"job-{job_id}").start()
     return job_id
@@ -235,6 +239,22 @@ _BOOKKEEPING = {"Say which task failed", "Keep the job's failed status",
 
 
 _NOTHING_RE = re.compile(r"^\s*- '?([\w.-]+) - 0 item\(s\)", re.M)
+
+
+_RECAP_RE = re.compile(r"^(\S+)\s*:\s*ok=\d+.*?failed=(\d+)", re.M)
+_UNREACHABLE_RE = re.compile(r"^(\S+)\s*:\s*ok=\d+.*?unreachable=(\d+)", re.M)
+
+
+def failed_hosts(text: str) -> list:
+    """PCs that failed or were unreachable, from Ansible's own recap."""
+    bad = []
+    for host, count in _RECAP_RE.findall(text):
+        if int(count) > 0 and host not in bad:
+            bad.append(host)
+    for host, count in _UNREACHABLE_RE.findall(text):
+        if int(count) > 0 and host not in bad:
+            bad.append(host)
+    return bad
 
 
 def applied_nothing(text: str) -> list:
@@ -383,6 +403,9 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
                                           extra=extra, tags=tags or DEPLOY_TAGS[kind]), log)
             body = log_path(job_id).read_text(errors="replace")
+            bad = failed_hosts(body)
+            if bad:
+                kv_set(f"failed-hosts:{job_id}", ",".join(bad))
             if rc != 0:
                 hint = install_hint(body)
                 if hint:

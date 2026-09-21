@@ -653,6 +653,59 @@ for _var in ("aw_plan", "aw_host", "aw_results", "aw_shares", "aw_printers", "aw
     ok(all("always" in (_t.get("tags") or []) for _t in _tasks),
        f"{_var} is set on every run, whatever tags a job uses")
 
+# --------------------------------------------- preview, retry, and partial failures
+# preview changes nothing
+_before_cfg = json.dumps(store.load(), sort_keys=True)
+r = c.get("/deploy/preview?target=all")
+ok(r.status_code == 200 and "What a deployment would do" in r.text, "a deployment can be previewed")
+ok(json.dumps(store.load(), sort_keys=True) == _before_cfg, "and previewing changes nothing")
+ok("PC-HQ-001" in r.text, "each PC is listed")
+ok("never reported" in r.text or "Last reported" in r.text,
+   "and it says how current its knowledge of that PC is")
+ok("Preview first" in c.get("/deploy?target=all").text, "the deploy page offers it")
+
+# a job records which PCs failed, and can be run again on just those
+_recap = """
+PLAY RECAP ***
+PC-HQ-001 : ok=11 changed=2 unreachable=0 failed=1 skipped=1 rescued=1 ignored=0
+PC-BR1-009 : ok=14 changed=3 unreachable=0 failed=0 skipped=0 rescued=0 ignored=0
+PC-BR2-001 : ok=0 changed=0 unreachable=1 failed=0 skipped=0 rescued=0 ignored=0
+"""
+ok(jobs.failed_hosts(_recap) == ["PC-HQ-001", "PC-BR2-001"],
+   "the PCs that failed or were unreachable are picked out of the recap")
+ok(jobs.failed_hosts("PC-A : ok=3 changed=0 unreachable=0 failed=0") == [],
+   "and a clean run yields none")
+wait_for_jobs()
+_jid = jobs.start("deploy", "all", tags="apps,printers")
+wait_for_jobs()
+ok(json.loads(jobs.kv_get(f"job-args:{_jid}"))["tags"] == "apps,printers",
+   "a job remembers what it covered, so a retry does not widen it")
+jobs.kv_set(f"failed-hosts:{_jid}", "PC-HQ-001")
+r = c.post(f"/jobs/{_jid}/retry", data={"csrf": tok}, follow_redirects=True)
+wait_for_jobs()
+_retry = jobs.last_job("deploy")
+ok(_retry["target"] == "list:PC-HQ-001", "a retry runs on just the failed PCs")
+ok("retry of" in (_retry["trigger"] or ""), "and says it is a retry")
+ok(json.loads(jobs.kv_get(f"job-args:{_retry['id']}"))["tags"] == "apps,printers",
+   "with the same parts as the original")
+jobs.kv_set(f"failed-hosts:{_jid}", "")
+ok("no failed PCs recorded" in c.post(f"/jobs/{_jid}/retry", data={"csrf": tok},
+                                      follow_redirects=True).text,
+   "and a job with nothing recorded says so")
+
+# one part failing no longer costs the others
+_role2 = _role_tasks()
+_wrapped = [t.get("name") for t in _role2 if "rescue" in t]
+for _part in ("Activate Windows", "Install or upgrade apps", "Set up printers"):
+    ok(_part in _wrapped, f"'{_part}' records a failure instead of stopping the deployment")
+_tail = [t for t in _role2 if t.get("name") == "Report the parts that could not be applied"]
+ok(_tail, "and the job still fails at the end if any part did not apply")
+ok("aw_failed_parts" in json.dumps(_tail[0]), "naming the parts that did not")
+_act = open(os.path.join(os.path.dirname(__file__), "..",
+                         "ansible/roles/ansiweb_apps/tasks/activation.yml")).read()
+ok("never written to this log" in _act,
+   "an activation failure now says why, without the product key")
+
 # ---------------------------------------------------------------- choosing what to deploy
 r = c.get("/deploy?target=pc:PC-HQ-001")
 ok(r.status_code == 200 and "What to deploy" in r.text, "the deploy page offers a choice")

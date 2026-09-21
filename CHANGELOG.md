@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.8.0 - 2026-09-21
+
+One part failing no longer costs the rest, a deployment can be previewed, and a job can be run again on just the PCs it failed on.
+
+
+### New
+
+- Preview, from the Deploy page: what each PC would have applied, worked out on this server without touching any PC. It says how recently each PC reported, so it is clear where the picture is stale.
+- A job that failed on some PCs offers 'Run again on just those' - the same job, the same parts, only the PCs that failed or were unreachable.
+
+
+### Fixed
+
+- A failure in one part of a deployment stopped everything after it: a PC with no product key got no applications, drivers or printers either. Each part is now attempted on its own; whatever fails is recorded, the rest still runs, and the job ends by naming the parts that did not apply and why.
+- An activation failure said nothing useful, because hiding the product key hid the reason with it. The reason is now reported and the key still never reaches the log.
+
+
 ## 2.7.2 - 2026-09-21
 
 Fixes applications being detected but never installed.

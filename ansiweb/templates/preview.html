@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, target_label, target_select, tip with context %}
+{% block title %}Preview{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>What a deployment would do</h1>
+  <div class="actions"><a class="btn primary" href="{{ url_for('deploy_page', target=target) }}">Back to Deploy</a></div>
+</div>
+
+<p class="muted">Nothing is changed by looking. This is worked out on this server from the deployment plan and
+  what each PC last reported, so a PC that has not reported yet can only be shown what it is due, not what it
+  already has. The deployment itself always checks the PC before changing anything.</p>
+
+<form method="get" class="panel row tight">
+  <label>Target<select name="target">
+    {% for t in targets %}<option value="{{ t }}" {{ 'selected' if t == target }}>{{ target_label(t) }}</option>{% endfor %}
+  </select></label>
+  <div><button class="btn">Show</button></div>
+</form>
+
+{% for row in rows %}
+<section class="panel">
+  <h2>{{ row.pc.name }}{% if row.pc.user %} <span class="muted">— {{ row.pc.user }}</span>{% endif %}</h2>
+  {% if not row.fresh %}
+  <p class="muted small">This PC has never reported, so what it already has is unknown. Everything it is due is
+    listed.</p>
+  {% else %}
+  <p class="muted small">Last reported {{ row.reported }}.</p>
+  {% endif %}
+  {% if row.changes %}
+  <table class="list">
+    <tr><th>Kind</th><th>What</th><th>Version</th><th>Why</th></tr>
+    {% for kind, name, version, why in row.changes %}
+    <tr><td class="small">{{ kind }}</td><td><b>{{ name }}</b></td>
+      <td class="small">{{ version }}</td><td class="small muted">{{ why }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Nothing due: everything this PC is assigned is already in place.</p>
+  {% endif %}
+</section>
+{% else %}
+<p class="muted">No PCs match that target.</p>
+{% endfor %}
+{% endblock %}
