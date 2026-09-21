@@ -586,6 +586,22 @@ _facts = _setup["ansible.builtin.set_fact"]
 ok("aw_detect" in _facts and "aw_inventory" in _facts,
    "results that later tasks read start out empty")
 
+# ------------------------------------------ includes must carry their tags inward
+_role = _role_tasks()
+# Tags on include_tasks cover the include itself, not the tasks it pulls in.
+# Without "apply" those tasks are dropped from any tag-limited run, which is
+# how an apps-only deployment silently stopped detecting installed versions.
+for _task in _role:
+    _inc = _task.get("ansible.builtin.include_tasks")
+    if _inc is None:
+        continue
+    ok(isinstance(_inc, dict),
+       f"'{_task.get('name')}' uses the long include form, so it can apply tags")
+    ok((_inc.get("apply") or {}).get("tags"),
+       f"'{_task.get('name')}' passes its tags to the tasks it includes")
+    ok(set(_task.get("tags") or []) <= set((_inc.get("apply") or {}).get("tags") or []),
+       f"'{_task.get('name')}' applies the same tags it carries")
+
 # ---------------------------------------------------------------- the role's setup tasks
 # Every job that limits itself to tags still needs the facts these tasks set;
 # without "always" they are skipped and the run dies on an undefined variable.

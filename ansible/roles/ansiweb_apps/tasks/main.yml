@@ -64,7 +64,10 @@
     - "{{ aw_state_dir }}"
 
 - name: Rename the PC to match AnsiWEB
-  ansible.builtin.include_tasks: hostname.yml
+  ansible.builtin.include_tasks:
+    file: hostname.yml
+    apply:
+      tags: [hostname]
   when: (aw_host.hostname | default('')) | length > 0
   tags: [hostname]
 
@@ -127,7 +130,10 @@
           {{ aw_reachable.msg | default('no response') }}
 
 - name: Check installed app versions
-  ansible.builtin.include_tasks: detect.yml
+  ansible.builtin.include_tasks:
+    file: detect.yml
+    apply:
+      tags: [apps, inventory]
   tags: [apps, inventory]
 
 - name: Show what will be done
@@ -243,7 +249,10 @@
 
 - name: Re-check installed app versions for the report
   tags: [apps, inventory]
-  ansible.builtin.include_tasks: detect.yml
+  ansible.builtin.include_tasks:
+    file: detect.yml
+    apply:
+      tags: [apps, inventory]
   when: (aw_todo | default([])) | length > 0
 
 - name: List every installed program for the inventory

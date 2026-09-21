@@ -1,3 +1,17 @@
+- version: "2.7.1"
+  date: "2026-09-21"
+  summary: >-
+    Fixes applications never installing when a deployment covers only part of
+    the work.
+  fixed:
+    - "Tags on an include cover the include itself, not the tasks it pulls in,
+       so three of them - checking installed app versions, re-checking for the
+       report, and renaming the PC - had their tasks dropped from any run
+       limited to particular parts. A deployment therefore found no installed
+       versions, concluded nothing was due, and finished having installed
+       nothing. Every include now passes its tags inward, and a test refuses
+       any that does not."
+
 - version: "2.7.0"
   date: "2026-09-20"
   summary: >-

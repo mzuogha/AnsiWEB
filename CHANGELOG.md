@@ -5,6 +5,16 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.7.1 - 2026-09-21
+
+Fixes applications never installing when a deployment covers only part of the work.
+
+
+### Fixed
+
+- Tags on an include cover the include itself, not the tasks it pulls in, so three of them - checking installed app versions, re-checking for the report, and renaming the PC - had their tasks dropped from any run limited to particular parts. A deployment therefore found no installed versions, concluded nothing was due, and finished having installed nothing. Every include now passes its tags inward, and a test refuses any that does not.
+
+
 ## 2.7.0 - 2026-09-20
 
 PCs on DHCP can report their own address, a security policy, and fixes from an audit of the new code.
