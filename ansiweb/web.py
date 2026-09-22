@@ -358,10 +358,29 @@ def create_app(start_background: bool = True) -> Flask:
                 pc["seen_at"] = util.now()
                 store.save(cfg)
                 return Response("ok", status=200, mimetype="text/plain")
-        # An unknown PC is recorded so it can be added, but nothing is deployed
-        # to it until somebody does that deliberately.
-        jobs.kv_set(f"unknown-pc:{name.lower()}", f"{source} {util.now()}")
-        return Response("unknown", status=404, mimetype="text/plain")
+        # A PC nobody has added. What happens next is a deliberate choice,
+        # because a PC in the list is a PC that gets deployed to.
+        mode = (cfg["settings"].get("registration") or "pending").lower()
+        if mode == "ignore":
+            return Response("unknown", status=404, mimetype="text/plain")
+
+        site = cfg["settings"].get("registration_site") or ""
+        if mode == "auto" and site in cfg.get("sites", []):
+            cfg.setdefault("pcs", []).append({
+                "name": name, "ip": "", "site": site, "groups": [], "user": "",
+                "sync_hostname": False, "notes": f"registered itself {util.now()}",
+                "seen_ip": source, "seen_at": util.now(),
+            })
+            try:
+                store.save(cfg)
+            except store.ValidationError:
+                return Response("rejected", status=400, mimetype="text/plain")
+            audit.record(name, "pc", "pc_registered", f"{name} registered itself from {source}")
+            return Response("added", status=201, mimetype="text/plain")
+
+        jobs.kv_set(f"pending-pc:{name.lower()}",
+                    json.dumps({"name": name, "ip": source, "first_seen": util.now()}))
+        return Response("waiting", status=202, mimetype="text/plain")
 
     @app.route("/logo")
     def logo():
@@ -1243,6 +1262,7 @@ def create_app(start_background: bool = True) -> Flask:
                      or query in (pc.get("user") or "").lower()
                      or query in (pc.get("site") or "").lower()]
         return render_template("pcs.html", cfg=cfg, reports=load_reports(), visible=shown,
+                               pending=pending_pcs() if users.can(session.get("role", ""), users.MANAGE_PCS) else [],
                                query=query, total=len(visible_pcs(cfg)),
                                plan=store.read_json(paths.PLAN_FILE, {}),
                                secrets=vault.secret_status())
@@ -1300,6 +1320,47 @@ def create_app(start_background: bool = True) -> Flask:
         if save_or_flash(cfg):
             (paths.REPORT_DIR / f"{name}.json").unlink(missing_ok=True)
             flash(f"Removed {name}.", "ok")
+        return redirect(url_for("pcs_page"))
+
+    def pending_pcs() -> list:
+        """PCs that have reported in but nobody has added."""
+        out = []
+        for key in jobs.kv_keys("pending-pc:"):
+            try:
+                out.append(json.loads(jobs.kv_get(key) or "{}"))
+            except ValueError:
+                continue
+        return sorted([p for p in out if p.get("name")], key=lambda p: p["name"])
+
+    @app.route("/pcs/pending/<name>", methods=["POST"])
+    def pc_pending(name):
+        """Accept a PC that registered itself, or dismiss it."""
+        cfg = store.load()
+        key = f"pending-pc:{name.lower()}"
+        record = json.loads(jobs.kv_get(key) or "{}")
+        if not record:
+            abort(404)
+        if request.form.get("action") == "ignore":
+            jobs.kv_delete(key)
+            flash(f"{name} dismissed. It will reappear if it reports in again.", "ok")
+            return redirect(url_for("pcs_page"))
+        site = request.form.get("site", "")
+        if site not in cfg.get("sites", []):
+            flash("Choose the site this PC belongs to.", "error")
+            return redirect(url_for("pcs_page"))
+        if any(pc["name"].lower() == name.lower() for pc in cfg.get("pcs", [])):
+            jobs.kv_delete(key)
+            flash(f"{name} was already in the list.", "ok")
+            return redirect(url_for("pcs_page"))
+        cfg.setdefault("pcs", []).append({
+            "name": record["name"], "ip": "", "site": site, "groups": [], "user": "",
+            "sync_hostname": False, "notes": f"registered itself {record.get('first_seen', '')}",
+            "seen_ip": record.get("ip", ""), "seen_at": record.get("first_seen", ""),
+        })
+        if save_or_flash(cfg):
+            jobs.kv_delete(key)
+            flash(f"{name} added to {site}. It will be included in the next deployment "
+                  "that covers that site.", "ok")
         return redirect(url_for("pcs_page"))
 
     @app.route("/pcs/move", methods=["POST"])
@@ -1983,6 +2044,16 @@ def create_app(start_background: bool = True) -> Flask:
                                targets=store.target_choices(cfg),
                                timezones=store.COMMON_TIMEZONES,
 )
+
+    @app.route("/settings/registration", methods=["POST"])
+    def settings_registration():
+        cfg = store.load()
+        mode = request.form.get("registration", "pending")
+        cfg["settings"]["registration"] = mode if mode in ("ignore", "pending", "auto") else "pending"
+        cfg["settings"]["registration_site"] = request.form.get("registration_site", "")
+        if save_or_flash(cfg):
+            flash("Saved.", "ok")
+        return redirect(url_for("settings_page") + "#registration")
 
     @app.route("/settings/time", methods=["POST"])
     def settings_time():

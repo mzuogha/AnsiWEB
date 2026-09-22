@@ -5,6 +5,18 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.11.0 - 2026-09-21
+
+A prepared PC can add itself to the PCs page.
+
+
+### New
+
+- When a PC that nobody has added reports in, AnsiWEB can hold it on the PCs page for someone to accept into a site, add it straight away to a chosen site, or ignore it. Holding it is the default.
+- A PC accepted from that list keeps the address it reported, so it is reachable immediately, and carries a note saying it registered itself.
+- Adding one straight away is recorded in the audit trail, which matters because a PC in the list receives that site's deployments without anyone having looked at it.
+
+
 ## 2.10.1 - 2026-09-21
 
 Tidies the winget search results.

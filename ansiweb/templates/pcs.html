@@ -165,6 +165,34 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   </section>
 </div>
 
+{% if pending %}
+<section class="panel">
+  <h2>PCs waiting to be added</h2>
+  <p class="muted small">These reported in after being prepared, but nobody has added them. A PC only receives
+    deployments once it is in the list above, so accept it into a site when you are ready.</p>
+  <div class="tablewrap"><table class="list">
+    <tr><th>PC</th><th>Address it reported from</th><th>First seen</th><th></th></tr>
+    {% for p in pending %}
+    <tr>
+      <td><b>{{ p.name }}</b></td>
+      <td class="small">{{ p.ip }}</td>
+      <td class="small">{{ p.first_seen }}</td>
+      <td>
+        <form method="post" action="{{ url_for('pc_pending', name=p.name) }}" class="row tight">{{ csrf() }}
+          <select name="site" aria-label="Site for {{ p.name }}">
+            {% for s in cfg.sites %}<option>{{ s }}</option>{% endfor %}
+          </select>
+          <button class="btn small primary">Add</button>
+          <button class="btn small" name="action" value="ignore"
+            data-tip="Remove it from this list. It will reappear if it reports in again.">Dismiss</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</section>
+{% endif %}
+
 <section class="panel">
   <h2>Sites</h2>
   <div class="chips">

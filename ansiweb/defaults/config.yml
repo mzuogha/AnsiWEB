@@ -7,6 +7,12 @@ settings:
   #   https - port 5986 with the certificate the PowerShell script creates
   #   ntlm  - port 5985, encrypted by NTLM itself, no certificate needed
   pc_connection: https
+  # What to do when a PC reports in that nobody has added yet:
+  #   ignore  - nothing happens (the safest, and the default)
+  #   pending - it waits on the PCs page for someone to accept it
+  #   auto    - it is added straight away, to registration_site
+  registration: pending
+  registration_site: ""
   allow_reboot: false      # reboot PCs automatically when an installer asks for it
   forks: 20                # how many PCs Ansible works on at the same time
   batch_size: 20           # PCs per batch during a deployment

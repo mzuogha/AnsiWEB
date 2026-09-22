@@ -49,6 +49,27 @@
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 
+<section class="panel" id="registration">
+  <h2>PCs that register themselves</h2>
+  <p class="muted small">Each prepared PC reports its name and address to AnsiWEB at startup. This decides what
+    happens when one reports in that nobody has added.</p>
+  <form method="post" action="{{ url_for('settings_registration') }}" class="form">{{ csrf() }}
+    <label>When an unknown PC reports in<select name="registration">
+      <option value="ignore" {{ 'selected' if cfg.settings.registration == 'ignore' }}>ignore it</option>
+      <option value="pending" {{ 'selected' if cfg.settings.registration in (none, '', 'pending') }}>
+        let it wait on the PCs page for someone to accept it</option>
+      <option value="auto" {{ 'selected' if cfg.settings.registration == 'auto' }}>
+        add it straight away, to the site below</option>
+    </select></label>
+    <label>Site for PCs added straight away<select name="registration_site">
+      <option value="">—</option>
+      {% for s in cfg.sites %}<option {{ 'selected' if cfg.settings.registration_site == s }}>{{ s }}</option>{% endfor %}
+    </select><small>Only used by the last choice. A PC added this way is deployed to like any other, so pick a
+    site whose deployment you are happy for a new PC to receive.</small></label>
+    <button class="btn primary">Save</button>
+  </form>
+</section>
+
 <section class="panel" id="branding">
   <h2>Sign-in page</h2>
   <p class="muted small">Add your organisation's logo and name to the sign-in page, so people can see at a glance

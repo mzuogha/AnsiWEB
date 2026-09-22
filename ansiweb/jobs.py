@@ -89,6 +89,17 @@ def kv_get(key: str, default: str = "") -> str:
         return row["v"] if row else default
 
 
+def kv_keys(prefix: str) -> list:
+    with _db_lock, _conn() as c:
+        rows = c.execute("SELECT k FROM kv WHERE k LIKE ? ORDER BY k", (prefix + "%",)).fetchall()
+    return [r["k"] for r in rows]
+
+
+def kv_delete(key: str) -> None:
+    with _db_lock, _conn() as c:
+        c.execute("DELETE FROM kv WHERE k = ?", (key,))
+
+
 def kv_set(key: str, value: str) -> None:
     with _db_lock, _conn() as c:
         c.execute("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (key, value))

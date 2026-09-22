@@ -1568,8 +1568,56 @@ anon2.post("/checkin", data={"name": "PC-HQ-001", "token": _secret},
            headers={"X-Forwarded-For": "10.7.7.9"}, environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
 ok([pc for pc in store.load()["pcs"] if pc["name"] == "PC-HQ-001"][0]["seen_ip"] == "10.7.7.9",
    "but the header is honoured when the request came through our own proxy")
+# a PC nobody has added: what happens is a deliberate setting
+c.post("/settings/registration", data={"csrf": tok, "registration": "ignore"},
+       follow_redirects=True)
 ok(anon2.post("/checkin", data={"name": "NOT-A-PC", "token": _secret}).status_code == 404,
-   "an unknown PC is not added by checking in")
+   "set to ignore, an unknown PC is not added by checking in")
+
+c.post("/settings/registration", data={"csrf": tok, "registration": "pending"},
+       follow_redirects=True)
+r = anon2.post("/checkin", data={"name": "LAB-NEW-01", "token": _secret},
+               environ_overrides={"REMOTE_ADDR": "10.9.0.50"})
+ok(r.status_code == 202, "set to pending, it is held rather than added")
+ok(not any(pc["name"] == "LAB-NEW-01" for pc in store.load()["pcs"]),
+   "and is not deployed to in the meantime")
+_pcs_page = c.get("/pcs").text
+ok("waiting to be added" in _pcs_page and "LAB-NEW-01" in _pcs_page,
+   "it waits on the PCs page with the address it came from")
+r = c.post("/pcs/pending/LAB-NEW-01", data={"csrf": tok, "site": "HQ"}, follow_redirects=True)
+ok("added to HQ" in r.text, "and can be accepted into a site")
+_new = [pc for pc in store.load()["pcs"] if pc["name"] == "LAB-NEW-01"][0]
+ok(_new["site"] == "HQ" and _new["seen_ip"] == "10.9.0.50",
+   "keeping the address it reported, so it is reachable at once")
+ok("LAB-NEW-01" not in c.get("/pcs").text.split("waiting to be added")[-1][:400]
+   if "waiting to be added" in c.get("/pcs").text else True,
+   "and it leaves the waiting list")
+# dismissing one
+anon2.post("/checkin", data={"name": "LAB-NEW-09", "token": _secret},
+           environ_overrides={"REMOTE_ADDR": "10.9.0.59"})
+r = c.post("/pcs/pending/LAB-NEW-09", data={"csrf": tok, "action": "ignore"}, follow_redirects=True)
+ok("dismissed" in r.text, "an unwanted one can be dismissed")
+ok(not any(pc["name"] == "LAB-NEW-09" for pc in store.load()["pcs"]), "without being added")
+ok("Choose the site" in c.post("/pcs/pending/LAB-NEW-01", data={"csrf": tok, "site": ""},
+                               follow_redirects=True).text
+   or c.post("/pcs/pending/LAB-NEW-01", data={"csrf": tok, "site": ""}).status_code == 404,
+   "accepting without a site is refused")
+
+# added straight away, for a bulk rollout
+c.post("/settings/registration", data={"csrf": tok, "registration": "auto",
+                                       "registration_site": "HQ"}, follow_redirects=True)
+r = anon2.post("/checkin", data={"name": "LAB-NEW-02", "token": _secret},
+               environ_overrides={"REMOTE_ADDR": "10.9.0.51"})
+ok(r.status_code == 201, "set to add straight away, it joins the list")
+_auto = [pc for pc in store.load()["pcs"] if pc["name"] == "LAB-NEW-02"]
+ok(_auto and _auto[0]["site"] == "HQ", "in the site chosen for it")
+ok("registered itself" in _auto[0]["notes"], "with a note saying how it got there")
+ok(any("pc_registered" in (e.get("action") or "") for e in audit.entries(limit=50)),
+   "and the audit trail records it")
+for _n in ("LAB-NEW-01", "LAB-NEW-02"):
+    c.post(f"/pcs/{_n}/delete", data={"csrf": tok}, follow_redirects=True)
+c.post("/settings/registration", data={"csrf": tok, "registration": "pending"},
+       follow_redirects=True)
 ok(anon2.post("/checkin", data={"name": "../etc", "token": _secret}).status_code == 400,
    "and a name that is not a computer name is refused")
 ok(not any(_secret in (e.get("detail") or "") for e in audit.entries(limit=200)),
