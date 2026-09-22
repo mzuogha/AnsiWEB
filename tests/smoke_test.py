@@ -653,6 +653,45 @@ for _var in ("aw_plan", "aw_host", "aw_results", "aw_shares", "aw_printers", "aw
     ok(all("always" in (_t.get("tags") or []) for _t in _tasks),
        f"{_var} is set on every run, whatever tags a job uses")
 
+# ------------------------------------------------------ the job queue
+wait_for_jobs()
+_a = jobs.start("ping", "all")
+_b = jobs.start("ping", "all")
+_c = jobs.start("ping", "all")
+ok(jobs.get_job(_a)["status"] == "running", "the first job starts")
+ok(jobs.get_job(_b)["status"] == "queued", "a second waits its turn instead of being refused")
+ok(len(jobs.queued_jobs()) == 2, "and the queue lists what is waiting")
+ok(jobs.cancel_queued(_c), "a waiting job can be cancelled")
+ok(jobs.get_job(_c)["status"] == "cancelled", "and is marked so")
+ok(not jobs.cancel_queued(_a), "a running job is not cancelled this way")
+wait_for_jobs()
+ok(jobs.get_job(_b)["status"] in ("success", "warning", "failed"),
+   "the waiting job runs once the first has finished")
+ok(jobs.get_job(_c)["status"] == "cancelled", "and a cancelled one stays cancelled")
+
+# ------------------------------------------------------ the health check
+ok("health" in jobs.KINDS, "there is a health check job")
+ok("health" in jobs.DEPLOY_TAGS, "with its own tag")
+_hp = c.get("/health")
+ok(_hp.status_code == 200 and "PC health" in _hp.text, "and a page for it")
+ok("changes nothing" in _hp.text, "which says it only reads")
+ok("not checked yet" in _hp.text, "a PC with no health report says so")
+_hjson = {"host": "PC-HQ-001", "time": "2026-09-21 18:00:00", "os": "Windows 11 Pro",
+          "build": "26100", "uptime_days": 45, "reboot_pending": True,
+          "disks": [{"drive": "C:", "total_gb": 476.0, "free_gb": 20.0, "free_pct": 4.2}],
+          "defender": {"realtime": False, "age_days": 9.0, "signatures": "2026-09-12"}}
+open(os.path.join(DATA, "reports", "health-PC-HQ-001.json"), "w").write(json.dumps(_hjson))
+_hp = c.get("/health").text
+ok("4.2" in _hp, "disk space is shown")
+ok("little disk space left" in _hp, "a full disk is flagged")
+ok("waiting for a reboot" in _hp, "so is a pending reboot")
+ok("not restarted in over 30 days" in _hp, "and a PC that has been up for weeks")
+ok("virus signatures over a week old" in _hp, "and stale virus signatures")
+ok("realtime off" in _hp, "and protection being switched off")
+_health_ps = open(os.path.join(os.path.dirname(__file__), "..",
+                               "ansible/roles/ansiweb_apps/files/health.ps1")).read()
+ok("$Ansible.Changed = $false" in _health_ps, "the check itself changes nothing on the PC")
+
 # --------------------------------------------- preview, retry, and partial failures
 # preview changes nothing
 _before_cfg = json.dumps(store.load(), sort_keys=True)

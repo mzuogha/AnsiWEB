@@ -27,6 +27,7 @@ KINDS = {
     "printers": "Set up printers",
     "shares": "Set up shared folders",
     "inventory": "Collect inventory from PCs",
+    "health": "Check the PCs' condition",
     "uninstall_preview": "Preview an uninstall",
     "uninstall_run": "Uninstall apps from PCs",
     "ping": "Connection test",
@@ -47,6 +48,7 @@ DEPLOY_TAGS = {
     "printers": "printers",
     "shares": "shares",
     "inventory": "inventory",
+    "health": "health",
     "uninstall_preview": "uninstall",
     "uninstall_run": "uninstall",
 }
@@ -187,27 +189,49 @@ DEPLOY_PARTS = [
 ]
 
 
+QUEUE_LIMIT = 25
+
+
+def _blocked_by(kind: str):
+    """The running job that stops this one starting, if any."""
+    if kind in _running:
+        return kind, _running[kind]
+    if kind in DEPLOY_TAGS:
+        for other in DEPLOY_TAGS:
+            if other in _running:
+                return other, _running[other]
+    return None
+
+
+def queued_jobs() -> list:
+    with _db_lock, _conn() as c:
+        rows = c.execute("SELECT * FROM jobs WHERE status = 'queued' ORDER BY id").fetchall()
+    return [dict(r) for r in rows]
+
+
 def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
           adhoc: dict | None = None, tags: str = "") -> int:
-    """Start a job in the background. Raises JobBusy if one of this kind is running."""
+    """Start a job, or queue it behind whatever is already running.
+
+    Two deployments at once would fight over the same PCs, so a second one waits
+    its turn rather than being refused - the work still happens, unattended.
+    """
     if kind not in KINDS:
         raise ValueError(kind)
     with _run_lock:
-        if kind in _running:
-            raise JobBusy(f"A '{KINDS[kind]}' job (#{_running[kind]}) is already running.")
-        # Only one deployment at a time, whatever it covers
-        if kind in DEPLOY_TAGS:
-            for other in DEPLOY_TAGS:
-                if other in _running:
-                    raise JobBusy(f"A '{KINDS[other]}' job (#{_running[other]}) is already running.")
+        blocker = _blocked_by(kind)
+        if blocker and len(queued_jobs()) >= QUEUE_LIMIT:
+            raise JobBusy(f"{QUEUE_LIMIT} jobs are already waiting; try again when some have run.")
+        status = "queued" if blocker else "running"
         with _db_lock, _conn() as c:
             cur = c.execute("INSERT INTO jobs(kind,target,status,started,trigger) VALUES(?,?,?,?,?)",
-                            (kind, target, "running", _stamp(), trigger))
+                            (kind, target, status, _stamp(), trigger))
             job_id = cur.lastrowid
+        kv_set(f"job-args:{job_id}", json.dumps({"only": only, "tags": tags,
+                                                 "adhoc": adhoc or {}}))
+        if blocker:
+            return job_id
         _running[kind] = job_id
-    # Remembered so a retry covers exactly what the original job did, rather
-    # than quietly widening to everything of that kind.
-    kv_set(f"job-args:{job_id}", json.dumps({"only": only, "tags": tags}))
     threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc, tags),
                      daemon=True, name=f"job-{job_id}").start()
     return job_id
@@ -442,6 +466,35 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             c.execute("UPDATE jobs SET status=?, finished=?, rc=? WHERE id=?", (status, _stamp(), rc, job_id))
         with _run_lock:
             _running.pop(kind, None)
+        _start_next_queued()
+
+
+def _start_next_queued() -> None:
+    """Begin the oldest waiting job that nothing is blocking."""
+    for job in queued_jobs():
+        with _run_lock:
+            if _blocked_by(job["kind"]):
+                continue
+            with _db_lock, _conn() as c:
+                changed = c.execute(
+                    "UPDATE jobs SET status='running', started=? WHERE id=? AND status='queued'",
+                    (_stamp(), job["id"])).rowcount
+            if not changed:          # something else took it
+                continue
+            _running[job["kind"]] = job["id"]
+        args = json.loads(kv_get(f"job-args:{job['id']}") or "{}")
+        threading.Thread(target=_run,
+                         args=(job["id"], job["kind"], job["target"], args.get("only", ""),
+                               args.get("adhoc") or None, args.get("tags", "")),
+                         daemon=True, name=f"job-{job['id']}").start()
+        return
+
+
+def cancel_queued(job_id: int) -> bool:
+    """Drop a job that has not started. A running job is left alone."""
+    with _db_lock, _conn() as c:
+        return c.execute("UPDATE jobs SET status='cancelled', finished=? "
+                         "WHERE id=? AND status='queued'", (_stamp(), job_id)).rowcount > 0
 
 
 def prune_logs() -> None:

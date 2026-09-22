@@ -1,3 +1,24 @@
+- version: "2.9.0"
+  date: "2026-09-21"
+  summary: >-
+    A health check that changes nothing, a queue so jobs wait instead of being
+    refused, and activation errors in plain words.
+  added:
+    - "PC Health: a job that reads each PC and changes nothing - disk space,
+       whether it is waiting for a reboot, how long since it restarted, and
+       Windows Defender's signature age. The page flags a disk under a tenth
+       free, a pending reboot, a PC up more than a month, signatures over a
+       week old, and real-time protection switched off."
+    - "A job queue. A second job now waits behind the one running rather than
+       being turned away, and starts by itself when the first finishes. A job
+       that has not started can be cancelled; a running one cannot be stopped
+       this way. Twenty-five may wait at once."
+  changed:
+    - "Activation failures are reported in plain words rather than a bare
+       HRESULT - a key for the wrong edition, no KMS host reachable, a MAK
+       whose activations are used up, or the PC unable to reach the activation
+       service."
+
 - version: "2.8.0"
   date: "2026-09-21"
   summary: >-

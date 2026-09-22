@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.9.0 - 2026-09-21
+
+A health check that changes nothing, a queue so jobs wait instead of being refused, and activation errors in plain words.
+
+
+### New
+
+- PC Health: a job that reads each PC and changes nothing - disk space, whether it is waiting for a reboot, how long since it restarted, and Windows Defender's signature age. The page flags a disk under a tenth free, a pending reboot, a PC up more than a month, signatures over a week old, and real-time protection switched off.
+- A job queue. A second job now waits behind the one running rather than being turned away, and starts by itself when the first finishes. A job that has not started can be cancelled; a running one cannot be stopped this way. Twenty-five may wait at once.
+
+
+### Changed
+
+- Activation failures are reported in plain words rather than a bare HRESULT - a key for the wrong edition, no KMS host reachable, a MAK whose activations are used up, or the PC unable to reach the activation service.
+
+
 ## 2.8.0 - 2026-09-21
 
 One part failing no longer costs the rest, a deployment can be previewed, and a job can be run again on just the PCs it failed on.

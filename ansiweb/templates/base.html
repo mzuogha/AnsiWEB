@@ -30,6 +30,7 @@
     <a href="{{ url_for('printers_page') }}" class="{{ 'active' if ep.startswith('printer') }}">Printers</a>
     <a href="{{ url_for('resources_page', group='files') }}" class="{{ 'active' if ep.startswith('resource') }}">Drivers, Scripts &amp; Registry</a>
     <a href="{{ url_for('inventory_page') }}" class="{{ 'active' if ep.startswith('inventory') }}">Inventory &amp; Uninstall</a>
+    <a href="{{ url_for('health_page') }}" class="{{ 'active' if ep == 'health_page' }}">PC Health</a>
     <a href="{{ url_for('reports_page') }}" class="{{ 'active' if ep.startswith('report') or ep.startswith('audit') }}">Reports{% if can(perms.admin) %} &amp; Audit{% endif %}</a>
     <a href="{{ url_for('jobs_page') }}" class="{{ 'active' if ep.startswith('job') }}">Jobs
       {% if running_jobs %}<span class="pill running">{{ running_jobs|length }}</span>{% endif %}</a>

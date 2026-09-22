@@ -326,6 +326,13 @@
     changed_when: false
     when: aw_plan.collect_inventory | default(true) | bool
     tags: [inventory]
+  - name: Check this PC's condition
+    tags: [health]
+    ansible.builtin.include_tasks:
+      file: health.yml
+      apply:
+        tags: [health]
+
   - name: Collect facts for the report
     tags: [always]
     ansible.windows.win_powershell:

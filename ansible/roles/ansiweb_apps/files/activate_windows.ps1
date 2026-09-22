@@ -30,6 +30,25 @@ function Get-StatusText([int]$Status) {
     }
 }
 
+# Windows reports activation problems as HRESULTs that mean nothing on their
+# own. The common ones, in plain words.
+function Explain($err) {
+    $text = "$err"
+    $known = @{
+        '0xC004F050' = 'Windows rejected the key as invalid for this edition - a Pro key will not activate Home, and vice versa'
+        '0xC004F025' = 'access denied: activation must run with administrative rights'
+        '0xC004F074' = 'no KMS host could be reached, and no other way of activating was available'
+        '0x8007232B' = 'no KMS host is set and none could be found by DNS - either set one, or use a MAK key'
+        '0xC004C003' = 'the activation server refused the key, usually because its activation count is used up'
+        '0xC004F035' = 'this PC needs a digital licence or a KMS host; a MAK key alone will not do'
+        '0x80072EE7' = 'the PC could not reach the activation service over the network'
+    }
+    foreach ($code in $known.Keys) {
+        if ($text -match [regex]::Escape($code)) { return "$code - $($known[$code])" }
+    }
+    return $text
+}
+
 $before = Get-WindowsLicense
 $beforeStatus = if ($before) { [int]$before.LicenseStatus } else { 0 }
 $edition = if ($before) { $before.Name } else { 'unknown edition' }
@@ -63,8 +82,12 @@ if ($Mode -eq 'kms') {
     $steps += "pointed activation at ${KmsHost}:${KmsPort}"
 } else {
     if (-not $Key) { throw 'No product key was provided.' }
-    Invoke-CimMethod -InputObject $service -MethodName InstallProductKey `
-        -Arguments @{ ProductKey = $Key } | Out-Null
+    try {
+        Invoke-CimMethod -InputObject $service -MethodName InstallProductKey `
+            -Arguments @{ ProductKey = $Key } | Out-Null
+    } catch {
+        throw "Windows would not accept the stored product key on this PC: $(Explain $_.Exception.Message)"
+    }
     $steps += 'installed the product key'
 }
 
@@ -77,7 +100,7 @@ try {
     Invoke-CimMethod -InputObject $product -MethodName Activate | Out-Null
     $steps += 'requested activation'
 } catch {
-    throw "Activation failed: $($_.Exception.Message)"
+    throw "Activation failed: $(Explain $_.Exception.Message)"
 }
 
 Start-Sleep -Seconds 3
@@ -94,5 +117,7 @@ $Ansible.Result = @{
 $Ansible.Changed = $true
 
 if ($afterStatus -ne 1) {
-    throw "Windows is still $(Get-StatusText $afterStatus) after activation ($($steps -join '; '))."
+    throw ("Windows is still $(Get-StatusText $afterStatus) after activation ($($steps -join '; ')). " +
+           "The key installed, so this is usually the PC not reaching the activation service, or a " +
+           "MAK key whose activations are used up.")
 }

@@ -24,7 +24,7 @@ ENDPOINT_PERMISSIONS = {
     "dashboard": users.VIEW, "apps_page": users.VIEW, "pcs_page": users.VIEW,
     "resources_page": users.VIEW, "resource_download": users.VIEW,
     "registry_redirect": users.VIEW,
-    "reports_page": users.VIEW, "reports_export": users.VIEW,
+    "reports_page": users.VIEW, "health_page": users.VIEW, "reports_export": users.VIEW,
     "jobs_page": users.VIEW, "job_view": users.VIEW, "job_log": users.VIEW,
     "job_download": users.VIEW, "release_notes": users.VIEW, "settings_page": users.VIEW,
     "help_page": users.VIEW, "uninstalls_page": users.VIEW, "logo": users.VIEW,
@@ -1468,6 +1468,25 @@ def create_app(start_background: bool = True) -> Flask:
                         headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.ps1"})
 
     # ---- reports ---------------------------------------------------------------------
+    @app.route("/health")
+    def health_page():
+        cfg = store.load()
+        rows = []
+        for pc in visible_pcs(cfg):
+            data = store.read_json(paths.REPORT_DIR / f"health-{pc['name']}.json", {})
+            worst = min([d.get("free_pct", 100) for d in (data.get("disks") or [])] or [100])
+            rows.append({"pc": pc, "data": data, "worst_free": worst,
+                         "concerns": [c for c in (
+                             "little disk space left" if worst < 10 else "",
+                             "waiting for a reboot" if data.get("reboot_pending") else "",
+                             "not restarted in over 30 days"
+                             if (data.get("uptime_days") or 0) > 30 else "",
+                             "virus signatures over a week old"
+                             if ((data.get("defender") or {}).get("age_days") or 0) > 7 else "",
+                         ) if c]})
+        return render_template("health.html", cfg=cfg, rows=rows,
+                               targets=store.target_choices(cfg))
+
     @app.route("/reports")
     def reports_page():
         cfg = store.load()

@@ -1,0 +1,25 @@
+---
+- name: Read this PC's condition
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'health.ps1') }}"
+  register: aw_health
+  changed_when: false
+
+- name: Save the health report
+  ansible.builtin.copy:
+    dest: "{{ ansiweb_data }}/reports/health-{{ inventory_hostname }}.json"
+    mode: "0640"
+    content: |
+      {{ {'host': inventory_hostname, 'time': now(fmt='%Y-%m-%d %H:%M:%S')}
+         | combine(aw_health.result) | to_nice_json }}
+  delegate_to: localhost
+  become: false
+
+- name: Say how this PC looks
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: {{ aw_health.result.os }} build {{ aw_health.result.build }},
+      up {{ aw_health.result.uptime_days }} day(s),
+      {% for d in aw_health.result.disks %}{{ d.drive }} {{ d.free_gb }}GB free
+      ({{ d.free_pct }}%){% if not loop.last %}, {% endif %}{% endfor %}
+      {% if aw_health.result.reboot_pending %}- waiting for a reboot{% endif %}
