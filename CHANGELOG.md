@@ -5,6 +5,24 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.12.0 - 2026-09-21
+
+An undo for the preparation script, a time limit on steps that hang, and several interface fixes.
+
+
+### New
+
+- An Undo script beside the preparation ones. It removes the WinRM listeners, firewall rules, check-in tasks, the certificate AnsiWEB made and the management account, and says plainly what it leaves alone - software already deployed, the computer name, the time zone and any printers.
+- A time limit for a single step, thirty minutes by default. An installer waiting on a dialogue nobody will answer no longer holds the whole deployment: that step is abandoned, its part is recorded as failed, and the rest carries on. Windows updates are exempt, being slow by nature.
+
+
+### Fixed
+
+- Coming back to Deploy after a preview lost the parts that were ticked. Preview now submits the same form, and the way back carries the choices.
+- The Save button on a PC's page sat above a long page and was easy to miss. It stays in view at the foot of the form, says 'Save changes', and notes that nothing below it needs saving.
+- Every table on every page scrolls sideways within its own area rather than pushing the page out of shape on a narrow window.
+
+
 ## 2.11.0 - 2026-09-21
 
 A prepared PC can add itself to the PCs page.

@@ -22,7 +22,7 @@
 <p class="muted">{{ meta.hint }} Files are uploaded here once and fetched by the PCs from this server, so PCs need no
 internet access. Each PC records what it has already applied, so repeat deployments skip it unless you choose otherwise.</p>
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr><th>Name</th><th>Type</th><th>File</th><th>When it runs</th><th>Applies to</th><th>Uploaded</th>
     <th>Status</th><th></th></tr>
   {% for row in rows %}
@@ -51,7 +51,7 @@ internet access. Each PC records what it has already applied, so repeat deployme
   {% else %}
   <tr><td colspan="8" class="muted">Nothing uploaded yet.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 
 {% if can(perms.content) %}
 <section class="panel">

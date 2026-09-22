@@ -47,12 +47,12 @@
 <section class="panel">
   <h2>Current file</h2>
   {% if present %}
-  <table class="kv">
+  <div class="tablewrap"><table class="kv">
     <tr><th>File</th><td><a href="{{ url_for('resource_download', kind=kind, rid=entry.id) }}">{{ entry.original_name or entry.file }}</a> ({{ size(entry.size) }})</td></tr>
     <tr><th>SHA256</th><td class="small"><code>{{ entry.sha256 }}</code></td></tr>
     <tr><th>Uploaded</th><td>{{ entry.uploaded }}</td></tr>
     <tr><th>Served to PCs at</th><td class="small"><code>/software/{{ kind }}/{{ entry.file }}</code></td></tr>
-  </table>
+  </table></div>
   {% else %}<div class="flash error">The uploaded file is missing from the server. Upload it again above.</div>{% endif %}
 
   <h3>Remove</h3>

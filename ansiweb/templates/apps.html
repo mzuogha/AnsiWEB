@@ -14,7 +14,7 @@
 internet access. <b>Auto-update</b> apps are re-checked on the schedule in Settings; when a newer version is cached,
 PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version you set and are only installed where missing.</p>
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr><th>App</th><th>Source</th><th>Policy</th><th>Cached</th><th>Newest seen</th><th>Installs on</th><th>Status</th><th></th></tr>
   {% for r in apps %}
   {% set a = r.app %}
@@ -39,7 +39,7 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
     </td>
   </tr>
   {% endfor %}
-</table>
+</table></div>
 
 {% if can(perms.content) %}
 <section class="panel">

@@ -13,7 +13,8 @@ up, and nothing is uninstalled here.</p>
   <div class="checks">
     {% for key, label, note in parts %}
     <label class="check">
-      <input type="checkbox" name="parts" value="{{ key }}" checked>
+      <input type="checkbox" name="parts" value="{{ key }}"
+        {{ 'checked' if not chosen or key in chosen }}>
       <b>{{ label }}</b> <span class="muted small">— {{ note }}{% if not configured.get(key) %}
         <span class="pill st-disabled">nothing set up</span>{% endif %}</span>
     </label>
@@ -34,8 +35,9 @@ up, and nothing is uninstalled here.</p>
 
   <div class="formactions">
     <button class="btn primary">Start the deployment</button>
-    <a class="btn" href="{{ url_for('deploy_preview', target=target) }}"
-       data-tip="Show what this would do on each PC, without changing anything.">Preview first</a>
+    <button class="btn" formmethod="get" formaction="{{ url_for('deploy_preview') }}"
+       data-tip="Show what this would do on each PC, without changing anything. Your choices are kept.">
+      Preview first</button>
     <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a>
   </div>
 </form>

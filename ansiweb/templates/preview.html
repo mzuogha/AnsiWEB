@@ -4,7 +4,9 @@
 {% block content %}
 <div class="head">
   <h1>What a deployment would do</h1>
-  <div class="actions"><a class="btn primary" href="{{ url_for('deploy_page', target=target) }}">Back to Deploy</a></div>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('deploy_page', target=target, parts=chosen) }}">Back to Deploy</a>
+  </div>
 </div>
 
 <p class="muted">Nothing is changed by looking. This is worked out on this server from the deployment plan and
@@ -28,13 +30,13 @@
   <p class="muted small">Last reported {{ row.reported }}.</p>
   {% endif %}
   {% if row.changes %}
-  <table class="list">
+  <div class="tablewrap"><table class="list">
     <tr><th>Kind</th><th>What</th><th>Version</th><th>Why</th></tr>
     {% for kind, name, version, why in row.changes %}
     <tr><td class="small">{{ kind }}</td><td><b>{{ name }}</b></td>
       <td class="small">{{ version }}</td><td class="small muted">{{ why }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}
   <p class="muted">Nothing due: everything this PC is assigned is already in place.</p>
   {% endif %}

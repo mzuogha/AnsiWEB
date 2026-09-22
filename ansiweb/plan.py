@@ -206,6 +206,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
     return {
         "generated": cache.now(),
         "software_url": base,
+        "step_timeout": max(int((cfg.get("settings") or {}).get("step_timeout_minutes", 30) or 30),
+                            1) * 60,
         "server_ip": (cfg.get("settings") or {}).get("server_ip", ""),
         "allow_reboot": bool((cfg.get("settings") or {}).get("allow_reboot")),
         "pc_account": (cfg.get("settings") or {}).get("pc_account", "Admin"),

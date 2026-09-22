@@ -28,7 +28,7 @@ The full guide is in <code>docs/INSTALL.md</code> in the repository.</p>
     signed in.</div>
 
   <p class="muted">The three practical choices, best first:</p>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>Where</th><th>What to expect</th></tr>
     <tr><td><b>Hyper-V virtual machine</b><br><span class="muted small">recommended</span></td>
       <td>Starts with the host, whether or not anyone signs in, and comes back by itself after a restart or a
@@ -40,7 +40,7 @@ The full guide is in <code>docs/INSTALL.md</code> in the repository.</p>
     <tr><td><b>WSL on a Windows PC</b><br><span class="muted small">trying it out only</span></td>
       <td>Works, but see below: it does not start on its own, its address changes, and everything stops when the
         signed-in user logs out.</td></tr>
-  </table>
+  </table></div>
 
   <h3>Why WSL is not suitable for real use</h3>
   <ul>
@@ -231,7 +231,7 @@ sudo systemctl start ansiweb</pre>
 
 <section class="panel" id="problems">
   <h2>When something is wrong</h2>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>Symptom</th><th>What to check</th></tr>
     <tr><td>Web page does not load</td>
       <td><code>systemctl status ansiweb nginx</code>, then <code>curl -skI https://localhost/login</code> on the
@@ -261,6 +261,6 @@ sudo systemctl start ansiweb</pre>
       <td>Either the pattern matched nothing, or the program has no silent uninstaller. The job log says which.</td></tr>
     <tr><td>Signed out while working</td>
       <td>The idle timeout in Settings has elapsed. Watching a job log does not count as activity.</td></tr>
-  </table>
+  </table></div>
 </section>
 {% endblock %}

@@ -47,7 +47,7 @@
 <div class="grid2">
   <section class="panel">
     <h2>Local app cache</h2>
-    <table>
+    <div class="tablewrap"><table>
       <tr><th>App</th><th>Cached version</th><th>Status</th></tr>
       {% for r in apps %}
       <tr>
@@ -56,14 +56,14 @@
         <td>{{ state_pill(r.state) }}</td>
       </tr>
       {% endfor %}
-    </table>
+    </table></div>
     <p class="muted small">Last update check:
       {% if last_cache %}<a href="{{ url_for('job_view', job_id=last_cache.id) }}">{{ last_cache.started }}</a> {{ status_pill(last_cache.status) }}{% else %}never{% endif %}</p>
   </section>
 
   <section class="panel">
     <h2>Recent jobs</h2>
-    <table>
+    <div class="tablewrap"><table>
       <tr><th>#</th><th>Job</th><th>Started</th><th>Status</th></tr>
       {% for j in recent %}
       <tr>
@@ -75,7 +75,7 @@
       {% else %}
       <tr><td colspan="4" class="muted">No jobs yet.</td></tr>
       {% endfor %}
-    </table>
+    </table></div>
   </section>
 </div>
 {% endblock %}

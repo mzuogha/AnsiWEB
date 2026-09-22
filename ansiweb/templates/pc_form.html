@@ -27,13 +27,17 @@
   {% if report and report.facts and report.facts.hostname and report.facts.hostname|lower != pc.name|lower %}
   <br><b>This PC last reported its Windows name as {{ report.facts.hostname }}.</b>{% endif %}</p>
   <label>Notes<input name="notes" value="{{ pc.notes or '' }}"></label>
-  <div class="formactions"><button class="btn primary">Save</button></div>
+  <div class="formactions sticky">
+    <button class="btn primary">Save changes</button>
+    <a class="btn" href="{{ url_for('pcs_page') }}">Back to PCs</a>
+    <span class="muted small">Nothing below this form needs saving.</span>
+  </div>
 </form>
 
 <section class="panel">
   <h2>Last report</h2>
   {% if report and report.facts %}
-  <table class="kv">
+  <div class="tablewrap"><table class="kv">
     <tr><th>Windows name</th><td>{{ report.facts.hostname }}</td></tr>
     <tr><th>Operating system</th><td>{{ report.facts.os }} (build {{ report.facts.build }})</td></tr>
     <tr><th>Model</th><td>{{ report.facts.model }} · {{ report.facts.ram_gb }} GB RAM · serial {{ report.facts.serial }}</td></tr>
@@ -44,12 +48,12 @@
       {% else %}<span class="pill warning">not activated</span>{% endif %}
       {% else %}<span class="muted">unknown</span>{% endif %}</td></tr>
     <tr><th>Last boot</th><td>{{ report.facts.boot }}{% if report.reboot_pending %} <span class="pill warning">reboot pending</span>{% endif %}</td></tr>
-  </table>
+  </table></div>
   {% endif %}
   <h3>Apps</h3>
   {% if report %}
   <p class="muted small">Reported {{ report.time }}</p>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>App</th><th>Installed</th><th>Cached</th><th>Status</th></tr>
     {% for a in report.apps %}
     <tr><td>{{ a.name }}</td><td>{{ a.installed or '—' }}</td><td>{{ a.target }}</td>
@@ -57,7 +61,7 @@
           {% elif a.needed %}<span class="pill warning">{{ a.reason }}</span>
           {% else %}<span class="pill success">{{ a.reason }}</span>{% endif %}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}<p class="muted">This PC hasn't reported yet. It reports after each deployment.</p>{% endif %}
 
   {% if report and report.inventory %}
@@ -65,13 +69,13 @@
   <p class="muted small">As last reported.
     <a href="{{ url_for('inventory_page', pc=pc.name) }}">Search the inventory for this PC</a>.
     {% if report.inventory_truncated %}The list was long, so only the first entries were kept.{% endif %}</p>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>Program</th><th>Version</th><th>Publisher</th></tr>
     {% for app in report.inventory[:60] %}
     <tr><td>{{ app.name }}</td><td class="small">{{ app.version }}</td>
       <td class="small muted">{{ app.publisher }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% if report.inventory | length > 60 %}
   <p class="muted small">Showing 60 of {{ report.inventory | length }}.
     <a href="{{ url_for('inventory_page', pc=pc.name) }}">See all</a>.</p>
@@ -81,13 +85,13 @@
   {% set res = report['results'] if report else [] %}
   {% if res %}
   <h3>Drivers, scripts and registry files</h3>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>Type</th><th>Item</th><th>Status</th><th>Detail</th></tr>
     {% for i in res %}
     <tr><td class="small">{{ i.kind }}</td><td>{{ i.name }}</td><td class="small">{{ i.status }}</td>
       <td class="small muted">{{ i.detail }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% endif %}
 </section>
 

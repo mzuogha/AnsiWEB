@@ -34,7 +34,7 @@ ENDPOINT_PERMISSIONS = {
     "printers_page": users.VIEW, "shares_page": users.VIEW,
     "audit_page": users.VIEW,
     "inventory_page": users.VIEW, "inventory_export": users.VIEW,
-    "prepare_script": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
+    "prepare_script": users.VIEW, "undo_script_cmd": users.VIEW, "prepare_script_cmd": users.VIEW, "logout": users.VIEW, "own_password": users.VIEW,
     "pc_edit": users.VIEW,            # the form itself; saving is checked below
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
     "app_search": users.VIEW,
@@ -1535,6 +1535,16 @@ def create_app(start_background: bool = True) -> Flask:
                         mimetype="application/octet-stream",
                         headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.cmd"})
 
+    @app.route("/undo-script.cmd")
+    def undo_script_cmd():
+        """Undo what the preparation script did to a PC."""
+        cfg = store.load()
+        text = (paths.SCRIPTS_DIR / "Undo-AnsibleHost.cmd").read_text(encoding="utf-8")
+        text = text.replace("__ACCOUNT_NAME__", cfg["settings"].get("pc_account") or "Admin")
+        return Response(text.replace("\n", "\r\n").encode("ascii", "replace"),
+                        mimetype="application/octet-stream",
+                        headers={"Content-Disposition": "attachment; filename=Undo-AnsibleHost.cmd"})
+
     @app.route("/prepare-script")
     def prepare_script():
         cfg = store.load()
@@ -1860,7 +1870,9 @@ def create_app(start_background: bool = True) -> Flask:
         """Choose what to deploy, and where, before starting it."""
         cfg = store.load()
         target = request.args.get("target", "all")
+        # Ticks come back from a preview, so nothing is lost by looking first
         return render_template("deploy.html", cfg=cfg, target=target,
+                               chosen=request.args.getlist("parts"),
                                targets=store.target_choices(cfg), pcs=visible_pcs(cfg),
                                parts=jobs.DEPLOY_PARTS,
                                configured=deploy_relevance(cfg))
@@ -2044,6 +2056,18 @@ def create_app(start_background: bool = True) -> Flask:
                                targets=store.target_choices(cfg),
                                timezones=store.COMMON_TIMEZONES,
 )
+
+    @app.route("/settings/timeout", methods=["POST"])
+    def settings_timeout():
+        cfg = store.load()
+        try:
+            minutes = int(request.form.get("step_timeout_minutes", 30))
+        except ValueError:
+            minutes = 30
+        cfg["settings"]["step_timeout_minutes"] = max(1, min(minutes, 600))
+        if save_or_flash(cfg):
+            flash("Saved.", "ok")
+        return redirect(url_for("settings_page") + "#timeouts")
 
     @app.route("/settings/registration", methods=["POST"])
     def settings_registration():

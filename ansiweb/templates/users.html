@@ -8,7 +8,7 @@
 person's next click. AnsiWEB always keeps at least one administrator, so the last one cannot be demoted,
 disabled or removed.</p>
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr><th>User</th><th>Role</th><th>Can manage</th><th>Status</th><th>Reset password</th><th></th></tr>
   {% for u in users %}
   <tr class="{{ 'dim' if u.disabled }}">
@@ -51,7 +51,7 @@ disabled or removed.</p>
     </td>
   </tr>
   {% endfor %}
-</table>
+</table></div>
 
 <section class="panel">
   <h2>Add a user</h2>
@@ -71,12 +71,12 @@ disabled or removed.</p>
 
 <section class="panel">
   <h2>What each role can do</h2>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>Role</th><th>Can</th></tr>
     {% for key, role in roles.items() %}
     <tr><td><b>{{ role.label }}</b></td><td>{{ role.description }}</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   <p class="muted small">A <b>scope</b> limits someone to certain sites or groups: they only see those PCs, and a
   job they start can never reach a PC outside them, whatever the form says. Administrators are never scoped.</p>
   <p class="muted small">Anyone who can manage apps, drivers, scripts or registry files can cause code to run on

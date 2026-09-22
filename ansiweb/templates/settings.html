@@ -49,6 +49,19 @@
   <div class="formactions"><button class="btn primary">Save settings</button></div>
 </form>
 
+<section class="panel" id="timeouts">
+  <h2>Steps that hang</h2>
+  <form method="post" action="{{ url_for('settings_timeout') }}" class="form row tight">{{ csrf() }}
+    <label>Give up on one step after<input type="number" name="step_timeout_minutes" min="1" max="600"
+      value="{{ cfg.settings.step_timeout_minutes or 30 }}" size="5"> minutes</label>
+    <div><button class="btn primary">Save</button></div>
+  </form>
+  <p class="muted small">An installer waiting on a dialogue nobody will answer, or a script that never returns,
+    would otherwise hold the deployment until the whole job times out. After this, AnsiWEB stops waiting for that
+    step: the part it belongs to is recorded as failed and the rest of the deployment carries on. Windows updates
+    are not covered by it, since they are slow by nature.</p>
+</section>
+
 <section class="panel" id="registration">
   <h2>PCs that register themselves</h2>
   <p class="muted small">Each prepared PC reports its name and address to AnsiWEB at startup. This decides what
@@ -173,7 +186,7 @@
 <section class="panel" id="secrets">
   <h2>Secrets</h2>
   <p class="muted small">Stored encrypted with Ansible Vault. Values are never shown again after saving.</p>
-  <table class="kv">
+  <div class="tablewrap"><table class="kv">
     {% for name, label in secret_names.items() if name != 'vault_windows_product_key' %}
     <tr><th>{{ label }}</th><td>{{ 'set' if secrets[name] else 'not set' }}</td>
       <td><form method="post" action="{{ url_for('settings_secret') }}" class="row tight">{{ csrf() }}
@@ -187,7 +200,7 @@
         <input type="hidden" name="name" value="github_token">
         <input type="password" name="value" placeholder="read-only token" autocomplete="off">
         <button class="btn small">Save</button></form></td></tr>
-  </table>
+  </table></div>
 </section>
 
 <section class="panel">

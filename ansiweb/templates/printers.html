@@ -16,7 +16,7 @@
 and AnsiWEB installs it on each PC before creating the printer, so nothing has to be prepared by hand. Setting a
 printer up again does nothing if it is already correct.</p>
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr><th>Printer</th><th>Address</th><th>Driver</th><th>Staged driver{{ tip("A driver package AnsiWEB installs on each PC before creating the printer. Without one, the named driver must already be on the PC.") }}</th><th>Status</th>
     {% if can(perms.run) %}<th>Set up on</th>{% endif %}<th></th></tr>
   {% for p in printers %}
@@ -115,7 +115,7 @@ printer up again does nothing if it is already correct.</p>
   {% else %}
   <tr><td colspan="7" class="muted">No printers yet.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 
 {% if can(perms.content) %}
 <section class="panel">

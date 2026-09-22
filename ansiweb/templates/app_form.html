@@ -73,14 +73,14 @@
 <section class="panel">
   <h2>Cached installer</h2>
   {% if entry and entry.file %}
-  <table class="kv">
+  <div class="tablewrap"><table class="kv">
     <tr><th>Version</th><td>{{ entry.version }}</td></tr>
     <tr><th>File</th><td><code>{{ entry.file }}</code> ({{ ((entry.size or 0) / 1048576)|round(1) }} MB)</td></tr>
     <tr><th>SHA256</th><td class="small"><code>{{ entry.sha256 }}</code></td></tr>
     <tr><th>Downloaded from</th><td class="small">{{ entry.source_url }}</td></tr>
     <tr><th>Cached at</th><td>{{ entry.updated }}</td></tr>
     {% if entry.previous %}<tr><th>Previous version kept</th><td>{{ entry.previous.version }}</td></tr>{% endif %}
-  </table>
+  </table></div>
   {% else %}<p class="muted">Nothing cached yet.</p>{% endif %}
   {% if entry and entry.error %}<div class="flash error">{{ entry.error }}</div>{% endif %}
 

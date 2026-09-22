@@ -21,7 +21,7 @@
   {% if not counts %}none yet{% endif %}
 </p>
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr><th>PC</th><th>Last report{{ tip("Each PC writes a report at the end of every deployment. A PC that has gone quiet is flagged here.") }}</th><th>Apps</th><th>Drivers / scripts / registry</th><th>System</th><th></th></tr>
   {% for row in rows if not only or (only == 'stale' and row.freshness.state != 'ok') %}
   <tr>
@@ -60,14 +60,14 @@
   {% else %}
   <tr><td colspan="6" class="muted">No PCs yet.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 
 <section class="panel">
   <h2>Recent jobs</h2>
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>#</th><th>Job</th><th>Target</th><th>Started</th><th>Finished</th><th>Trigger</th><th>Status</th><th></th></tr>
     {{ job_rows(jobs) }}
-  </table>
+  </table></div>
 </section>
 {% if show_audit %}
 <section class="panel" id="audit">
@@ -99,7 +99,7 @@
     <div><button class="btn">Show</button></div>
   </form>
 
-  <table>
+  <div class="tablewrap"><table>
     <tr><th>When</th><th>Who</th><th>Role</th><th>What</th><th>Details</th><th>Outcome</th></tr>
     {% for e in audit.entries %}
     <tr>
@@ -114,7 +114,7 @@
     {% else %}
     <tr><td colspan="6" class="muted">Nothing recorded for this filter.</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% if audit.entries | length >= 200 %}
   <p class="muted small">Showing the most recent 200 entries. Narrow the filter, or download the CSV for everything.</p>
   {% endif %}

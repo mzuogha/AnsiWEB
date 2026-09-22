@@ -11,6 +11,9 @@ settings:
   #   ignore  - nothing happens (the safest, and the default)
   #   pending - it waits on the PCs page for someone to accept it
   #   auto    - it is added straight away, to registration_site
+  # Give up on a single step after this many minutes and move on. The part it
+  # belongs to is recorded as failed; the rest of the deployment continues.
+  step_timeout_minutes: 30
   registration: pending
   registration_site: ""
   allow_reboot: false      # reboot PCs automatically when an installer asks for it

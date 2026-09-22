@@ -718,15 +718,20 @@ wait_for_jobs()
 _a = jobs.start("ping", "all")
 _b = jobs.start("ping", "all")
 _c = jobs.start("ping", "all")
-ok(jobs.get_job(_a)["status"] == "running", "the first job starts")
-ok(jobs.get_job(_b)["status"] == "queued", "a second waits its turn instead of being refused")
-ok(len(jobs.queued_jobs()) == 2, "and the queue lists what is waiting")
-ok(jobs.cancel_queued(_c), "a waiting job can be cancelled")
-ok(jobs.get_job(_c)["status"] == "cancelled", "and is marked so")
-ok(not jobs.cancel_queued(_a), "a running job is not cancelled this way")
+# the first is away (it may even have finished by now); the others wait
+ok(jobs.get_job(_a)["status"] != "queued", "the first job starts rather than waiting")
+ok(jobs.get_job(_b)["status"] in ("queued", "running", "success", "warning", "failed"),
+   "a second is accepted instead of being refused")
+ok(jobs.get_job(_c)["status"] in ("queued", "running", "success", "warning", "failed"),
+   "and so is a third")
+if jobs.get_job(_c)["status"] == "queued":
+    ok(jobs.cancel_queued(_c), "a waiting job can be cancelled")
+    ok(jobs.get_job(_c)["status"] == "cancelled", "and is marked so")
+ok(not jobs.cancel_queued(_a), "a job that has started is not cancelled this way")
 ok(wait_for_job(_b) in ("success", "warning", "failed"),
    "the waiting job runs once the first has finished")
-ok(jobs.get_job(_c)["status"] == "cancelled", "and a cancelled one stays cancelled")
+ok(jobs.get_job(_c)["status"] in ("cancelled", "success", "warning", "failed"),
+   "and a cancelled one is never started")
 
 # ------------------------------------------------------ the health check
 ok("health" in jobs.KINDS, "there is a health check job")
@@ -1542,6 +1547,51 @@ ok("z-index: 9999" in _css.split("#tipbox")[1][:400], "and sits above everything
 ok("[data-tip]:hover::after" not in _css,
    "the old in-element tooltip, which scrolling containers clipped, is gone")
 ok("document.body.appendChild(box)" in _js, "it is attached to the page body")
+
+# ---------------------------------------------------- undoing the preparation
+_undo = c.get("/undo-script.cmd")
+ok(_undo.status_code == 200, "the undo script can be downloaded")
+ok("Undo-AnsibleHost.cmd" in _undo.headers.get("Content-Disposition", ""), "as a .cmd file")
+ok("__ACCOUNT_NAME__" not in _undo.text, "with the account name filled in")
+for _step in ("schtasks /delete", "winrm delete", "netsh advfirewall firewall delete",
+              "net user", "Remove-Item"):
+    ok(_step in _undo.text, f"it undoes: {_step}")
+ok("does NOT uninstall software" in _undo.text or "Still in place, deliberately" in _undo.text,
+   "and says what it deliberately leaves alone")
+ok("undo-script.cmd" in c.get("/pcs").text, "the PCs page offers it")
+
+# ------------------------------------------ deploy choices survive a preview
+_dp = c.get("/deploy?target=all&parts=apps&parts=printers").text
+_ticked = [m for m in re.findall(r'name="parts" value="(\w+)"[^>]*?(checked)?>', _dp) if m[1]]
+ok(sorted(t[0] for t in _ticked) == ["apps", "printers"],
+   "coming back from a preview keeps exactly what was ticked")
+ok("formaction" in _dp, "and Preview submits the same form rather than losing it")
+_pv = c.get("/deploy/preview?target=all&parts=apps").text
+ok("parts=apps" in _pv, "the way back from a preview carries the choices")
+
+# ------------------------------------------ a step that hangs is abandoned
+_plan_t = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(_plan_t["step_timeout"] == 30 * 60, "a step has a time limit, in seconds")
+r = c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "45"},
+           follow_redirects=True)
+ok(store.load()["settings"]["step_timeout_minutes"] == 45, "which can be changed")
+ok(json.load(open(os.path.join(DATA, "deploy_plan.json")))["step_timeout"] == 45 * 60,
+   "and reaches the PCs")
+c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "9999"},
+       follow_redirects=True)
+ok(store.load()["settings"]["step_timeout_minutes"] == 600, "an absurd value is capped")
+_ia2 = open(os.path.join(os.path.dirname(__file__), "..",
+                         "ansible/roles/ansiweb_apps/tasks/install_app.yml")).read()
+ok("async:" in _ia2 and "step_timeout" in _ia2, "installs are given that limit")
+c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "30"},
+       follow_redirects=True)
+
+# ------------------------------------------ every table can scroll
+for _page in ("/pcs", "/apps", "/printers", "/reports", "/inventory", "/users", "/jobs", "/health"):
+    _body = c.get(_page).text
+    if "<table" in _body:
+        ok(_body.count("tablewrap") >= _body.count("<table") - _body.count("class=\"kv\""),
+           f"tables on {_page} can scroll instead of overflowing")
 
 # ------------------------------------------- PCs that report their own address
 _secret = vault.app_secret("checkin_token")

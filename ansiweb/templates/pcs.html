@@ -6,6 +6,8 @@
   <h1>PCs</h1>
   <div class="actions">
     <a class="btn" href="{{ url_for('prepare_script_cmd') }}">Prep script (simple, .cmd)</a>
+    <a class="btn" href="{{ url_for('undo_script_cmd') }}"
+       data-tip="Removes the WinRM listeners, firewall rules, check-in tasks and management account from a PC. Software already deployed is left alone.">Undo script</a>
     <a class="btn" href="{{ url_for('prepare_script') }}">Prep script (PowerShell)</a>
     {% if can(perms.run) %}{{ job_button('ping', 'Test all connections', 'all') }}{% endif %}
     {% if can(perms.run) %}{{ job_button('rename', 'Apply computer names', 'all', 'btn', 'Rename PCs in Windows to match AnsiWEB? Renamed PCs need a reboot.') }}{% endif %}
@@ -35,7 +37,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   <p>Currently reaching PCs on <b>port {{ '5985 with NTLM' if ntlm else '5986 over HTTPS' }}</b>, so prepare PCs
     with the <b>{{ 'simple (.cmd)' if ntlm else 'PowerShell' }}</b> script.</p>
 
-  <table class="kv">
+  <div class="tablewrap"><table class="kv">
     <tr><th>Simple (.cmd)</th>
       <td>Right-click the file and choose <b>Run as administrator</b>. It uses only built-in Windows commands,
         needs no certificate and nothing to unblock, and the window stays open so you can read what it did.
@@ -43,7 +45,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
     <tr><th>PowerShell (.ps1)</th>
       <td>Run <code>powershell -ExecutionPolicy Bypass -File .\Prepare-AnsibleHost.ps1</code> in an elevated
         window. It creates a certificate and an HTTPS listener, and AnsiWEB connects on port 5986.</td></tr>
-  </table>
+  </table></div>
 </section>
 
 <section class="panel">
@@ -78,7 +80,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
 </form>
 {% endif %}
 
-<table class="list">
+<div class="tablewrap"><table class="list">
   <tr>{% if can(perms.pcs) %}<th></th>{% endif %}<th>PC</th><th>Assigned to{{ tip("Who uses this PC. Searchable, so you do not have to remember PC names.") }}</th><th>IP</th><th>Site</th><th>Groups</th><th>Name in sync{{ tip("Whether AnsiWEB renames Windows to match the name here at the next deployment.") }}</th><th>Apps</th><th>Last report</th><th></th></tr>
   {% for pc in visible %}
   {% set rep = reports.get(pc.name) %}
@@ -131,7 +133,7 @@ and creates the <code>{{ cfg.settings.pc_account }}</code> account.</p>
   {% else %}
   <tr><td colspan="8" class="muted">{% if my_scope %}No PCs in {{ scope_label }}.{% else %}No PCs yet. Add one below or import a list.{% endif %}</td></tr>
   {% endfor %}
-</table>
+</table></div>
 
 {% if can(perms.pcs) %}
 <div class="grid2">

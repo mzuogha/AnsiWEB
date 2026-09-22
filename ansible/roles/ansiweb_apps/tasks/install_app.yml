@@ -15,6 +15,8 @@
   when: app.archive | default(false) | bool
 
 - name: "Install {{ app.name }} {{ app.version }} from its own setup"
+  async: "{{ aw_plan.step_timeout | default(1800) }}"
+  poll: 10
   ansible.windows.win_command: "{{ app.install_command }}"
   args:
     chdir: "{{ aw_pc_cache }}\\{{ app.id }}"
@@ -30,6 +32,8 @@
 
 - name: "Install {{ app.name }} {{ app.version }}"
   when: not (app.archive | default(false) | bool)
+  async: "{{ aw_plan.step_timeout | default(1800) }}"
+  poll: 10
   ansible.windows.win_package:
     path: "{{ aw_pc_cache }}\\{{ app.file }}"
     arguments: "{{ app.arguments if app.arguments | length > 0 else omit }}"
