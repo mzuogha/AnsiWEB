@@ -1,3 +1,16 @@
+- version: "2.10.1"
+  date: "2026-09-21"
+  summary: >-
+    Tidies the winget search results.
+  fixed:
+    - "The guidance about how winget organises packages sat inside the search
+       box's own label, which stretched the row and left the Search button
+       adrift. It now sits under the form, and the box has a Clear beside it."
+    - The results table scrolls sideways instead of running off the page, and
+      the Add column is no longer held on a single line, so a long package ID
+      no longer pushes the button out of view.
+    - The number of matching packages is shown above the results.
+
 - version: "2.10.0"
   date: "2026-09-21"
   summary: >-

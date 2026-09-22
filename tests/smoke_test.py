@@ -29,8 +29,19 @@ jobs.run_command = _fake_run
 
 def wait_for_jobs(seconds=10):
     deadline = time.time() + seconds
-    while jobs.running() and time.time() < deadline:
+    while (jobs.running() or jobs.queued_jobs()) and time.time() < deadline:
         time.sleep(0.05)
+
+
+def wait_for_job(job_id, seconds=30):
+    """Wait for one job to reach a final state, queue time included."""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        status = (jobs.get_job(job_id) or {}).get("status")
+        if status in ("success", "warning", "failed", "cancelled"):
+            return status
+        time.sleep(0.05)
+    return (jobs.get_job(job_id) or {}).get("status")
 
 
 import yaml as _y
@@ -713,8 +724,7 @@ ok(len(jobs.queued_jobs()) == 2, "and the queue lists what is waiting")
 ok(jobs.cancel_queued(_c), "a waiting job can be cancelled")
 ok(jobs.get_job(_c)["status"] == "cancelled", "and is marked so")
 ok(not jobs.cancel_queued(_a), "a running job is not cancelled this way")
-wait_for_jobs()
-ok(jobs.get_job(_b)["status"] in ("success", "warning", "failed"),
+ok(wait_for_job(_b) in ("success", "warning", "failed"),
    "the waiting job runs once the first has finished")
 ok(jobs.get_job(_c)["status"] == "cancelled", "and a cancelled one stays cancelled")
 
@@ -1356,6 +1366,16 @@ r = c.get("/apps/search?q=mozilla")
 ok("Mozilla.Firefox" in r.text and "Mozilla.Thunderbird" in r.text, "a publisher search lists its packages")
 ok("Mozilla.Firefox" in c.get("/apps/search?q=Mozilla.Fire").text, "a partial package ID resolves")
 ok("Nothing matched" in c.get("/apps/search?q=nosuchthing").text, "a miss says so")
+# the results page has to survive a narrow window and long package ids
+_sr = c.get("/apps/search?q=mozilla").text
+ok("tablewrap" in _sr, "the results table scrolls rather than running off the page")
+ok('class="nowrap"' not in _sr.split("<table")[1].split("</table>")[0],
+   "and no column is forced onto one line")
+ok("package(s) match" in _sr, "the number of matches is shown")
+_form_end = _sr.index("</form>", _sr.index('<form method="get"'))
+ok("winget organises" in _sr[_form_end:_form_end + 700],
+   "the guidance sits under the search box, not inside its label")
+ok(">Clear</a>" in _sr, "and a search can be cleared")
 ok("at least two characters" in c.get("/apps/search?q=m").text, "a one-letter search is refused")
 # adding one from the results
 before_apps = len(store.load()["apps"])

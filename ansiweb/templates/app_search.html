@@ -7,14 +7,18 @@
   <div class="actions"><a class="btn" href="{{ url_for('apps_page') }}">Back to Apps &amp; Cache</a></div>
 </div>
 
-<form method="get" class="panel row tight searchbar">
-  <label>Search<input name="q" value="{{ term }}" autofocus
-    placeholder="publisher, product or package ID — e.g. Mozilla, VideoLAN, 7zip.7zip">
-    <small>winget organises packages by publisher, so searching by publisher or by package ID always
-      works. A product name finds it when the name appears in the publisher or the ID, which covers
-      most things. If not, run <code>winget search &lt;name&gt;</code> on any PC and paste the ID here.</small></label>
-  <div><button class="btn primary">Search</button></div>
-</form>
+<section class="panel">
+  <form method="get" class="row tight searchbar">
+    <label>Search<input name="q" value="{{ term }}" autofocus size="34"
+      placeholder="publisher, product or package ID"></label>
+    <div><button class="btn primary">Search</button>
+      {% if term %}<a class="btn" href="{{ url_for('app_search') }}">Clear</a>{% endif %}</div>
+  </form>
+  <p class="muted small">winget organises packages by publisher, so searching by publisher
+    (<code>Mozilla</code>) or by package ID (<code>Mozilla.Firefox</code>) always works. A product name
+    finds it when the name appears in the publisher or the ID, which covers most things. If not, run
+    <code>winget search &lt;name&gt;</code> on any PC and paste the ID here.</p>
+</section>
 
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
@@ -23,6 +27,8 @@
 {% endif %}
 
 {% if results %}
+<p class="muted small">{{ results | length }} package(s) match "{{ term }}".</p>
+<div class="tablewrap">
 <table class="list">
   <tr><th>Package ID</th><th>Publisher</th><th>Add to the standard set
     {{ tip("Adds it with a suggested detection pattern. Check that on the app's page, then run an update check to download the installer.") }}</th></tr>
@@ -30,14 +36,14 @@
   <tr>
     <td><b>{{ r.id }}</b></td>
     <td class="small">{{ r.publisher }}</td>
-    <td class="nowrap">
+    <td>
       {% if r.already %}<span class="pill st-ok">already in the set</span>
       {% elif can(perms.content) %}
-      <form method="post" action="{{ url_for('app_search_add') }}" class="inline row tight">{{ csrf() }}
+      <form method="post" action="{{ url_for('app_search_add') }}" class="row tight addrow">{{ csrf() }}
         <input type="hidden" name="winget_id" value="{{ r.id }}">
         <input type="hidden" name="q" value="{{ term }}">
-        <input name="name" value="{{ r.package }}" size="18" aria-label="Name in AnsiWEB">
         <input type="hidden" name="targets" value="all">
+        <input name="name" value="{{ r.package }}" size="16" aria-label="Name for {{ r.id }} in AnsiWEB">
         <button class="btn small primary">Add</button>
       </form>
       {% endif %}
@@ -45,6 +51,7 @@
   </tr>
   {% endfor %}
 </table>
+</div>
 <p class="muted small">Adding an app records it; the installer is downloaded by the next update check, or
   press <b>Check for updates now</b> on the Apps &amp; Cache page.</p>
 {% endif %}

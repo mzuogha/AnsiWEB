@@ -5,6 +5,18 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.10.1 - 2026-09-21
+
+Tidies the winget search results.
+
+
+### Fixed
+
+- The guidance about how winget organises packages sat inside the search box's own label, which stretched the row and left the Search button adrift. It now sits under the form, and the box has a Clear beside it.
+- The results table scrolls sideways instead of running off the page, and the Add column is no longer held on a single line, so a long package ID no longer pushes the button out of view.
+- The number of matching packages is shown above the results.
+
+
 ## 2.10.0 - 2026-09-21
 
 Software that comes as an ISO can be deployed, the inventory can be read per PC, and the installer says what it supports.
