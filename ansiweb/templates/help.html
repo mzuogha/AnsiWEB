@@ -14,6 +14,7 @@ The full guide is in <code>docs/INSTALL.md</code> in the repository.</p>
     <li><a href="#hyperv">Setting up the Hyper-V virtual machine</a></li>
     <li><a href="#ubuntu">Deploy on Ubuntu Server (standalone or in a VM)</a></li>
     <li><a href="#wsl">Deploy on WSL</a> — for trying it out only</li>
+    <li><a href="#drivers">Packaging HP and Lenovo drivers</a></li>
     <li><a href="#prepare">Preparing a PC</a></li>
     <li><a href="#backup">Backup and restore</a></li>
     <li><a href="#uninstall">Removing an app from the PCs</a></li>
@@ -193,6 +194,45 @@ foreach ($port in 80, 443) {
 $trigger = New-ScheduledTaskTrigger -AtStartup
 Register-ScheduledTask -TaskName 'AnsiWEB WSL' -Action $action -Trigger $trigger `
     -User 'SYSTEM' -RunLevel Highest</pre>
+</section>
+
+<section class="panel" id="drivers">
+  <h2>Packaging HP and Lenovo drivers</h2>
+
+  <p class="muted">AnsiWEB wants a <code>.zip</code> of the vendor's <em>extracted</em> driver folder — the one
+  holding the <code>.inf</code> with its <code>.cat</code> beside it. A vendor's <code>.exe</code> is an
+  installer, not a driver package, so it has to be extracted first. Nothing inside may be edited or renamed:
+  the <code>.cat</code> signs the exact bytes, and Windows refuses a package whose files have changed.</p>
+
+  <h3>HP</h3>
+  <p class="muted small">A SoftPaq extracts itself without installing:</p>
+  <pre class="cmd">sp154321.exe /s /e /f "C:\drv\sp154321"</pre>
+  <p class="muted small">Look inside for the folder containing the <code>.inf</code> files — often
+  <code>...\src</code> or a subfolder per component. Zip the <b>contents</b> of that folder, not the folder
+  itself. HP's per-model <em>Driver Packs</em> extract the same way and contain many drivers at once; they are
+  several gigabytes, so upload the part you need rather than the whole pack.</p>
+
+  <h3>Lenovo</h3>
+  <p class="muted small">Lenovo's SCCM driver packs self-extract to a fixed path:</p>
+  <pre class="cmd">tp_t14g2_w11_2309.exe /VERYSILENT /DIR="C:\drv\t14g2" /SP-</pre>
+  <p class="muted small">Individual System Update packages usually take <code>/extract:"C:\drv\name"</code>
+  instead. Either way you end up with a tree of folders, each with its own <code>.inf</code>; zip the one you
+  want.</p>
+
+  <h3>Then, in AnsiWEB</h3>
+  <ul>
+    <li>Upload the zip on <b>Drivers, Scripts &amp; Registry</b>. It is checked for an <code>.inf</code> and
+      warns if no <code>.cat</code> is present.</li>
+    <li>Aim it at the hardware: the target list includes <code>make:</code> and <code>model:</code> entries
+      built from what your PCs have reported, so a T14 Gen 2 driver goes only to T14 Gen 2s. A PC must have
+      reported once before its model appears.</li>
+    <li>A package holding several models' <code>.inf</code> files is fine — AnsiWEB installs each one Windows
+      accepts and skips the rest, naming what it skipped.</li>
+    <li>Uploads are capped at 4 GB. Anything larger should be split by component.</li>
+  </ul>
+  <p class="muted small"><b>Check the model string first.</b> On Lenovo, Windows reports the machine type
+  (<code>21CBS0KY00</code>) as the model, not the marketing name, so the target will look like
+  <code>model:21CBS0KY00</code>. The Reports page shows exactly what each PC reported.</p>
 </section>
 
 <section class="panel" id="prepare">

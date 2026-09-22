@@ -1,3 +1,13 @@
+- version: "2.13.1"
+  date: "2026-09-22"
+  summary: >-
+    Help now covers packaging HP and Lenovo drivers.
+  added:
+    - "A Help section on turning an HP SoftPaq or a Lenovo driver pack into
+       something AnsiWEB can deploy: the extraction commands for each, what to
+       zip, aiming a package at a model, and the warning that Lenovo reports
+       its machine type rather than the marketing name."
+
 - version: "2.13.0"
   date: "2026-09-22"
   summary: >-

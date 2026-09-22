@@ -5,6 +5,16 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.13.1 - 2026-09-22
+
+Help now covers packaging HP and Lenovo drivers.
+
+
+### New
+
+- A Help section on turning an HP SoftPaq or a Lenovo driver pack into something AnsiWEB can deploy: the extraction commands for each, what to zip, aiming a package at a model, and the warning that Lenovo reports its machine type rather than the marketing name.
+
+
 ## 2.13.0 - 2026-09-22
 
 A page for common Windows settings, PCs grouped by the hardware they report, and two pairs of pages merged.
