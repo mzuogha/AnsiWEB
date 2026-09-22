@@ -1,3 +1,13 @@
+- version: "2.12.3"
+  date: "2026-09-22"
+  summary: >-
+    Fixes the missing tickbox for installation media.
+  fixed:
+    - "'This upload is a .zip of extracted installation media' and its command
+       box were written inside another field's label, which is invalid and left
+       them with nothing to tick. They now sit in their own section under
+       Installing and detecting, on both the add and edit forms."
+
 - version: "2.12.2"
   date: "2026-09-22"
   summary: >-

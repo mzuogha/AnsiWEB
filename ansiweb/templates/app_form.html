@@ -42,17 +42,21 @@
   <h3>Installing and detecting</h3>
   <div class="row">
     <label>Silent install arguments<input name="arguments" value="{{ app.arguments or '' }}" placeholder="/S">
-  <label class="check"><input type="checkbox" name="archive" {{ 'checked' if app.archive }}>
-    This upload is a .zip of extracted installation media</label>
-  <label>Command that installs it<input name="install_command" value="{{ app.install_command or '' }}"
-    placeholder="setup.exe /configure config.xml">
-    <small>Run inside the unpacked folder. For Office, that is the Office Deployment Tool's
-    <code>setup.exe /configure &lt;your config&gt;.xml</code>. Only used when the box above is ticked.</small></label>
-
       <small>Leave empty for MSI files (they install silently automatically).</small></label>
     <label>Detection pattern (regex on the name in "Installed apps")<input name="detect_pattern" value="{{ app.detect_pattern or '' }}" required placeholder="^Notepad\+\+">
       <small>Used to find the installed version and decide whether to install or upgrade.</small></label>
   </div>
+  <section class="subpanel">
+    <label class="check"><input type="checkbox" name="archive" {{ 'checked' if app.archive }}>
+      <b>This upload is a .zip of extracted installation media</b></label>
+    <p class="muted small">For software that comes as an ISO rather than a single installer — Office 2019, for
+      example. Copy the media into a folder, zip its contents, and upload that as the installer above.</p>
+    <label>Command that installs it<input name="install_command" value="{{ app.install_command or '' }}"
+      placeholder="setup.exe /configure configuration.xml">
+      <small>Run inside the unpacked folder on the PC. For Office that is the Office Deployment Tool's
+      <code>setup.exe /configure &lt;your config&gt;.xml</code>. Only used when the box above is ticked.</small></label>
+  </section>
+
   <div class="row">
     <label>Extra success exit codes<input name="extra_success_codes" value="{{ (app.extra_success_codes or [])|join(', ') }}" placeholder="1638">
       <small>0 and 3010 are always accepted.</small></label>

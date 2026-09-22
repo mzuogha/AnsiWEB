@@ -685,6 +685,14 @@ ok(_office[0]["archive"] is True and _office[0]["install_command"].startswith("s
 _ia = open(os.path.join(os.path.dirname(__file__), "..",
                         "ansible/roles/ansiweb_apps/tasks/install_app.yml")).read()
 ok("win_unzip" in _ia and "app.archive" in _ia, "the PC unpacks it before installing")
+# the option has to be visible and valid on the form, not buried in another label
+for _page in ("/apps/new", f"/apps/{_office[0]['id']}/edit"):
+    _f = c.get(_page).text
+    ok('name="archive"' in _f, f"the media option is on {_page}")
+    ok('name="install_command"' in _f, f"with its command box on {_page}")
+    _seg = _f[:_f.find('name="archive"')]
+    ok(_seg.count("<label") - _seg.count("</label>") == 1,
+       f"and is not nested inside another label on {_page}")
 ok("state: absent" in _ia, "and the unpacked files are cleared away afterwards")
 ok("aw_archive_install.rc not in" in _ia, "its exit code is checked against the app's success codes")
 ok("Only .msi and .exe" in c.post("/apps/new",

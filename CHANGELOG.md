@@ -5,6 +5,16 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.12.3 - 2026-09-22
+
+Fixes the missing tickbox for installation media.
+
+
+### Fixed
+
+- 'This upload is a .zip of extracted installation media' and its command box were written inside another field's label, which is invalid and left them with nothing to tick. They now sit in their own section under Installing and detecting, on both the add and edit forms.
+
+
 ## 2.12.2 - 2026-09-22
 
 The undo script no longer removes the management account.

@@ -195,3 +195,7 @@ details.pcinv .tablewrap, details.pcinv p { padding: 0 12px 10px; }
                       border-top: 1px solid var(--line); display: flex; gap: 8px;
                       align-items: center; flex-wrap: wrap; z-index: 5; }
 table { max-width: 100%; }
+
+.subpanel { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 4px 0 12px; }
+.subpanel > .check { font-weight: 600; }
+.subpanel p { margin: 4px 0 8px; }
