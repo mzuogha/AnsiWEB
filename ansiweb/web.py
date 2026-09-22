@@ -438,6 +438,8 @@ def create_app(start_background: bool = True) -> Flask:
             "enabled": f.get("enabled") == "on",
             "source": f.get("source", "winget"),
             "arguments": f.get("arguments", "").strip(),
+            "archive": f.get("archive") == "on",
+            "install_command": f.get("install_command", "").strip()[:300],
             "detect_pattern": f.get("detect_pattern", "").strip(),
             "pinned": f.get("pinned") == "on",
             "targets": request.form.getlist("targets") or ["all"],
@@ -516,8 +518,22 @@ def create_app(start_background: bool = True) -> Flask:
                 has_file = bool(upload and upload.filename)
                 if new["source"] == "upload" and not has_file:
                     raise store.ValidationError("Choose the installer file to upload.")
-                if has_file and not upload.filename.lower().endswith((".msi", ".exe")):
-                    raise store.ValidationError("Only .msi and .exe installers can be uploaded.")
+                if has_file:
+                    # A .zip is extracted installation media, which needs the
+                    # command that installs it
+                    allowed = (".msi", ".exe", ".zip") if new.get("archive") else (".msi", ".exe")
+                    if not upload.filename.lower().endswith(allowed):
+                        raise store.ValidationError(
+                            "Upload a .msi or .exe installer, or a .zip of extracted media with "
+                            "'This upload is a .zip of extracted installation media' ticked.")
+                    if new.get("archive"):
+                        if not upload.filename.lower().endswith(".zip"):
+                            raise store.ValidationError(
+                                "Extracted installation media has to be a .zip.")
+                        if not new.get("install_command"):
+                            raise store.ValidationError(
+                                "Give the command that installs it, such as "
+                                "'setup.exe /configure configuration.xml'.")
                 cfg["apps"].append(new)
                 store.save(cfg)
                 # Save the file only once the entry itself is valid and stored
@@ -1605,7 +1621,25 @@ def create_app(start_background: bool = True) -> Flask:
         query = request.args.get("q", "")
         pc_filter = request.args.get("pc", "")
         rows, with_data = inventory_rows(cfg, query, pc_filter)
+        # Grouped by PC as well as by program: "what is on this machine" is a
+        # different question from "who has this program".
+        by_pc = []
+        reports = load_reports()
+        for pc in visible_pcs(cfg):
+            if pc_filter and pc["name"] != pc_filter:
+                continue
+            report = reports.get(pc["name"]) or {}
+            programs = sorted((report.get("inventory") or []),
+                              key=lambda x: (x.get("name") or "").lower())
+            if query:
+                needle = query.lower()
+                programs = [x for x in programs
+                            if needle in (x.get("name") or "").lower()
+                            or needle in (x.get("publisher") or "").lower()]
+            by_pc.append({"pc": pc, "programs": programs, "reported": report.get("time", ""),
+                          "ever": bool(report)})
         return render_template("inventory.html", cfg=cfg, rows=rows[:1000], total=len(rows),
+                               by_pc=by_pc, view=request.args.get("view", "program"),
                                query=query, pc_filter=pc_filter, pcs=visible_pcs(cfg),
                                with_data=with_data,
                                collect=cfg["settings"].get("collect_inventory", True),

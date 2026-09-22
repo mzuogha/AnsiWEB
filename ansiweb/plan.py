@@ -56,6 +56,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
             "sha256": entry.get("sha256", ""),
             "arguments": (app.get("arguments") or "").strip(),
             "success_codes": sorted(codes),
+            "archive": bool(app.get("archive")),
+            "install_command": app.get("install_command", ""),
             "detect_pattern": app["detect_pattern"],
             "mode": "pinned" if app.get("pinned") else "latest",
             "firefox_disable_updates": bool(app.get("firefox_disable_updates")),

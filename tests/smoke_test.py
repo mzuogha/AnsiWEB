@@ -653,6 +653,55 @@ for _var in ("aw_plan", "aw_host", "aw_results", "aw_shares", "aw_printers", "aw
     ok(all("always" in (_t.get("tags") or []) for _t in _tasks),
        f"{_var} is set on every run, whatever tags a job uses")
 
+# ------------------------------------ software that arrives as extracted media
+_media = io.BytesIO()
+with zipfile.ZipFile(_media, "w") as _z:
+    _z.writestr("setup.exe", "stub")
+    _z.writestr("configuration.xml", "<Configuration/>")
+_media.seek(0)
+r = c.post("/apps/new", data={"csrf": tok, "id": "office2019", "name": "Office 2019",
+                              "source": "upload",
+                              "detect_pattern": "^Microsoft Office Professional Plus 2019",
+                              "version": "16.0", "archive": "on",
+                              "install_command": "setup.exe /configure configuration.xml",
+                              "targets": ["all"], "success_codes": "3010",
+                              "installer": (_media, "office2019.zip")},
+           content_type="multipart/form-data", follow_redirects=True)
+_office = [a for a in store.load()["apps"] if a["name"] == "Office 2019"]
+ok(_office, "an app can be added as extracted media")
+ok(_office[0]["archive"] is True and _office[0]["install_command"].startswith("setup.exe"),
+   "with the command that installs it")
+_ia = open(os.path.join(os.path.dirname(__file__), "..",
+                        "ansible/roles/ansiweb_apps/tasks/install_app.yml")).read()
+ok("win_unzip" in _ia and "app.archive" in _ia, "the PC unpacks it before installing")
+ok("state: absent" in _ia, "and the unpacked files are cleared away afterwards")
+ok("aw_archive_install.rc not in" in _ia, "its exit code is checked against the app's success codes")
+ok("Only .msi and .exe" in c.post("/apps/new",
+       data={"csrf": tok, "id": "plainzip", "name": "Plain zip", "source": "upload",
+             "detect_pattern": "^x", "version": "1", "targets": ["all"],
+             "installer": (io.BytesIO(b"PK"), "thing.zip")},
+       content_type="multipart/form-data", follow_redirects=True).text.replace(
+           "Upload a .msi or .exe installer", "Only .msi and .exe"),
+   "a .zip without the media box ticked is still refused")
+c.post(f"/apps/{_office[0]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
+
+# ------------------------------------------------ inventory grouped by PC
+_inv = c.get("/inventory?view=pc").text
+ok("By PC" in _inv and "By program" in _inv, "the inventory can be seen either way")
+ok("pcinv" in _inv, "each PC is a collapsible section")
+ok("PC-HQ-001" in _inv, "with the PC named")
+ok("not reported its installed software yet" in _inv or "program(s), reported" in _inv,
+   "and says whether that PC has reported")
+ok("pcinv" not in c.get("/inventory").text, "the program view is unchanged")
+
+# ------------------------------------------------ the installer is honest about distros
+_inst = open(os.path.join(os.path.dirname(__file__), "..", "install.sh")).read()
+ok("ID_LIKE" in _inst, "the installer works out which distribution it is on")
+ok("written for Debian and Ubuntu" in _inst, "and says plainly when it is not one")
+ok("dnf install" in _inst and "zypper install" in _inst,
+   "naming the packages to install on other families")
+ok("ANSIWEB_FORCE" in _inst, "with a way to override for anyone who knows better")
+
 # ------------------------------------------------------ the job queue
 wait_for_jobs()
 _a = jobs.start("ping", "all")

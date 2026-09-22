@@ -38,6 +38,39 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
   {{ rows|length }}{% endif %}.</p>
 
 <div class="tablewrap">
+<p class="row tight">
+  <a class="btn small {{ 'primary' if view != 'pc' }}"
+     href="{{ url_for('inventory_page', q=query, pc=pc_filter) }}">By program</a>
+  <a class="btn small {{ 'primary' if view == 'pc' }}"
+     href="{{ url_for('inventory_page', q=query, pc=pc_filter, view='pc') }}">By PC</a>
+</p>
+
+{% if view == 'pc' %}
+{% for entry in by_pc %}
+<details class="pcinv">
+  <summary>
+    <b>{{ entry.pc.name }}</b>
+    {% if entry.pc.user %}<span class="muted small">{{ entry.pc.user }}</span>{% endif %}
+    <span class="muted small">
+      {% if entry.ever %}{{ entry.programs | length }} program(s), reported {{ entry.reported }}
+      {% else %}never reported{% endif %}</span>
+  </summary>
+  {% if entry.programs %}
+  <div class="tablewrap"><table class="list">
+    <tr><th>Program</th><th>Version</th><th>Publisher</th></tr>
+    {% for prog in entry.programs %}
+    <tr><td>{{ prog.name }}</td><td class="small">{{ prog.version or '—' }}</td>
+      <td class="small muted">{{ prog.publisher or '—' }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% elif entry.ever %}
+  <p class="muted small">Nothing matches on this PC.</p>
+  {% else %}
+  <p class="muted small">This PC has not reported its installed software yet. Run a collection to gather it.</p>
+  {% endif %}
+</details>
+{% endfor %}
+{% else %}
 <div class="tablewrap"><table class="list">
   <tr><th>Program</th><th>Version</th><th>Publisher</th><th>Type</th><th>PCs</th><th>Which</th>
     {% if can(perms.run) %}<th>Remove from</th>{% endif %}</tr>
@@ -77,6 +110,7 @@ Each PC refreshes its list at the end of every deployment. {{ with_data }} PC(s)
     {% else %}No inventory yet. It is collected at the end of each deployment.{% endif %}</td></tr>
   {% endfor %}
 </table></div>
+{% endif %}
 {% if can(perms.content) or uninstalls %}
 <section class="panel" id="uninstall">
   <h2>Standing uninstalls</h2>

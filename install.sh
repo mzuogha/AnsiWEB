@@ -32,6 +32,41 @@ MSG
   fi
 fi
 
+# Which distribution, and therefore which package manager and package names
+DISTRO=""
+[[ -r /etc/os-release ]] && . /etc/os-release && DISTRO="${ID:-} ${ID_LIKE:-}"
+case "$DISTRO" in
+  *debian*|*ubuntu*) FAMILY="debian" ;;
+  *rhel*|*fedora*|*centos*) FAMILY="rhel" ;;
+  *suse*) FAMILY="suse" ;;
+  *arch*) FAMILY="arch" ;;
+  *) FAMILY="unknown" ;;
+esac
+
+if [[ "$FAMILY" != "debian" ]]; then
+  echo
+  echo "AnsiWEB's installer is written for Debian and Ubuntu, and this looks like" >&2
+  echo "${PRETTY_NAME:-an unrecognised distribution}." >&2
+  echo >&2
+  echo "AnsiWEB itself is ordinary Python, Ansible and nginx, so it runs anywhere" >&2
+  echo "those do. What this script does that you would need to do by hand:" >&2
+  echo "  1. install python3, python3-venv, gcc, the Kerberos development headers," >&2
+  echo "     nginx, rsync, git and openssl" >&2
+  case "$FAMILY" in
+    rhel) echo "     dnf install python3 python3-devel gcc krb5-devel nginx rsync git openssl" >&2 ;;
+    suse) echo "     zypper install python3 python3-devel gcc krb5-devel nginx rsync git openssl" >&2 ;;
+    arch) echo "     pacman -S python gcc krb5 nginx rsync git openssl" >&2 ;;
+  esac
+  echo "  2. create the ansiweb service account and /var/lib/ansiweb" >&2
+  echo "  3. copy this directory to /opt/ansiweb and make its virtualenv" >&2
+  echo "  4. install deploy/nginx-ansiweb.conf and deploy/ansiweb.service" >&2
+  echo >&2
+  echo "The steps are in docs/INSTALL.md under 'Other distributions'. Run this" >&2
+  echo "script with ANSIWEB_FORCE=1 to try anyway; it will use apt, which is" >&2
+  echo "unlikely to be what you want here." >&2
+  [[ "${ANSIWEB_FORCE:-}" == "1" ]] || exit 1
+fi
+
 echo "==> Installing system packages"
 PACKAGES=(python3 python3-venv python3-dev gcc libkrb5-dev nginx rsync git openssl)
 MISSING=()

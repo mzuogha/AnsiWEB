@@ -179,3 +179,10 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .themetoggle:hover { border-color: rgba(255, 255, 255, .4); color: #fff; }
 
 .movebar { margin: 0 0 10px; align-items: center; }
+
+details.pcinv { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px;
+                background: var(--panel); }
+details.pcinv > summary { padding: 9px 12px; cursor: pointer; display: flex; gap: 10px;
+                          align-items: baseline; flex-wrap: wrap; }
+details.pcinv[open] > summary { border-bottom: 1px solid var(--line); }
+details.pcinv .tablewrap, details.pcinv p { padding: 0 12px 10px; }

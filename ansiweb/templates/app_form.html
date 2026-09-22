@@ -42,6 +42,13 @@
   <h3>Installing and detecting</h3>
   <div class="row">
     <label>Silent install arguments<input name="arguments" value="{{ app.arguments or '' }}" placeholder="/S">
+  <label class="check"><input type="checkbox" name="archive" {{ 'checked' if app.archive }}>
+    This upload is a .zip of extracted installation media</label>
+  <label>Command that installs it<input name="install_command" value="{{ app.install_command or '' }}"
+    placeholder="setup.exe /configure config.xml">
+    <small>Run inside the unpacked folder. For Office, that is the Office Deployment Tool's
+    <code>setup.exe /configure &lt;your config&gt;.xml</code>. Only used when the box above is ticked.</small></label>
+
       <small>Leave empty for MSI files (they install silently automatically).</small></label>
     <label>Detection pattern (regex on the name in "Installed apps")<input name="detect_pattern" value="{{ app.detect_pattern or '' }}" required placeholder="^Notepad\+\+">
       <small>Used to find the installed version and decide whether to install or upgrade.</small></label>

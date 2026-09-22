@@ -7,7 +7,29 @@
     checksum_algorithm: sha256
     force: false
 
+- name: "Unpack {{ app.name }} {{ app.version }}"
+  community.windows.win_unzip:
+    src: "{{ aw_pc_cache }}\\{{ app.file }}"
+    dest: "{{ aw_pc_cache }}\\{{ app.id }}"
+    delete_archive: false
+  when: app.archive | default(false) | bool
+
+- name: "Install {{ app.name }} {{ app.version }} from its own setup"
+  ansible.windows.win_command: "{{ app.install_command }}"
+  args:
+    chdir: "{{ aw_pc_cache }}\\{{ app.id }}"
+  register: aw_archive_install
+  failed_when: aw_archive_install.rc not in (app.success_codes | default([0, 3010]))
+  when: app.archive | default(false) | bool
+
+- name: "Tidy away the unpacked {{ app.name }} files"
+  ansible.windows.win_file:
+    path: "{{ aw_pc_cache }}\\{{ app.id }}"
+    state: absent
+  when: app.archive | default(false) | bool
+
 - name: "Install {{ app.name }} {{ app.version }}"
+  when: not (app.archive | default(false) | bool)
   ansible.windows.win_package:
     path: "{{ aw_pc_cache }}\\{{ app.file }}"
     arguments: "{{ app.arguments if app.arguments | length > 0 else omit }}"
@@ -18,7 +40,8 @@
 - name: "Note that {{ app.name }} needs a reboot"
   ansible.builtin.set_fact:
     aw_reboot_needed: true
-  when: aw_install.reboot_required | default(false)
+  when: (aw_install.reboot_required | default(false))
+        or ((aw_archive_install.rc | default(0)) == 3010)
 
 - name: "Remove the {{ app.name }} installer from the PC"
   ansible.windows.win_file:

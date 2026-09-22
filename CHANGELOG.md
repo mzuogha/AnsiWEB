@@ -5,6 +5,22 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.10.0 - 2026-09-21
+
+Software that comes as an ISO can be deployed, the inventory can be read per PC, and the installer says what it supports.
+
+
+### New
+
+- An app can be a .zip of extracted installation media plus the command that installs it, which is how anything shipped as an ISO has to work - Office 2019 among them. The PC fetches the zip, unpacks it, runs the command in that folder and clears the files away afterwards.
+- The inventory can be grouped by PC: a collapsible section per machine listing what is installed on it, alongside the existing view of who has a given program. Searching narrows both.
+
+
+### Changed
+
+- install.sh works out which distribution it is on and stops on anything that is not Debian or Ubuntu, naming the packages to install by hand instead of running apt where it does not belong. AnsiWEB itself is ordinary Python, Ansible and nginx and runs anywhere those do; the manual steps are in the installation guide.
+
+
 ## 2.9.0 - 2026-09-21
 
 A health check that changes nothing, a queue so jobs wait instead of being refused, and activation errors in plain words.

@@ -627,3 +627,48 @@ This leaves your PCs untouched. To undo the PC side as well, on each PC remove t
 | `/var/lib/ansiweb/reports/` | per-PC reports (apps, drivers, scripts, registry, hardware) |
 | `/etc/systemd/system/ansiweb.service` | service definition |
 | `/etc/nginx/sites-available/ansiweb` | web server configuration |
+
+
+## Other distributions
+
+`install.sh` is written for Debian and Ubuntu and will stop on anything else rather than guess. AnsiWEB itself is
+ordinary Python, Ansible and nginx, so it runs wherever those do — the installer is the only Debian-specific part.
+
+To install by hand, on any distribution:
+
+1. Install the equivalents of `python3`, `python3-venv`, `gcc`, the Kerberos development headers, `nginx`,
+   `rsync`, `git` and `openssl`. On RHEL family: `dnf install python3 python3-devel gcc krb5-devel nginx rsync git
+   openssl`.
+2. Create a service account and its data directory:
+   `useradd --system --home /var/lib/ansiweb --create-home ansiweb`
+3. Copy the repository to `/opt/ansiweb`, then
+   `python3 -m venv /opt/ansiweb/venv && /opt/ansiweb/venv/bin/pip install -r /opt/ansiweb/requirements.txt`
+4. Install `deploy/ansiweb.service` into systemd and `deploy/nginx-ansiweb.conf` into your nginx configuration
+   directory — the path differs (`/etc/nginx/conf.d/` on RHEL, `/etc/nginx/sites-available/` on Debian).
+5. Generate a certificate with `deploy/make-cert.sh`, then
+   `sudo -u ansiweb /opt/ansiweb/venv/bin/python -m ansiweb.cli init`.
+
+SELinux, on RHEL and Fedora, needs nginx allowed to reach the application:
+`setsebool -P httpd_can_network_connect 1`. The firewall is `firewall-cmd --add-service={http,https} --permanent`
+rather than `ufw`.
+
+## Deploying software that comes as an ISO (Office 2019)
+
+An ISO is not an installer AnsiWEB can hand to Windows, so it is deployed as extracted media plus the command that
+installs it:
+
+1. Mount the ISO and copy its contents into a folder, or use the
+   [Office Deployment Tool](https://learn.microsoft.com/deployoffice/overview-office-deployment-tool) to download
+   the files, which is the supported route for Office 2019.
+2. Put your `configuration.xml` in that folder alongside `setup.exe`.
+3. Zip the folder's **contents** (not the folder itself) and upload it on **Apps & Cache** as a new app.
+4. Tick **This upload is a .zip of extracted installation media**, and set the command to
+   `setup.exe /configure configuration.xml`.
+5. Set the detection pattern so AnsiWEB can tell whether it is already installed — for Office 2019,
+   `^Microsoft Office Professional Plus 2019` or similar, as it appears in Installed apps.
+
+At deployment the zip is fetched from the cache, unpacked on the PC, the command is run in that folder, and the
+unpacked files are removed afterwards. Exit code 3010 counts as success and flags a reboot.
+
+**Licensing is yours to get right:** a volume-licensed Office 2019 with a MAK or KMS is fine to deploy this way; a
+retail copy tied to one PC is not.
