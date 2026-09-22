@@ -297,7 +297,15 @@ def applied_nothing(text: str) -> list:
     return _NOTHING_RE.findall(text)
 
 
-def summarise_run(text: str) -> str:
+# Jobs that only look at a PC. "Nothing was applied" is their normal outcome.
+READ_ONLY_KINDS = {"health", "inventory", "ping", "uninstall_preview"}
+
+
+def unreachable_hosts(text: str) -> list:
+    return [h for h, count in _UNREACHABLE_RE.findall(text) if int(count) > 0]
+
+
+def summarise_run(text: str, kind: str = "") -> str:
     """A short 'what each task did' list, from Ansible's output."""
     tasks: list = []
     index: dict = {}
@@ -357,8 +365,16 @@ def summarise_run(text: str) -> str:
         lines.append("")
         lines.append("Everything above the first failure was applied; anything after it did not run")
         lines.append("on that PC. Fix the cause and run the job again - re-running is safe.")
+    stranded = unreachable_hosts(text)
+    if stranded:
+        lines.append("")
+        lines.append("Could not be reached: " + ", ".join(stranded))
+        lines.append("Nothing was attempted on those - they were not answering, so this is not a")
+        lines.append("failure of the work itself. Check the PC is on, that its address is right or")
+        lines.append("that it has reported one in, and that its connection mode matches AnsiWEB's.")
+
     idle = applied_nothing(text)
-    if idle:
+    if idle and kind not in READ_ONLY_KINDS:
         lines.append("")
         lines.append("Nothing was applied on: " + ", ".join(idle))
         lines.append("Tasks ran, but no application, driver, script or setting was due. The lines")
@@ -445,7 +461,7 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
                 hint = install_hint(body)
                 if hint:
                     log(hint)
-            summary = summarise_run(body)
+            summary = summarise_run(body, kind)
             if summary:
                 log(summary)
             store.regenerate_all()

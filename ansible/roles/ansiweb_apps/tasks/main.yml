@@ -57,8 +57,12 @@
       aw_shares: "{{ aw_shares | selectattr('id', 'equalto', aw_only) | list }}"
     when: (aw_only | default('')) | length > 0 and (aw_adhoc_pattern | default('')) | length == 0
 
+  # Only when something will actually be downloaded: a health check or an
+  # inventory run has no business creating folders on a PC.
   - name: Create the AnsiWEB working folders on the PC
     tags: [always]
+    when: (aw_apps | length > 0) or (aw_drivers | length > 0) or (aw_scripts | length > 0)
+          or (aw_registry | length > 0) or (aw_printers | length > 0)
     ansible.windows.win_file:
       path: "{{ item }}"
       state: directory

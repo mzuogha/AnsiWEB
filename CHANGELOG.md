@@ -5,6 +5,18 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.12.1 - 2026-09-22
+
+A job log now distinguishes a PC that was not answering from work that failed.
+
+
+### Fixed
+
+- A PC that could not be reached was listed among the failures, so a health check that succeeded on three PCs and never reached a fourth read as a failed job. Unreachable PCs are now reported on their own, with what to check, and the work itself is judged on the PCs that answered.
+- A health check, inventory or connection test is no longer told 'nothing was applied' and pointed at the app cache. Applying nothing is what those jobs do.
+- A job that only reads a PC no longer creates AnsiWEB's folders on it. Those are made when there is something to download, not on every visit.
+
+
 ## 2.12.0 - 2026-09-21
 
 An undo for the preparation script, a time limit on steps that hang, and several interface fixes.

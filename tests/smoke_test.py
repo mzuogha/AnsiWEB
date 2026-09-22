@@ -1569,6 +1569,34 @@ ok("formaction" in _dp, "and Preview submits the same form rather than losing it
 _pv = c.get("/deploy/preview?target=all&parts=apps").text
 ok("parts=apps" in _pv, "the way back from a preview carries the choices")
 
+# --------------------------------- a PC that was not answering is not a failure
+_mixed = """
+TASK [ansiweb_apps : Read this PC's condition] ***
+ok: [PC-A]
+TASK [What was applied on this PC] ***
+ok: [PC-A] =>
+    msg:
+    - 'PC-A - 0 item(s):'
+PLAY RECAP ***
+PC-A : ok=14 changed=2 unreachable=0 failed=0 skipped=5 rescued=0 ignored=0
+PC-B : ok=4 changed=0 unreachable=1 failed=0 skipped=2 rescued=0 ignored=0
+"""
+ok(jobs.unreachable_hosts(_mixed) == ["PC-B"], "a PC that never answered is identified")
+_hs = jobs.summarise_run(_mixed, "health")
+ok("Could not be reached: PC-B" in _hs, "and reported separately from work that failed")
+ok("not a" in _hs and "failure of the work itself" in _hs,
+   "saying what it does and does not mean")
+ok("Nothing was applied" not in _hs,
+   "a health check is not told it applied nothing, which is its whole point")
+ok("Nothing was applied" in jobs.summarise_run(_mixed, "deploy"),
+   "while a deployment still is")
+for _k in ("health", "inventory", "ping", "uninstall_preview"):
+    ok(_k in jobs.READ_ONLY_KINDS, f"'{_k}' is treated as read-only")
+_main = open(os.path.join(os.path.dirname(__file__), "..",
+                          "ansible/roles/ansiweb_apps/tasks/main.yml")).read()
+ok("no business creating folders" in _main,
+   "and a read-only job does not create folders on the PC")
+
 # ------------------------------------------ a step that hangs is abandoned
 _plan_t = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(_plan_t["step_timeout"] == 30 * 60, "a step has a time limit, in seconds")
