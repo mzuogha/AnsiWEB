@@ -1,3 +1,27 @@
+- version: "2.13.0"
+  date: "2026-09-22"
+  summary: >-
+    A page for common Windows settings, PCs grouped by the hardware they
+    report, and two pairs of pages merged.
+  added:
+    - "Windows Settings: file extensions and hidden files, fast startup, power
+       plan, sleep and screen-lock timeouts, and Remote Desktop. Every one
+       starts as 'leave alone' and is only touched on a PC once you choose
+       otherwise, so nothing is imposed by default. Applied as part of a
+       deployment or on demand."
+    - "PCs are grouped by the manufacturer and model they report, so a driver
+       or an app can be aimed at 'model:HP EliteBook 840 G8' and reach exactly
+       those machines. The groups appear wherever a target is chosen, and a
+       model nothing matches reaches nothing rather than everything."
+  changed:
+    - Printers and Shared Folders are one page, Printers & Shares. The old
+      address still works and sends you there.
+    - PC Health sits under Reports & Audit rather than having its own entry.
+  fixed:
+    - "The installation-media option was missing from the upload form on the
+       Apps & Cache page, which is where most people add an offline app. It is
+       there now, and that form accepts a .zip when it is ticked."
+
 - version: "2.12.3"
   date: "2026-09-22"
   summary: >-

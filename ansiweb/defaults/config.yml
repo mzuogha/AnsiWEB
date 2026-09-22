@@ -26,6 +26,9 @@ settings:
   site_name: ""            # shown beside the logo on the sign-in page
   logo_file: ""            # uploaded logo, e.g. logo.png (see Settings)
 
+# Common Windows settings. Anything left out is not touched on the PCs.
+win_settings: {}
+
 # Clock settings pushed to the PCs: time zone and where they get the time from.
 time:
   enabled: false

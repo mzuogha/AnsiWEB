@@ -17,7 +17,7 @@
         - ansible.builtin.include_role:
             name: ansiweb_apps
           tags: [apps, drivers, scripts, registry, shares, printers, time,
-                 activation, hostname, inventory, uninstall, health]
+                 activation, hostname, inventory, uninstall, health, winsettings]
 
       rescue:
         - name: Say which task failed

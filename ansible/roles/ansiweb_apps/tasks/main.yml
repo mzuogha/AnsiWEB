@@ -330,6 +330,22 @@
     changed_when: false
     when: aw_plan.collect_inventory | default(true) | bool
     tags: [inventory]
+  - name: Apply Windows settings
+    tags: [winsettings]
+    when: (aw_plan.win_settings | default({})) | length > 0
+    block:
+      - name: Windows settings (this part)
+        ansible.builtin.include_tasks:
+          file: winsettings.yml
+          apply:
+            tags: [winsettings]
+    rescue:
+      - name: Note that the Windows settings could not be applied
+        ansible.builtin.set_fact:
+          aw_failed_parts: '{{ aw_failed_parts + [{"part": "Windows settings",
+                               "why": (ansible_failed_result.msg | default("failed"))
+                                      | string | truncate(280, true)}] }}'
+
   - name: Check this PC's condition
     tags: [health]
     ansible.builtin.include_tasks:

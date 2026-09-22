@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "_macros.html" import csrf, target_label, target_select, size, pc_picker, target_picker, apply_form, tip with context %}
-{% block title %}Printers{% endblock %}
+{% block title %}Printers &amp; Shares{% endblock %}
 {% block content %}
 <div class="head">
-  <h1>Printers</h1>
+  <h1>Printers &amp; Shares</h1>
   <div class="actions">
     {% if can(perms.run) %}
     {{ apply_form('printers', 'Set up all', targets,
@@ -154,4 +154,7 @@ printer up again does nothing if it is already correct.</p>
   </form>
 </section>
 {% endif %}
+
+<h2 id="shares">Shared folders</h2>
+{% include "_shares_body.html" %}
 {% endblock %}

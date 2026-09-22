@@ -21,6 +21,11 @@ def pc_matches(pc: dict, targets: list) -> bool:
             return True
         if t.startswith("pc:") and pc.get("name") == t[3:]:
             return True
+        facts = pc.get("facts") or {}
+        if t.startswith("make:") and (facts.get("manufacturer") or "").strip() == t[5:]:
+            return True
+        if t.startswith("model:") and (facts.get("model") or "").strip() == t[6:]:
+            return True
     return False
 
 
@@ -190,7 +195,10 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
     }
 
     hosts = {}
+    reported = store.pc_facts()
     for pc in cfg.get("pcs", []):
+        # what the PC said about itself, so a driver can be aimed at a model
+        pc = {**pc, "facts": pc.get("facts") or reported.get(pc["name"], {})}
         entry = {"apps": [a["id"] for a in apps if pc_matches(pc, a["targets"])]}
         for kind, items in payload_sets.items():
             entry[kind] = [i["id"] for i in items if pc_matches(pc, i["targets"])]
@@ -206,6 +214,8 @@ def build_plan(cfg: dict, manifest: dict) -> dict:
     return {
         "generated": cache.now(),
         "software_url": base,
+        "win_settings": {k: v for k, v in (cfg.get("win_settings") or {}).items()
+                         if v not in ("", None)},
         "step_timeout": max(int((cfg.get("settings") or {}).get("step_timeout_minutes", 30) or 30),
                             1) * 60,
         "server_ip": (cfg.get("settings") or {}).get("server_ip", ""),

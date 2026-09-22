@@ -5,6 +5,28 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.13.0 - 2026-09-22
+
+A page for common Windows settings, PCs grouped by the hardware they report, and two pairs of pages merged.
+
+
+### New
+
+- Windows Settings: file extensions and hidden files, fast startup, power plan, sleep and screen-lock timeouts, and Remote Desktop. Every one starts as 'leave alone' and is only touched on a PC once you choose otherwise, so nothing is imposed by default. Applied as part of a deployment or on demand.
+- PCs are grouped by the manufacturer and model they report, so a driver or an app can be aimed at 'model:HP EliteBook 840 G8' and reach exactly those machines. The groups appear wherever a target is chosen, and a model nothing matches reaches nothing rather than everything.
+
+
+### Changed
+
+- Printers and Shared Folders are one page, Printers & Shares. The old address still works and sends you there.
+- PC Health sits under Reports & Audit rather than having its own entry.
+
+
+### Fixed
+
+- The installation-media option was missing from the upload form on the Apps & Cache page, which is where most people add an offline app. It is there now, and that form accepts a .zip when it is ticked.
+
+
 ## 2.12.3 - 2026-09-22
 
 Fixes the missing tickbox for installation media.

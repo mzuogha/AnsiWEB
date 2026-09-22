@@ -236,11 +236,29 @@ ok("Enter a detection pattern" in c.post("/apps/upload", data={"csrf": tok, "nam
                                                                "installer": (io.BytesIO(b"x"), "x.msi")},
                                          content_type="multipart/form-data", follow_redirects=True).text,
    "missing detection pattern is refused")
-ok("Only .msi and .exe" in c.post("/apps/upload", data={"csrf": tok, "name": "Y", "version": "1",
-                                                        "detect_pattern": "^Y",
-                                                        "installer": (io.BytesIO(b"x"), "y.txt")},
-                                  content_type="multipart/form-data", follow_redirects=True).text,
+ok("Upload a .msi or .exe" in c.post("/apps/upload",
+       data={"csrf": tok, "name": "Y", "version": "1", "detect_pattern": "^Y",
+             "installer": (io.BytesIO(b"x"), "y.txt")},
+       content_type="multipart/form-data", follow_redirects=True).text,
    "wrong installer type is refused")
+# and the media option is on this form too, which is where it was missing
+_apps_page = c.get("/apps").text
+ok('name="archive"' in _apps_page and 'name="install_command"' in _apps_page,
+   "the Apps page upload form offers extracted media")
+_zz = io.BytesIO()
+with zipfile.ZipFile(_zz, "w") as _z:
+    _z.writestr("setup.exe", "x")
+_zz.seek(0)
+c.post("/apps/upload", data={"csrf": tok, "name": "Media app", "version": "1",
+                             "detect_pattern": "^Media", "archive": "on",
+                             "install_command": "setup.exe /configure configuration.xml",
+                             "installer": (_zz, "media.zip")},
+       content_type="multipart/form-data", follow_redirects=True)
+_ma = [a for a in store.load()["apps"] if a["name"] == "Media app"]
+ok(_ma and _ma[0]["archive"] and _ma[0]["install_command"].startswith("setup.exe"),
+   "and adding media from there works")
+if _ma:
+    c.post(f"/apps/{_ma[0]['id']}/delete", data={"csrf": tok}, follow_redirects=True)
 # upload while adding via the full form
 r = c.post("/apps/new", data={"csrf": tok, "id": "line-of-business", "name": "LOB client", "enabled": "on",
                               "source": "upload", "version": "2.0", "detect_pattern": "^LOB",
@@ -1296,8 +1314,12 @@ ok(jobs.DEPLOY_TAGS.get("inventory") == "inventory", "an inventory-only job exis
 ok("Collect from all PCs" in c.get("/inventory").text, "the inventory page offers a collect button")
 
 # ---------------------------------------------------------------- shared folders
-r = c.get("/shares")
-ok(r.status_code == 200 and "No shared folders yet" in r.text, "the shares page starts empty")
+# shared folders now live under Printers & Shares
+ok(c.get("/shares").status_code == 302, "the old shares address sends you to the merged page")
+r = c.get("/printers")
+ok(r.status_code == 200 and "No shared folders yet" in r.text,
+   "the merged page carries the shares section, empty to begin with")
+ok("Printers &amp; Shares" in r.text, "and is titled for both")
 ok("Currently off" in r.text, "it warns that file sharing is off")
 r = c.post("/shares/file-sharing", data={"csrf": tok, "enabled": "on", "targets": ["all"]},
            follow_redirects=True)
@@ -1347,7 +1369,7 @@ ok(edited["full"] == ["Administrators"] and edited["read"] == ["Everyone"], "as 
 ok(edited["targets"] == ["all"], "and the targets")
 plan_sh2 = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(plan_sh2["shares"][0]["change"] == ["CORP\\Team", "CORP\\Leads"], "and it reaches the PCs")
-ok("Edit" in c.get("/shares").text, "the list links to the editor")
+ok("Edit" in c.get("/printers").text, "the list links to the editor")
 ok("not-a-path" not in c.post(f"/shares/{sh['id']}/edit",
                               data={"csrf": tok, "name": "Team", "path": "not-a-path",
                                     "targets": ["all"]}, follow_redirects=True).text.split("value=")[0],
@@ -1580,6 +1602,61 @@ ok(sorted(t[0] for t in _ticked) == ["apps", "printers"],
 ok("formaction" in _dp, "and Preview submits the same form rather than losing it")
 _pv = c.get("/deploy/preview?target=all&parts=apps").text
 ok("parts=apps" in _pv, "the way back from a preview carries the choices")
+
+# ------------------------------------------------ grouping PCs by their hardware
+from ansiweb import plan as _planmod                                    # noqa: E402
+json.dump({"host": "PC-HQ-001", "time": "2026-09-22 09:00:00",
+           "facts": {"manufacturer": "HP", "model": "HP EliteBook 840 G8"},
+           "results": [], "apps": [], "inventory": []},
+          open(os.path.join(DATA, "reports", "PC-HQ-001.json"), "w"))
+json.dump({"host": "PC-BR1-009", "time": "2026-09-22 09:00:00",
+           "facts": {"manufacturer": "Dell Inc.", "model": "Latitude 5420"},
+           "results": [], "apps": [], "inventory": []},
+          open(os.path.join(DATA, "reports", "PC-BR1-009.json"), "w"))
+_cfgh = store.load()
+_groups = store.hardware_groups(_cfgh)
+ok("model:HP EliteBook 840 G8" in _groups, "PCs are grouped by the model they report")
+ok("make:HP" in _groups and "make:Dell Inc." in _groups, "and by manufacturer")
+ok(_groups["model:HP EliteBook 840 G8"] == ["PC-HQ-001"], "with the right PCs in each")
+ok("model:Latitude 5420" in store.target_choices(_cfgh),
+   "so a driver can be aimed at one model")
+ok(store.limit_for("model:HP EliteBook 840 G8", _cfgh) == "PC-HQ-001",
+   "and a job limited to a model reaches exactly those PCs")
+ok(store.limit_for("model:Nothing Like This", _cfgh) == "no-such-pc",
+   "a model nothing matches reaches nothing, rather than everything")
+ok(_planmod.pc_matches({"name": "PC-HQ-001",
+                        "facts": {"manufacturer": "HP", "model": "HP EliteBook 840 G8"}},
+                       ["model:HP EliteBook 840 G8"]), "matching works on the model")
+ok(not _planmod.pc_matches({"name": "PC-BR1-009",
+                            "facts": {"manufacturer": "Dell Inc.", "model": "Latitude 5420"}},
+                           ["make:HP"]), "and does not match another make")
+store.regenerate_all()
+_planh = json.load(open(os.path.join(DATA, "deploy_plan.json")))
+ok(_planh, "the plan still builds with hardware groups in play")
+
+# ------------------------------------------------ the Windows settings page
+_ws = c.get("/windows-settings")
+ok(_ws.status_code == 200 and "Windows Settings" in _ws.text, "there is a Windows settings page")
+ok(_ws.text.count("leave alone") >= 6, "every setting can be left alone")
+r = c.post("/windows-settings", data={"csrf": tok, "file_extensions": "1", "fast_startup": "0",
+                                      "power_plan": "balanced", "sleep_minutes_ac": "30",
+                                      "lock_screen_timeout": "15", "hidden_files": "",
+                                      "remote_desktop": ""}, follow_redirects=True)
+_saved = store.load()["win_settings"]
+ok(_saved["file_extensions"] is True and _saved["fast_startup"] is False,
+   "choices are stored as made")
+ok("hidden_files" not in _saved and "remote_desktop" not in _saved,
+   "and anything left alone is not stored at all, so the PC is not touched")
+ok(_saved["sleep_minutes_ac"] == 30 and _saved["lock_screen_timeout"] == 15, "numbers are kept")
+c.post("/windows-settings", data={"csrf": tok, "sleep_minutes_ac": "99999"}, follow_redirects=True)
+ok(store.load()["win_settings"]["sleep_minutes_ac"] == 480, "an absurd number is capped")
+ok(json.load(open(os.path.join(DATA, "deploy_plan.json")))["win_settings"]["sleep_minutes_ac"] == 480,
+   "and the settings reach the PCs in the plan")
+ok("winsettings" in jobs.KINDS and "winsettings" in jobs.DEPLOY_TAGS,
+   "with a job and a tag of their own")
+ok("winsettings" in [p[0] for p in jobs.DEPLOY_PARTS], "and a tickbox on the deploy page")
+c.post("/windows-settings", data={"csrf": tok}, follow_redirects=True)
+ok(store.load()["win_settings"] == {}, "and everything can be set back to leave alone")
 
 # --------------------------------- a PC that was not answering is not a failure
 _mixed = """

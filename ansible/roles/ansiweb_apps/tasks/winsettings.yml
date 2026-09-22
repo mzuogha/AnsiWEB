@@ -1,0 +1,13 @@
+---
+- name: Apply the chosen Windows settings
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'win_settings.ps1') }}"
+    parameters:
+      SettingsJson: "{{ aw_plan.win_settings | default({}) | to_json }}"
+  register: aw_winset
+
+- name: Record what was changed
+  ansible.builtin.set_fact:
+    aw_results: '{{ aw_results + [{"kind": "setting", "id": "windows", "name": "Windows settings",
+                                   "status": ("changed" if aw_winset.changed else "already as wanted"),
+                                   "detail": (aw_winset.result.detail | default(""))}] }}'

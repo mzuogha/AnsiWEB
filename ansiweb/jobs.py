@@ -28,6 +28,7 @@ KINDS = {
     "shares": "Set up shared folders",
     "inventory": "Collect inventory from PCs",
     "health": "Check the PCs' condition",
+    "winsettings": "Apply Windows settings",
     "uninstall_preview": "Preview an uninstall",
     "uninstall_run": "Uninstall apps from PCs",
     "ping": "Connection test",
@@ -49,6 +50,7 @@ DEPLOY_TAGS = {
     "shares": "shares",
     "inventory": "inventory",
     "health": "health",
+    "winsettings": "winsettings",
     "uninstall_preview": "uninstall",
     "uninstall_run": "uninstall",
 }
@@ -194,6 +196,7 @@ DEPLOY_PARTS = [
     ("shares", "Shared folders", "create shares and turn file sharing on"),
     ("printers", "Printers", "set up the printers for this PC"),
     ("time", "Time and time zone", "set the time zone and time source"),
+    ("winsettings", "Windows settings", "apply the chosen Windows settings"),
     ("activation", "Windows activation", "activate Windows if it is not already"),
     ("hostname", "Computer name", "rename Windows to match AnsiWEB"),
     ("inventory", "Inventory", "collect the installed-software list"),

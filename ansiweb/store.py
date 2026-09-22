@@ -311,16 +311,52 @@ def all_groups(cfg: dict) -> list:
     return sorted(groups)
 
 
+def pc_facts() -> dict:
+    """{pc name: facts} from the last report each PC sent."""
+    out = {}
+    try:
+        for f in paths.REPORT_DIR.glob("*.json"):
+            if f.name.startswith("health-"):
+                continue
+            data = read_json(f, {})
+            if data.get("host"):
+                out[data["host"]] = data.get("facts") or {}
+    except OSError:
+        pass
+    return out
+
+
+def hardware_groups(cfg: dict) -> dict:
+    """{"make:HP": [names], "model:HP EliteBook 840 G8": [names]} from reports."""
+    out: dict = {}
+    known = pc_facts()
+    for pc in cfg.get("pcs", []):
+        facts = pc.get("facts") or known.get(pc["name"], {})
+        make = (facts.get("manufacturer") or "").strip()
+        model = (facts.get("model") or "").strip()
+        if make:
+            out.setdefault(f"make:{make}", []).append(pc["name"])
+        if model:
+            out.setdefault(f"model:{model}", []).append(pc["name"])
+    return dict(sorted(out.items()))
+
+
 def target_choices(cfg: dict) -> list:
     """Values usable in an app's 'targets' list and as a deploy --limit."""
     return (["all"] + [f"site:{s}" for s in cfg.get("sites", [])]
-            + [f"group:{g}" for g in all_groups(cfg)])
+            + [f"group:{g}" for g in all_groups(cfg)]
+            + list(hardware_groups(cfg)))
 
 
-def limit_for(target: str) -> str:
+def limit_for(target: str, cfg: dict | None = None) -> str:
     """Translate a UI target into an Ansible --limit pattern."""
     if target in ("", "all"):
         return "windows"
+    if target.startswith(("make:", "model:")):
+        # Hardware is known from reports, not from the inventory file, so the
+        # matching PCs are named directly.
+        names = hardware_groups(cfg if cfg is not None else load()).get(target, [])
+        return ",".join(names) or "no-such-pc"
     if target.startswith("site:"):
         return "site_" + slug(target[5:])
     if target.startswith("group:"):

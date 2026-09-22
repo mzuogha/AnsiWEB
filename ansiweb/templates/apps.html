@@ -48,7 +48,8 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
   The file is stored on this server and installed on PCs from here. MSI files need no arguments; EXE files usually do.</p>
   <form method="post" action="{{ url_for('app_quick_upload') }}" enctype="multipart/form-data" class="form">{{ csrf() }}
     <div class="row">
-      <label>Installer (.msi or .exe)<input type="file" name="installer" accept=".msi,.exe" required></label>
+      <label>Installer (.msi, .exe, or .zip of media)<input type="file" name="installer"
+        accept=".msi,.exe,.zip" required></label>
       <label>App name<input name="name" required placeholder="Vendor App"></label>
       <label>Version<input name="version" required placeholder="5.2.1"></label>
     </div>
@@ -57,6 +58,15 @@ PCs are upgraded at the next deployment. <b>Pinned</b> apps stay on the version 
       <label>Detection pattern<input name="detect_pattern" required placeholder="^Vendor App">
         <small>Regular expression matching the name under Windows "Installed apps".</small></label>
     </div>
+    <section class="subpanel">
+      <label class="check"><input type="checkbox" name="archive">
+        <b>This upload is a .zip of extracted installation media</b></label>
+      <p class="muted small">For software that comes as an ISO rather than a single installer — Office 2019,
+        for example. Copy the media into a folder, zip its contents, and upload that zip above.</p>
+      <label>Command that installs it<input name="install_command"
+        placeholder="setup.exe /configure configuration.xml">
+        <small>Run inside the unpacked folder on the PC. Only used when the box above is ticked.</small></label>
+    </section>
     {{ target_picker(targets, heading='Install on') }}
     <div class="formactions"><button class="btn primary">Upload and add</button></div>
   </form>

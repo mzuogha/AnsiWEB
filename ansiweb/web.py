@@ -651,11 +651,23 @@ def create_app(start_background: bool = True) -> Flask:
         version = request.form.get("version", "").strip() or "1.0"
         pattern = request.form.get("detect_pattern", "").strip()
         arguments = request.form.get("arguments", "").strip()
+        archive = request.form.get("archive") == "on"
+        install_command = request.form.get("install_command", "").strip()[:300]
         try:
             if not f or not f.filename:
                 raise store.ValidationError("Choose an installer file.")
-            if not f.filename.lower().endswith((".msi", ".exe")):
-                raise store.ValidationError("Only .msi and .exe installers can be uploaded.")
+            allowed = (".msi", ".exe", ".zip") if archive else (".msi", ".exe")
+            if not f.filename.lower().endswith(allowed):
+                raise store.ValidationError(
+                    "Upload a .msi or .exe installer, or a .zip of extracted media with "
+                    "'This upload is a .zip of extracted installation media' ticked.")
+            if archive:
+                if not f.filename.lower().endswith(".zip"):
+                    raise store.ValidationError("Extracted installation media has to be a .zip.")
+                if not install_command:
+                    raise store.ValidationError(
+                        "Give the command that installs it, such as "
+                        "'setup.exe /configure configuration.xml'.")
             if not name:
                 raise store.ValidationError("Enter a name for the app.")
             if not pattern:
@@ -665,6 +677,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "id": payloads.new_id(cfg, "apps", name),
                 "name": name, "enabled": True, "source": "upload", "version": version,
                 "arguments": arguments, "detect_pattern": pattern, "pinned": True,
+                "archive": archive, "install_command": install_command,
                 "targets": request.form.getlist("targets") or ["all"],
             }
             cfg["apps"].append(new)
@@ -726,6 +739,9 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- shared folders ------------------------------------------------------------
     @app.route("/shares")
     def shares_page():
+        # Shared folders now live under Printers & Shares
+        if not request.args.get("standalone"):
+            return redirect(url_for("printers_page") + "#shares")
         cfg = store.load()
         return render_template("shares.html", cfg=cfg, shares=cfg.get("shares", []),
                                file_sharing=cfg.get("file_sharing", {}),
@@ -842,6 +858,8 @@ def create_app(start_background: bool = True) -> Flask:
     def printers_page():
         cfg = store.load()
         return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
+                               shares=cfg.get("shares", []),
+                               file_sharing=cfg.get("file_sharing", {}),
                                package_features=package_features,
                                feature_labels=infparse.FEATURE_LABELS,
                                targets=store.target_choices(cfg),
@@ -1555,6 +1573,37 @@ def create_app(start_background: bool = True) -> Flask:
                         headers={"Content-Disposition": "attachment; filename=Prepare-AnsibleHost.ps1"})
 
     # ---- reports ---------------------------------------------------------------------
+    @app.route("/windows-settings")
+    def winsettings_page():
+        cfg = store.load()
+        return render_template("winsettings.html", cfg=cfg,
+                               s=cfg.get("win_settings") or {},
+                               targets=store.target_choices(cfg))
+
+    @app.route("/windows-settings", methods=["POST"])
+    def winsettings_save():
+        cfg = store.load()
+        f = request.form
+        out = {}
+        for key in ("file_extensions", "hidden_files", "fast_startup", "remote_desktop"):
+            raw = f.get(key, "")
+            if raw in ("0", "1"):
+                out[key] = raw == "1"
+        if f.get("power_plan") in ("balanced", "performance", "saver"):
+            out["power_plan"] = f["power_plan"]
+        for key, ceiling in (("sleep_minutes_ac", 480), ("lock_screen_timeout", 240)):
+            raw = f.get(key, "").strip()
+            if raw:
+                try:
+                    out[key] = max(0, min(int(raw), ceiling))
+                except ValueError:
+                    pass
+        cfg["win_settings"] = out
+        if save_or_flash(cfg):
+            flash(f"{len(out)} setting(s) recorded. They reach the PCs on the next deployment "
+                  "that includes Windows settings, or press Apply now.", "ok")
+        return redirect(url_for("winsettings_page"))
+
     @app.route("/health")
     def health_page():
         cfg = store.load()
