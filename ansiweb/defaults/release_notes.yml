@@ -1,3 +1,22 @@
+- version: "2.14.0"
+  date: "2026-09-22"
+  summary: >-
+    A Stop button for a job that is stuck, and two pages merged differently.
+  added:
+    - "Stop it, on a running job. Ansible cannot abandon one step and carry on,
+       so this ends the run rather than skipping a task: whatever finished
+       stays done, and the job can be started again with the slow part
+       unticked. The thirty-minute limit still catches anything nobody is
+       watching."
+  changed:
+    - PC health moves from Reports & Audit to Inventory, Health & Uninstall.
+    - Windows settings move into Printers, Shares & Settings.
+    - Both old addresses still work and send you to the right section.
+  fixed:
+    - "The retry banner on a job page had been written into the page's title
+       block instead of its body, so it never appeared. It and the new Stop
+       banner are both in the body now, and a test checks they stay there."
+
 - version: "2.13.1"
   date: "2026-09-22"
   summary: >-

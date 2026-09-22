@@ -1,0 +1,29 @@
+{% from "_macros.html" import csrf, target_select, tip with context %}
+</div>
+
+<p class="muted">A health check reads each PC and changes nothing: disk space, whether it is waiting for a
+  reboot, how long since it restarted, and its virus signatures where Windows Defender is in use.</p>
+
+<div class="tablewrap">
+<table class="list">
+  <tr><th>PC</th><th>Checked</th><th>Disks</th><th>Uptime{{ tip("Time since the last restart. A PC up for weeks often has updates or installers waiting on a reboot.") }}</th>
+    <th>Reboot</th><th>Defender</th><th>Worth a look</th></tr>
+  {% for row in (health if health is defined else rows) %}
+  <tr>
+    <td><a href="{{ url_for('pc_edit', name=row.pc.name) }}"><b>{{ row.pc.name }}</b></a>
+      {% if row.pc.user %}<br><span class="muted small">{{ row.pc.user }}</span>{% endif %}</td>
+    <td class="small">{{ row.data.time or '—' }}</td>
+    <td class="small">
+      {% for d in row.data.disks or [] %}{{ d.drive }} {{ d.free_gb }}GB free
+        <span class="{{ 'err' if d.free_pct < 10 }}">({{ d.free_pct }}%)</span><br>{% else %}—{% endfor %}</td>
+    <td class="small">{{ row.data.uptime_days if row.data.uptime_days is defined else '—' }}{% if row.data.uptime_days is defined %} day(s){% endif %}</td>
+    <td class="small">{% if row.data.reboot_pending %}<span class="pill warning">waiting</span>{% elif row.data %}no{% else %}—{% endif %}</td>
+    <td class="small">{% if row.data.defender %}{{ row.data.defender.age_days }} day(s) old
+      {% if not row.data.defender.realtime %}<span class="pill warning">realtime off</span>{% endif %}
+      {% else %}—{% endif %}</td>
+    <td class="small">{% if row.concerns %}<span class="pill warning">{{ row.concerns | join('; ') }}</span>
+      {% elif row.data %}<span class="muted">nothing</span>{% else %}<span class="muted">not checked yet</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>

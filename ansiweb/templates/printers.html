@@ -3,7 +3,7 @@
 {% block title %}Printers &amp; Shares{% endblock %}
 {% block content %}
 <div class="head">
-  <h1>Printers &amp; Shares</h1>
+  <h1>Printers, Shares &amp; Settings</h1>
   <div class="actions">
     {% if can(perms.run) %}
     {{ apply_form('printers', 'Set up all', targets,
@@ -157,4 +157,7 @@ printer up again does nothing if it is already correct.</p>
 
 <h2 id="shares">Shared folders</h2>
 {% include "_shares_body.html" %}
+
+<h2 id="windows-settings">Windows settings</h2>
+{% include "_winsettings_body.html" %}
 {% endblock %}

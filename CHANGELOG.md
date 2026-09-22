@@ -5,6 +5,28 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.14.0 - 2026-09-22
+
+A Stop button for a job that is stuck, and two pages merged differently.
+
+
+### New
+
+- Stop it, on a running job. Ansible cannot abandon one step and carry on, so this ends the run rather than skipping a task: whatever finished stays done, and the job can be started again with the slow part unticked. The thirty-minute limit still catches anything nobody is watching.
+
+
+### Changed
+
+- PC health moves from Reports & Audit to Inventory, Health & Uninstall.
+- Windows settings move into Printers, Shares & Settings.
+- Both old addresses still work and send you to the right section.
+
+
+### Fixed
+
+- The retry banner on a job page had been written into the page's title block instead of its body, so it never appeared. It and the new Stop banner are both in the body now, and a test checks they stay there.
+
+
 ## 2.13.1 - 2026-09-22
 
 Help now covers packaging HP and Lenovo drivers.

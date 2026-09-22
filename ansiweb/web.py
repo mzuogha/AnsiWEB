@@ -39,7 +39,8 @@ ENDPOINT_PERMISSIONS = {
     "app_edit": users.VIEW, "app_new": users.VIEW, "resource_edit": users.VIEW,
     "app_search": users.VIEW,
     # running things
-    "job_start": users.RUN_JOBS, "job_retry": users.RUN_JOBS, "resource_run": users.RUN_JOBS,
+    "job_start": users.RUN_JOBS, "job_retry": users.RUN_JOBS, "job_stop": users.RUN_JOBS,
+    "resource_run": users.RUN_JOBS,
     "deploy_page": users.RUN_JOBS, "deploy_preview": users.RUN_JOBS, "deploy_start": users.RUN_JOBS,
     # what gets deployed
     "app_delete": users.MANAGE_CONTENT,
@@ -858,6 +859,7 @@ def create_app(start_background: bool = True) -> Flask:
     def printers_page():
         cfg = store.load()
         return render_template("printers.html", cfg=cfg, printers=cfg.get("printers", []),
+                               s=cfg.get("win_settings") or {},
                                shares=cfg.get("shares", []),
                                file_sharing=cfg.get("file_sharing", {}),
                                package_features=package_features,
@@ -1575,6 +1577,9 @@ def create_app(start_background: bool = True) -> Flask:
     # ---- reports ---------------------------------------------------------------------
     @app.route("/windows-settings")
     def winsettings_page():
+        # Windows settings now sit under Printers, Shares & Settings
+        if not request.args.get("standalone"):
+            return redirect(url_for("printers_page") + "#windows-settings")
         cfg = store.load()
         return render_template("winsettings.html", cfg=cfg,
                                s=cfg.get("win_settings") or {},
@@ -1604,9 +1609,8 @@ def create_app(start_background: bool = True) -> Flask:
                   "that includes Windows settings, or press Apply now.", "ok")
         return redirect(url_for("winsettings_page"))
 
-    @app.route("/health")
-    def health_page():
-        cfg = store.load()
+    def health_overview(cfg) -> list:
+        """What each PC last reported about its condition."""
         rows = []
         for pc in visible_pcs(cfg):
             data = store.read_json(paths.REPORT_DIR / f"health-{pc['name']}.json", {})
@@ -1620,6 +1624,15 @@ def create_app(start_background: bool = True) -> Flask:
                              "virus signatures over a week old"
                              if ((data.get("defender") or {}).get("age_days") or 0) > 7 else "",
                          ) if c]})
+        return rows
+
+    @app.route("/health")
+    def health_page():
+        # PC health now sits under Inventory, Health & Uninstall
+        if not request.args.get("standalone"):
+            return redirect(url_for("inventory_page") + "#health")
+        cfg = store.load()
+        rows = health_overview(cfg)
         return render_template("health.html", cfg=cfg, rows=rows,
                                targets=store.target_choices(cfg))
 
@@ -1759,6 +1772,7 @@ def create_app(start_background: bool = True) -> Flask:
             by_pc.append({"pc": pc, "programs": programs, "reported": report.get("time", ""),
                           "ever": bool(report)})
         return render_template("inventory.html", cfg=cfg, rows=rows[:1000], total=len(rows),
+                               health=health_overview(cfg),
                                by_pc=by_pc, view=request.args.get("view", "program"),
                                query=query, pc_filter=pc_filter, pcs=visible_pcs(cfg),
                                with_data=with_data,
@@ -2010,6 +2024,16 @@ def create_app(start_background: bool = True) -> Flask:
         except (jobs.JobBusy, ValueError) as exc:
             flash(str(exc), "error")
             return redirect(url_for("deploy_page", target=target))
+        return redirect(url_for("job_view", job_id=job_id))
+
+    @app.route("/jobs/<int:job_id>/stop", methods=["POST"])
+    def job_stop(job_id):
+        """Stop waiting for a job that is stuck on something."""
+        if jobs.stop_job(job_id):
+            flash("Stopping. What had already finished on each PC stays done - run the job again, "
+                  "with the part that was holding it up unticked, to carry on.", "ok")
+        else:
+            flash("That job is not running, so there is nothing to stop.", "error")
         return redirect(url_for("job_view", job_id=job_id))
 
     @app.route("/jobs/<int:job_id>/retry", methods=["POST"])

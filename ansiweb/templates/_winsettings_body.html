@@ -1,0 +1,62 @@
+{% from "_macros.html" import csrf, target_select, tip with context %}
+</div>
+
+<p class="muted">Each setting has a <b>leave alone</b> option, which is what they all start as. A setting is only
+  touched on a PC once you choose something else here — AnsiWEB does not quietly impose a default. These are
+  applied on every deployment that includes Windows settings, so a PC rebuilt tomorrow gets them back.</p>
+
+<form method="post" action="{{ url_for('winsettings_save') }}" class="panel form">{{ csrf() }}
+  <h2>File Explorer</h2>
+  <div class="row">
+    <label>File extensions{{ tip("Showing extensions makes a file called invoice.pdf.exe obvious. Hiding them is the Windows default.") }}
+      <select name="file_extensions">
+        <option value="" {{ 'selected' if s.file_extensions is none }}>leave alone</option>
+        <option value="1" {{ 'selected' if s.file_extensions is true }}>show them</option>
+        <option value="0" {{ 'selected' if s.file_extensions is false }}>hide them</option>
+      </select></label>
+    <label>Hidden files
+      <select name="hidden_files">
+        <option value="" {{ 'selected' if s.hidden_files is none }}>leave alone</option>
+        <option value="1" {{ 'selected' if s.hidden_files is true }}>show them</option>
+        <option value="0" {{ 'selected' if s.hidden_files is false }}>hide them</option>
+      </select></label>
+  </div>
+
+  <h2>Power and startup</h2>
+  <div class="row">
+    <label>Fast startup{{ tip("Fast startup leaves Windows partly hibernated, which can leave updates half-applied and makes a PC look 'up' for weeks. Turning it off makes a shutdown a real shutdown.") }}
+      <select name="fast_startup">
+        <option value="" {{ 'selected' if s.fast_startup is none }}>leave alone</option>
+        <option value="0" {{ 'selected' if s.fast_startup is false }}>off</option>
+        <option value="1" {{ 'selected' if s.fast_startup is true }}>on</option>
+      </select></label>
+    <label>Power plan
+      <select name="power_plan">
+        <option value="" {{ 'selected' if not s.power_plan }}>leave alone</option>
+        <option value="balanced" {{ 'selected' if s.power_plan == 'balanced' }}>balanced</option>
+        <option value="performance" {{ 'selected' if s.power_plan == 'performance' }}>high performance</option>
+        <option value="saver" {{ 'selected' if s.power_plan == 'saver' }}>power saver</option>
+      </select></label>
+    <label>Sleep after, on mains<input type="number" name="sleep_minutes_ac" min="0" max="480"
+      value="{{ s.sleep_minutes_ac if s.sleep_minutes_ac is not none else '' }}" size="5">
+      <small>Minutes. 0 means never. Empty leaves it alone.</small></label>
+  </div>
+
+  <h2>Access and security</h2>
+  <div class="row">
+    <label>Remote Desktop{{ tip("Turning this on also opens the Remote Desktop firewall rules. Only sensible where your network already restricts who can reach these PCs.") }}
+      <select name="remote_desktop">
+        <option value="" {{ 'selected' if s.remote_desktop is none }}>leave alone</option>
+        <option value="0" {{ 'selected' if s.remote_desktop is false }}>not allowed</option>
+        <option value="1" {{ 'selected' if s.remote_desktop is true }}>allowed</option>
+      </select></label>
+    <label>Lock the screen after<input type="number" name="lock_screen_timeout" min="0" max="240"
+      value="{{ s.lock_screen_timeout if s.lock_screen_timeout is not none else '' }}" size="5">
+      <small>Minutes idle. Empty leaves it alone.</small></label>
+  </div>
+
+  <div class="formactions sticky">
+    <button class="btn primary">Save settings</button>
+    <span class="muted small">Saving records them; they reach the PCs on the next deployment, or press Apply now.</span>
+  </div>
+</form>

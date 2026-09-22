@@ -1,6 +1,9 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill with context %}
-{% block title %}Job {{ job.id }}{% if failed_hosts and can(perms.run) %}
+{% from "_macros.html" import status_pill, csrf with context %}
+{% block title %}Job {{ job.id }}{% endblock %}
+
+{% block content %}
+{% if failed_hosts and can(perms.run) %}
 <div class="flash warn">
   This job failed on {{ failed_hosts | length }} PC(s): {{ failed_hosts | join(', ') }}.
   <form method="post" action="{{ url_for('job_retry', job_id=job.id) }}" class="inline">{{ csrf() }}
@@ -8,8 +11,19 @@
   <span class="muted small">Same job, same settings, only the PCs that failed.</span>
 </div>
 {% endif %}
-{% endblock %}
-{% block content %}
+
+{% if job.status == 'running' and can(perms.run) %}
+<div class="flash warn">
+  This job is running.
+  <form method="post" action="{{ url_for('job_stop', job_id=job.id) }}" class="inline"
+        data-confirm="Stop this job? Work already done on each PC stays done.">{{ csrf() }}
+    <button class="btn small danger">Stop it</button></form>
+  <span class="muted small">Ansible cannot abandon one step and carry on, so this ends the run. Whatever
+    finished stays done; start it again with the slow part unticked.</span>
+</div>
+{% endif %}
+
+
 <div class="head"><h1>Job #{{ job.id }}: {{ job_kinds[job.kind] }}{% if job.target %} <span class="muted">({{ job.target }})</span>{% endif %}</h1>
   <div class="actions"><span id="jobstatus">{{ status_pill(job.status) }}</span>
     <a class="btn" href="{{ url_for('job_download', job_id=job.id) }}">Download log</a></div></div>

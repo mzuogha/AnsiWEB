@@ -3,6 +3,7 @@ and the built-in scheduler."""
 import datetime as dt
 import json
 import os
+import signal
 import re
 import sqlite3
 import subprocess
@@ -177,13 +178,41 @@ def playbook_cmd(playbook: str, limit: str = "", extra: dict | None = None, tags
     return cmd
 
 
-def run_command(cmd: list, log, env=None) -> int:
+_procs: dict = {}
+
+
+def run_command(cmd: list, log, env=None, job_id: int | None = None) -> int:
     log("$ " + " ".join(c if " " not in c else repr(c) for c in cmd))
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            env=env or ansible_env(), cwd=str(paths.ANSIBLE_DIR), text=True, bufsize=1)
-    for line in proc.stdout:
-        log(line.rstrip("\n"))
-    return proc.wait()
+                            env=env or ansible_env(), cwd=str(paths.ANSIBLE_DIR), text=True,
+                            bufsize=1, start_new_session=True)
+    if job_id is not None:
+        _procs[job_id] = proc
+    try:
+        for line in proc.stdout:
+            log(line.rstrip("\n"))
+        return proc.wait()
+    finally:
+        if job_id is not None:
+            _procs.pop(job_id, None)
+
+
+def stop_job(job_id: int) -> bool:
+    """Stop waiting for a running job.
+
+    Ansible cannot be told to abandon one task and carry on, so this ends the
+    run. Whatever finished stays done, and the job can be started again without
+    the part that was holding it up.
+    """
+    proc = _procs.get(job_id)
+    if not proc or proc.poll() is not None:
+        return False
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return False
+    kv_set(f"stopped:{job_id}", _stamp())
+    return True
 
 
 # What a deployment can cover, in the order it runs on the PC. The label is
@@ -455,7 +484,8 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
             # "deploy" with chosen parts passes its own tags; otherwise the
             # kind decides them, and a plain deployment runs everything.
             rc = run_command(playbook_cmd("deploy.yml", store.limit_for(target or "all"),
-                                          extra=extra, tags=tags or DEPLOY_TAGS[kind]), log)
+                                          extra=extra, tags=tags or DEPLOY_TAGS[kind]),
+                             log, job_id=job_id)
             body = log_path(job_id).read_text(errors="replace")
             bad = failed_hosts(body)
             if bad:
@@ -471,7 +501,7 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
         elif kind == "ping":
             cmd = [paths.venv_bin("ansible"), store.limit_for(target or "all"), "-i", str(paths.HOSTS_FILE),
                    "--vault-password-file", str(paths.VAULT_PASS_FILE), "-m", "ansible.windows.win_ping"]
-            rc = run_command(cmd, log)
+            rc = run_command(cmd, log, job_id=job_id)
             if rc != 0:
                 log(_ping_hint(store.load()))
     except Exception as exc:  # keep the service alive whatever happens
@@ -483,6 +513,10 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
         # rc 2 means "some hosts failed", which is a failure, not a warning.
         # rc 4 is "some hosts were unreachable", which is worth distinguishing.
         status = {0: "success", 4: "warning"}.get(rc, "failed")
+        if kv_get(f"stopped:{job_id}"):
+            status = "stopped"
+            log("\nStopped on request. What had finished stays done; run the job again, without "
+                "the part that was holding it up, to carry on.")
         if status == "success" and kind.startswith("deploy"):
             # A deployment that applied nothing is not a failure, but calling it
             # a success hides the fact that nothing happened.

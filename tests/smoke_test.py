@@ -19,7 +19,7 @@ from ansiweb import (__version__, audit, backup, cache, jobs, release,  # noqa: 
 # Jobs run for real here would invoke Ansible against PCs that do not exist, which
 # is slow and leaves jobs running while later checks want to start their own.
 # The job machinery is still exercised; only the Ansible call itself is stubbed.
-def _fake_run(cmd, log, env=None):
+def _fake_run(cmd, log, env=None, job_id=None):
     log("[test] would run: " + " ".join(cmd))
     return 0
 
@@ -762,8 +762,10 @@ ok(jobs.get_job(_c)["status"] in ("cancelled", "success", "warning", "failed"),
 # ------------------------------------------------------ the health check
 ok("health" in jobs.KINDS, "there is a health check job")
 ok("health" in jobs.DEPLOY_TAGS, "with its own tag")
-_hp = c.get("/health")
-ok(_hp.status_code == 200 and "PC health" in _hp.text, "and a page for it")
+ok(c.get("/health").status_code == 302, "the old health address sends you to the merged page")
+_hp = c.get("/inventory")
+ok(_hp.status_code == 200 and "PC health" in _hp.text,
+   "health sits under Inventory, Health & Uninstall")
 ok("changes nothing" in _hp.text, "which says it only reads")
 ok("not checked yet" in _hp.text, "a PC with no health report says so")
 _hjson = {"host": "PC-HQ-001", "time": "2026-09-21 18:00:00", "os": "Windows 11 Pro",
@@ -771,7 +773,7 @@ _hjson = {"host": "PC-HQ-001", "time": "2026-09-21 18:00:00", "os": "Windows 11 
           "disks": [{"drive": "C:", "total_gb": 476.0, "free_gb": 20.0, "free_pct": 4.2}],
           "defender": {"realtime": False, "age_days": 9.0, "signatures": "2026-09-12"}}
 open(os.path.join(DATA, "reports", "health-PC-HQ-001.json"), "w").write(json.dumps(_hjson))
-_hp = c.get("/health").text
+_hp = c.get("/inventory").text
 ok("4.2" in _hp, "disk space is shown")
 ok("little disk space left" in _hp, "a full disk is flagged")
 ok("waiting for a reboot" in _hp, "so is a pending reboot")
@@ -1635,8 +1637,11 @@ _planh = json.load(open(os.path.join(DATA, "deploy_plan.json")))
 ok(_planh, "the plan still builds with hardware groups in play")
 
 # ------------------------------------------------ the Windows settings page
-_ws = c.get("/windows-settings")
-ok(_ws.status_code == 200 and "Windows Settings" in _ws.text, "there is a Windows settings page")
+ok(c.get("/windows-settings").status_code == 302,
+   "the old settings address sends you to the merged page")
+_ws = c.get("/printers")
+ok(_ws.status_code == 200 and "Windows settings" in _ws.text,
+   "Windows settings sit under Printers, Shares & Settings")
 ok(_ws.text.count("leave alone") >= 6, "every setting can be left alone")
 r = c.post("/windows-settings", data={"csrf": tok, "file_extensions": "1", "fast_startup": "0",
                                       "power_plan": "balanced", "sleep_minutes_ac": "30",
@@ -1685,6 +1690,24 @@ _main = open(os.path.join(os.path.dirname(__file__), "..",
                           "ansible/roles/ansiweb_apps/tasks/main.yml")).read()
 ok("no business creating folders" in _main,
    "and a read-only job does not create folders on the PC")
+
+# ---------------------------------------------- stopping a job that is stuck
+import threading as _th
+_out = []
+_t = _th.Thread(target=lambda: _out.append(
+    jobs.run_command.__wrapped__(["sleep", "30"], lambda l: None, job_id=9901)
+    if hasattr(jobs.run_command, "__wrapped__") else None), daemon=True)
+ok(hasattr(jobs, "stop_job"), "a running job can be stopped")
+ok(jobs.stop_job(999999) is False, "stopping a job that is not running does nothing")
+_job_tpl = open(os.path.join(os.path.dirname(__file__), "..",
+                             "ansiweb/templates/job.html")).read()
+ok("job_stop" in _job_tpl and "Stop it" in _job_tpl, "and there is a button for it")
+ok("cannot abandon one step" in _job_tpl,
+   "which says plainly that this ends the run rather than skipping a step")
+ok(_job_tpl.index("{% block content %}") < _job_tpl.index("Stop it"),
+   "the banner is in the page body, not in its title")
+ok(_job_tpl.index("{% block content %}") < _job_tpl.index("Run again on just those"),
+   "and so is the retry banner, which had been stranded in the title")
 
 # ------------------------------------------ a step that hangs is abandoned
 _plan_t = json.load(open(os.path.join(DATA, "deploy_plan.json")))
