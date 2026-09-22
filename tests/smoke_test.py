@@ -1554,8 +1554,12 @@ ok(_undo.status_code == 200, "the undo script can be downloaded")
 ok("Undo-AnsibleHost.cmd" in _undo.headers.get("Content-Disposition", ""), "as a .cmd file")
 ok("__ACCOUNT_NAME__" not in _undo.text, "with the account name filled in")
 for _step in ("schtasks /delete", "winrm delete", "netsh advfirewall firewall delete",
-              "net user", "Remove-Item"):
+              "Remove-Item"):
     ok(_step in _undo.text, f"it undoes: {_step}")
+ok("net user" not in _undo.text or "/delete" not in _undo.text.split("net user")[1][:40],
+   "it does not remove the management account")
+ok("only" in _undo.text and "administrator on this PC" in _undo.text,
+   "and says why the account is left alone")
 ok("does NOT uninstall software" in _undo.text or "Still in place, deliberately" in _undo.text,
    "and says what it deliberately leaves alone")
 ok("undo-script.cmd" in c.get("/pcs").text, "the PCs page offers it")

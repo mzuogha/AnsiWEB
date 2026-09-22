@@ -5,6 +5,16 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.12.2 - 2026-09-22
+
+The undo script no longer removes the management account.
+
+
+### Changed
+
+- Undo-AnsibleHost leaves the management account in place. On many PCs it is the only administrator, so removing it could lock you out of the machine the script was meant to tidy up. The script now lists it among the things it deliberately leaves behind, to be deleted by hand once another administrator is known to work.
+
+
 ## 2.12.1 - 2026-09-22
 
 A job log now distinguishes a PC that was not answering from work that failed.

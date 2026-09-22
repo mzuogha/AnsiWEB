@@ -1,2 +1,2 @@
 """AnsiWEB - web front end for Ansible-based Windows app deployment with a local installer cache."""
-__version__ = "2.12.1"
+__version__ = "2.12.2"

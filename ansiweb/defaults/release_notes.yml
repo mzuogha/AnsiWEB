@@ -1,3 +1,14 @@
+- version: "2.12.2"
+  date: "2026-09-22"
+  summary: >-
+    The undo script no longer removes the management account.
+  changed:
+    - "Undo-AnsibleHost leaves the management account in place. On many PCs it
+       is the only administrator, so removing it could lock you out of the
+       machine the script was meant to tidy up. The script now lists it among
+       the things it deliberately leaves behind, to be deleted by hand once
+       another administrator is known to work."
+
 - version: "2.12.1"
   date: "2026-09-22"
   summary: >-
