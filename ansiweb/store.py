@@ -348,6 +348,22 @@ def target_choices(cfg: dict) -> list:
             + list(hardware_groups(cfg)))
 
 
+def pcs_for_target(cfg: dict, target: str) -> set:
+    """The PCs a target covers, for deciding whether two jobs would collide."""
+    from . import plan as _plan
+    if target in ("", "all", "windows"):
+        return {pc["name"] for pc in cfg.get("pcs", [])}
+    if target.startswith("list:"):
+        return {n for n in target[5:].split(",") if n}
+    names = set()
+    known = pc_facts()
+    for pc in cfg.get("pcs", []):
+        enriched = {**pc, "facts": pc.get("facts") or known.get(pc["name"], {})}
+        if _plan.pc_matches(enriched, [target]):
+            names.add(pc["name"])
+    return names
+
+
 def limit_for(target: str, cfg: dict | None = None) -> str:
     """Translate a UI target into an Ansible --limit pattern."""
     if target in ("", "all"):

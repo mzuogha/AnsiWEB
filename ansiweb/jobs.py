@@ -235,14 +235,34 @@ DEPLOY_PARTS = [
 QUEUE_LIMIT = 25
 
 
-def _blocked_by(kind: str):
-    """The running job that stops this one starting, if any."""
-    if kind in _running:
-        return kind, _running[kind]
-    if kind in DEPLOY_TAGS:
-        for other in DEPLOY_TAGS:
-            if other in _running:
-                return other, _running[other]
+def max_concurrent() -> int:
+    try:
+        return max(1, min(int(store.load()["settings"].get("concurrent_jobs", 3)), 10))
+    except (ValueError, KeyError, TypeError):
+        return 3
+
+
+def _running_targets() -> dict:
+    """{job id: target} for everything currently running."""
+    with _db_lock, _conn() as c:
+        rows = c.execute("SELECT id, target FROM jobs WHERE status = 'running'").fetchall()
+    return {r["id"]: r["target"] or "all" for r in rows}
+
+
+def _blocked_by(kind: str, target: str = ""):
+    """What stops this job starting now, if anything.
+
+    Jobs run side by side. Two jobs on the same PC do not: they would fight over
+    the same files and the same installer, so the second waits.
+    """
+    running = _running_targets()
+    if len(running) >= max_concurrent():
+        return "busy", sorted(running)[0]
+    cfg = store.load()
+    mine = store.pcs_for_target(cfg, target or "all")
+    for job_id, other in running.items():
+        if mine & store.pcs_for_target(cfg, other):
+            return "same PCs", job_id
     return None
 
 
@@ -262,7 +282,7 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
     if kind not in KINDS:
         raise ValueError(kind)
     with _run_lock:
-        blocker = _blocked_by(kind)
+        blocker = _blocked_by(kind, target)
         if blocker and len(queued_jobs()) >= QUEUE_LIMIT:
             raise JobBusy(f"{QUEUE_LIMIT} jobs are already waiting; try again when some have run.")
         status = "queued" if blocker else "running"
@@ -274,7 +294,7 @@ def start(kind: str, target: str = "", trigger: str = "manual", only: str = "",
                                                  "adhoc": adhoc or {}}))
         if blocker:
             return job_id
-        _running[kind] = job_id
+        _running[job_id] = kind
     threading.Thread(target=_run, args=(job_id, kind, target, only, adhoc, tags),
                      daemon=True, name=f"job-{job_id}").start()
     return job_id
@@ -529,15 +549,20 @@ def _run(job_id: int, kind: str, target: str, only: str = "", adhoc: dict | None
         with _db_lock, _conn() as c:
             c.execute("UPDATE jobs SET status=?, finished=?, rc=? WHERE id=?", (status, _stamp(), rc, job_id))
         with _run_lock:
-            _running.pop(kind, None)
+            _running.pop(job_id, None)
         _start_next_queued()
 
 
 def _start_next_queued() -> None:
-    """Begin the oldest waiting job that nothing is blocking."""
+    """Begin every waiting job nothing is blocking, oldest first.
+
+    More than one can start: a job finishing may free capacity for several, and
+    they only collide if they cover the same PCs.
+    """
+    started = 0
     for job in queued_jobs():
         with _run_lock:
-            if _blocked_by(job["kind"]):
+            if _blocked_by(job["kind"], job["target"] or "all"):
                 continue
             with _db_lock, _conn() as c:
                 changed = c.execute(
@@ -545,12 +570,14 @@ def _start_next_queued() -> None:
                     (_stamp(), job["id"])).rowcount
             if not changed:          # something else took it
                 continue
-            _running[job["kind"]] = job["id"]
+            _running[job["id"]] = job["kind"]
         args = json.loads(kv_get(f"job-args:{job['id']}") or "{}")
         threading.Thread(target=_run,
                          args=(job["id"], job["kind"], job["target"], args.get("only", ""),
                                args.get("adhoc") or None, args.get("tags", "")),
                          daemon=True, name=f"job-{job['id']}").start()
+        started += 1
+    if started:
         return
 
 

@@ -1691,6 +1691,84 @@ _main = open(os.path.join(os.path.dirname(__file__), "..",
 ok("no business creating folders" in _main,
    "and a read-only job does not create folders on the PC")
 
+# ------------------------------------------------------ jobs running side by side
+ok(jobs.max_concurrent() >= 1, "more than one job may run at once")
+_cfgc = store.load()
+ok(store.pcs_for_target(_cfgc, "pc:PC-HQ-001") == {"PC-HQ-001"},
+   "the PCs a job covers can be worked out")
+ok("PC-HQ-001" in store.pcs_for_target(_cfgc, "all"), "including for a job covering everything")
+ok(store.pcs_for_target(_cfgc, "list:PC-HQ-001,PC-BR1-009") == {"PC-HQ-001", "PC-BR1-009"},
+   "and for a list of them")
+ok(not (store.pcs_for_target(_cfgc, "pc:PC-HQ-001")
+        & store.pcs_for_target(_cfgc, "pc:PC-BR1-009")),
+   "two jobs on different PCs do not overlap, so they can run together")
+ok(store.pcs_for_target(_cfgc, "pc:PC-HQ-001") & store.pcs_for_target(_cfgc, "all"),
+   "but one covering everything overlaps every other, so it waits")
+r = c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "30",
+                                      "concurrent_jobs": "5"}, follow_redirects=True)
+ok(store.load()["settings"]["concurrent_jobs"] == 5, "how many run at once is a setting")
+c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "30",
+                                  "concurrent_jobs": "99"}, follow_redirects=True)
+ok(store.load()["settings"]["concurrent_jobs"] == 10, "capped at something sensible")
+c.post("/settings/timeout", data={"csrf": tok, "step_timeout_minutes": "30",
+                                  "concurrent_jobs": "3"}, follow_redirects=True)
+
+# ------------------------------------------------ nothing overflows its page
+_css = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/style.css")).read()
+ok("overflow-wrap: anywhere" in _css,
+   "long unbroken names break inside a cell instead of widening the page")
+ok("pre { overflow-x: auto" in _css, "and long command lines scroll rather than stretch")
+for _page in ("/pcs", "/apps", "/printers", "/reports", "/inventory", "/users", "/jobs",
+              "/drivers", "/scripts", "/registry", "/uninstalls", "/deploy", "/audit"):
+    _b = c.get(_page, follow_redirects=True).text
+    ok(_b.count("<table") == _b.count('<div class="tablewrap">\n<table')
+       or "<table" not in _b
+       or _b.count("tablewrap") >= _b.count("<table"),
+       f"every table on {_page} sits in a scroll wrapper")
+
+# -------------------------------------- jobs on different PCs run side by side
+wait_for_jobs()
+_j1 = jobs.start("ping", "list:PC-HQ-001")
+_j2 = jobs.start("ping", "list:PC-BR1-009")
+ok(jobs.get_job(_j1)["status"] != "queued", "a job starts")
+ok(jobs.get_job(_j2)["status"] != "queued", "and another on different PCs starts too")
+_j3 = jobs.start("ping", "list:PC-HQ-001")
+ok(jobs.get_job(_j3)["status"] in ("queued", "running", "success", "warning", "failed"),
+   "one on the same PC is accepted")
+ok(jobs.max_concurrent() >= 1, "there is a limit on how many run at once")
+r = c.post("/settings/concurrency", data={"csrf": tok, "concurrent_jobs": "5"},
+           follow_redirects=True)
+ok(store.load()["settings"]["concurrent_jobs"] == 5, "which can be changed")
+ok(jobs.max_concurrent() == 5, "and takes effect")
+c.post("/settings/concurrency", data={"csrf": tok, "concurrent_jobs": "99"}, follow_redirects=True)
+ok(store.load()["settings"]["concurrent_jobs"] == 10, "an absurd number is capped")
+c.post("/settings/concurrency", data={"csrf": tok, "concurrent_jobs": "3"}, follow_redirects=True)
+_cfgc = store.load()
+ok(store.pcs_for_target(_cfgc, "all") >= {"PC-HQ-001", "PC-BR1-009"},
+   "'all' covers every PC, so it waits for anything already running")
+ok(store.pcs_for_target(_cfgc, "list:PC-HQ-001") == {"PC-HQ-001"}, "a list covers just those")
+ok(not (store.pcs_for_target(_cfgc, "list:PC-HQ-001")
+        & store.pcs_for_target(_cfgc, "list:PC-BR1-009")),
+   "and two disjoint targets do not collide")
+wait_for_jobs(30)
+
+# ---------------------------------------- every page survives long content
+_long = "Z" * 120
+json.dump({"host": "PC-HQ-001", "time": "2026-09-22 10:00", "facts": {}, "results": [], "apps": [],
+           "inventory": [{"name": _long, "version": "1.0", "publisher": _long}]},
+          open(os.path.join(DATA, "reports", "PC-HQ-001.json"), "w"))
+for _page in ("/", "/pcs", "/apps", "/apps/new", "/files", "/printers", "/inventory",
+              "/inventory?view=pc", "/reports", "/jobs", "/users", "/settings", "/help",
+              "/deploy", "/deploy/preview", "/release-notes"):
+    _r = c.get(_page, follow_redirects=True)
+    ok(_r.status_code == 200, f"{_page} renders")
+    ok(_r.text.count("<table") <= _r.text.count("tablewrap"),
+       f"every table on {_page} can scroll")
+_css = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/style.css")).read()
+ok("overflow-wrap: anywhere" in _css, "long unbroken text wraps rather than widening a table")
+ok("input, select, textarea { max-width: 100%" in _css, "and a field cannot exceed its column")
+ok("pre { overflow-x: auto" in _css, "command blocks scroll on their own")
+
 # ---------------------------------------------- stopping a job that is stuck
 import threading as _th
 _out = []

@@ -54,6 +54,9 @@
   <form method="post" action="{{ url_for('settings_timeout') }}" class="form row tight">{{ csrf() }}
     <label>Give up on one step after<input type="number" name="step_timeout_minutes" min="1" max="600"
       value="{{ cfg.settings.step_timeout_minutes or 30 }}" size="5"> minutes</label>
+    <label>Jobs running at once<input type="number" name="concurrent_jobs" min="1" max="10"
+      value="{{ cfg.settings.concurrent_jobs or 3 }}" size="4">
+      <small>Two jobs never touch the same PC at once whatever this says; the second waits.</small></label>
     <div><button class="btn primary">Save</button></div>
   </form>
   <p class="muted small">An installer waiting on a dialogue nobody will answer, or a script that never returns,

@@ -199,3 +199,19 @@ table { max-width: 100%; }
 .subpanel { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 4px 0 12px; }
 .subpanel > .check { font-weight: 600; }
 .subpanel p { margin: 4px 0 8px; }
+
+/* Long unbroken text - a 100-character program name, a model string, a URL -
+   used to force a table wide. Let it break inside the cell instead. */
+table td, table th { overflow-wrap: anywhere; }
+code, .muted, .flash, .pill { overflow-wrap: anywhere; }
+pre { overflow-x: auto; max-width: 100%; }
+.list td b, .list td a { overflow-wrap: anywhere; }
+/* keep the controls together even when the text beside them wraps */
+td.nowrap, .row.tight .btn, .addrow .btn { white-space: nowrap; }
+
+/* Long unbroken text - a 120-character program name, a path, a package id -
+   wraps inside its cell instead of widening the table. */
+table.list td, table.list th, table.kv td, table.kv th { overflow-wrap: anywhere; }
+input, select, textarea { max-width: 100%; }
+.chip, .pill { max-width: 100%; overflow-wrap: anywhere; }
+.flash { overflow-wrap: anywhere; }

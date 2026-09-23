@@ -1,3 +1,22 @@
+- version: "2.15.0"
+  date: "2026-09-22"
+  summary: >-
+    Jobs run side by side, and long names no longer stretch a page sideways.
+  added:
+    - "Several jobs now run at once - three by default, adjustable up to ten.
+       Two jobs never touch the same PC at the same time whatever that is set
+       to: the second waits, because they would otherwise fight over the same
+       files and installers. A job covering every PC therefore still runs on
+       its own."
+  fixed:
+    - "A long unbroken name - a hundred-character program, a model string, a
+       URL - used to widen a table and push the page sideways. Text now breaks
+       inside its cell, command lines scroll within their own block, and
+       buttons stay on one line."
+  changed:
+    - "Every page was checked with deliberately overlong content, and a test
+       keeps the wrapping rules in place."
+
 - version: "2.14.0"
   date: "2026-09-22"
   summary: >-

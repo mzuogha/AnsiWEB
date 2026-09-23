@@ -14,6 +14,9 @@ settings:
   # Give up on a single step after this many minutes and move on. The part it
   # belongs to is recorded as failed; the rest of the deployment continues.
   step_timeout_minutes: 30
+  # How many jobs may run side by side. Two jobs never touch the same PC at
+  # once whatever this says - the second waits for the first.
+  concurrent_jobs: 3
   registration: pending
   registration_site: ""
   allow_reboot: false      # reboot PCs automatically when an installer asks for it

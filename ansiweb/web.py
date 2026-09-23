@@ -2130,6 +2130,18 @@ def create_app(start_background: bool = True) -> Flask:
                                timezones=store.COMMON_TIMEZONES,
 )
 
+    @app.route("/settings/concurrency", methods=["POST"])
+    def settings_concurrency():
+        cfg = store.load()
+        try:
+            n = int(request.form.get("concurrent_jobs", 3))
+        except ValueError:
+            n = 3
+        cfg["settings"]["concurrent_jobs"] = max(1, min(n, 10))
+        if save_or_flash(cfg):
+            flash("Saved.", "ok")
+        return redirect(url_for("settings_page") + "#concurrency")
+
     @app.route("/settings/timeout", methods=["POST"])
     def settings_timeout():
         cfg = store.load()
@@ -2138,6 +2150,11 @@ def create_app(start_background: bool = True) -> Flask:
         except ValueError:
             minutes = 30
         cfg["settings"]["step_timeout_minutes"] = max(1, min(minutes, 600))
+        try:
+            at_once = int(request.form.get("concurrent_jobs", 3))
+        except ValueError:
+            at_once = 3
+        cfg["settings"]["concurrent_jobs"] = max(1, min(at_once, 10))
         if save_or_flash(cfg):
             flash("Saved.", "ok")
         return redirect(url_for("settings_page") + "#timeouts")
