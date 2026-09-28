@@ -672,3 +672,25 @@ unpacked files are removed afterwards. Exit code 3010 counts as success and flag
 
 **Licensing is yours to get right:** a volume-licensed Office 2019 with a MAK or KMS is fine to deploy this way; a
 retail copy tied to one PC is not.
+
+
+## Keeping dependencies current
+
+AnsiWEB pins nothing above a floor, so `sudo ./install.sh` picks up current versions each time. To see where you
+stand:
+
+```bash
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip list --outdated
+sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
+    /opt/ansiweb/venv/bin/ansible-galaxy collection list
+```
+
+The Windows collections (`ansible.windows`, `community.windows`, `chocolatey.chocolatey`) come from Ansible
+Galaxy and update independently of AnsiWEB:
+
+```bash
+sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+    ansible.windows community.windows
+```
+
+After any upgrade, run a connection test and a deployment against one PC before trusting it across the estate.

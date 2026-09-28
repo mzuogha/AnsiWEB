@@ -1,4 +1,5 @@
 """Offline smoke test of the web interface: python3 tests/smoke_test.py"""
+import datetime as dt
 import io
 import json
 import os
@@ -19,6 +20,12 @@ from ansiweb import (__version__, audit, backup, cache, jobs, release,  # noqa: 
 # Jobs run for real here would invoke Ansible against PCs that do not exist, which
 # is slow and leaves jobs running while later checks want to start their own.
 # The job machinery is still exercised; only the Ansible call itself is stubbed.
+
+def days_ago(n: int) -> str:
+    """A report timestamp n days old. Fixed dates would go stale as time passes."""
+    return (dt.datetime.now() - dt.timedelta(days=n)).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _fake_run(cmd, log, env=None, job_id=None):
     log("[test] would run: " + " ".join(cmd))
     return 0
@@ -768,7 +775,7 @@ ok(_hp.status_code == 200 and "PC health" in _hp.text,
    "health sits under Inventory, Health & Uninstall")
 ok("changes nothing" in _hp.text, "which says it only reads")
 ok("not checked yet" in _hp.text, "a PC with no health report says so")
-_hjson = {"host": "PC-HQ-001", "time": "2026-09-21 18:00:00", "os": "Windows 11 Pro",
+_hjson = {"host": "PC-HQ-001", "time": days_ago(1), "os": "Windows 11 Pro",
           "build": "26100", "uptime_days": 45, "reboot_pending": True,
           "disks": [{"drive": "C:", "total_gb": 476.0, "free_gb": 20.0, "free_pct": 4.2}],
           "defender": {"realtime": False, "age_days": 9.0, "signatures": "2026-09-12"}}
@@ -875,7 +882,7 @@ ok("Choose at least one thing" in r.text, "an invented part is ignored, not pass
 
 # ---------------------------------------------------------------- reports
 os.makedirs(os.path.join(DATA, "reports"), exist_ok=True)
-json.dump({"host": "PC-HQ-001", "time": "2026-09-12 09:00:00", "reboot_pending": True,
+json.dump({"host": "PC-HQ-001", "time": days_ago(1), "reboot_pending": True,
            "facts": {"hostname": "PC-HQ-001", "os": "Windows 11 Pro", "build": "26100",
                      "model": "Dell OptiPlex", "ram_gb": 16, "serial": "ABC123", "boot": "2026-09-12 07:00:00", "activated": False, "timezone": "W. Central Africa Standard Time",
                      "local_time": "2026-09-12 10:05:00"},
@@ -1123,7 +1130,7 @@ _data["inventory"] = [
     {"name": "Ancient Toolbar", "version": "2.1", "publisher": "Nobody Ltd", "arch": "x86"},
     {"name": "VLC media player", "version": "3.0.21", "publisher": "VideoLAN", "arch": "x86"}]
 json.dump(_data, open(_rep, "w"))
-json.dump({"host": "PC-BR1-009", "time": "2026-09-12 09:30:00", "facts": {"hostname": "PC-BR1-009"},
+json.dump({"host": "PC-BR1-009", "time": days_ago(1), "facts": {"hostname": "PC-BR1-009"},
            "apps": [], "results": [], "inventory_count": 2, "inventory_truncated": False,
            "inventory": [{"name": "7-Zip 24.09 (x64)", "version": "24.09", "publisher": "Igor Pavlov",
                           "arch": "x64"},
@@ -1607,11 +1614,11 @@ ok("parts=apps" in _pv, "the way back from a preview carries the choices")
 
 # ------------------------------------------------ grouping PCs by their hardware
 from ansiweb import plan as _planmod                                    # noqa: E402
-json.dump({"host": "PC-HQ-001", "time": "2026-09-22 09:00:00",
+json.dump({"host": "PC-HQ-001", "time": days_ago(1),
            "facts": {"manufacturer": "HP", "model": "HP EliteBook 840 G8"},
            "results": [], "apps": [], "inventory": []},
           open(os.path.join(DATA, "reports", "PC-HQ-001.json"), "w"))
-json.dump({"host": "PC-BR1-009", "time": "2026-09-22 09:00:00",
+json.dump({"host": "PC-BR1-009", "time": days_ago(1),
            "facts": {"manufacturer": "Dell Inc.", "model": "Latitude 5420"},
            "results": [], "apps": [], "inventory": []},
           open(os.path.join(DATA, "reports", "PC-BR1-009.json"), "w"))
@@ -1754,7 +1761,7 @@ wait_for_jobs(30)
 
 # ---------------------------------------- every page survives long content
 _long = "Z" * 120
-json.dump({"host": "PC-HQ-001", "time": "2026-09-22 10:00", "facts": {}, "results": [], "apps": [],
+json.dump({"host": "PC-HQ-001", "time": days_ago(1), "facts": {}, "results": [], "apps": [],
            "inventory": [{"name": _long, "version": "1.0", "publisher": _long}]},
           open(os.path.join(DATA, "reports", "PC-HQ-001.json"), "w"))
 for _page in ("/", "/pcs", "/apps", "/apps/new", "/files", "/printers", "/inventory",

@@ -5,6 +5,42 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.15.1 - 2026-09-28
+
+Dependency check, and tests that no longer rot with time.
+
+
+### Changed
+
+- Checked against current versions - Flask 3.1.3, gunicorn 26.2.0, PyYAML 6.0.3, ansible-core 2.21.4, pywinrm 0.5.0, Python 3.12. Everything imports and runs clean with deprecation warnings treated as errors, and the playbook passes a syntax check on ansible-core 2.21.
+- requirements.txt records the versions each floor was tested against, and the installation guide explains how to check for outdated packages and how to upgrade the Windows collections, which come from Ansible Galaxy and move independently of AnsiWEB.
+
+
+### Fixed
+
+- The test suite wrote reports with fixed dates, so as real time passed a PC that was supposed to look current became stale and the suite failed on a clean checkout. Report times are now relative to today.
+
+
+## 2.15.0 - 2026-09-22
+
+Jobs run side by side, and long names no longer stretch a page sideways.
+
+
+### New
+
+- Several jobs now run at once - three by default, adjustable up to ten. Two jobs never touch the same PC at the same time whatever that is set to: the second waits, because they would otherwise fight over the same files and installers. A job covering every PC therefore still runs on its own.
+
+
+### Changed
+
+- Every page was checked with deliberately overlong content, and a test keeps the wrapping rules in place.
+
+
+### Fixed
+
+- A long unbroken name - a hundred-character program, a model string, a URL - used to widen a table and push the page sideways. Text now breaks inside its cell, command lines scroll within their own block, and buttons stay on one line.
+
+
 ## 2.14.0 - 2026-09-22
 
 A Stop button for a job that is stuck, and two pages merged differently.
