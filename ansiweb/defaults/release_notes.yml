@@ -1,3 +1,19 @@
+- version: "2.16.1"
+  date: "2026-09-28"
+  summary: >-
+    Stops ansible-galaxy warning about the collections path.
+  fixed:
+    - "Installing the Windows collections printed a warning that the path
+       appeared to be part of the pip Ansible package. It never was - the
+       package lives in the virtualenv - but ansible-galaxy was being run
+       without AnsiWEB's own configuration, so it did not recognise
+       /opt/ansiweb/ansible/collections as a configured collections path. The
+       installer and the documented commands now set ANSIBLE_CONFIG, and use
+       the full path rather than a relative one. Both are needed; either alone
+       still warns."
+    - The installation guide explains the warning, for anyone who meets it
+      after running the command by hand.
+
 - version: "2.16.0"
   date: "2026-09-28"
   summary: >-

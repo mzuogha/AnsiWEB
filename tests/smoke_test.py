@@ -1764,6 +1764,14 @@ _inst = open(os.path.join(os.path.dirname(__file__), "..", "install.sh")).read()
 ok("ANSIWEB_UPGRADE" in _inst, "the installer has a deliberate upgrade mode")
 ok("--upgrade -r" in _inst, "which upgrades the Python packages")
 ok("collection install --upgrade" in _inst, "and the Ansible collections")
+# without ANSIBLE_CONFIG, ansible-galaxy does not recognise our collections
+# path and warns that installing there could break the Ansible package
+ok(_inst.count("ANSIBLE_CONFIG=\"$APP_DIR/ansible/ansible.cfg\"") >= 2,
+   "every ansible-galaxy call names AnsiWEB's own config")
+for _line in _inst.split("\n"):
+    if "ansible-galaxy" in _line and "collection install" in _line:
+        ok("-p " not in _line or "$APP_DIR" in _line,
+           "and installs to the full path, not a relative one")
 ok(_inst.count("install -q -r") == 1,
    "while an ordinary reinstall still leaves working versions alone")
 _readme = open(os.path.join(os.path.dirname(__file__), "..", "README.md")).read()
@@ -1773,7 +1781,11 @@ for _doc, _name in ((_readme, "README"), (_guide, "the installation guide")):
     ok("pip list --outdated" in _doc, f"{_name} shows how to see what is behind")
     ok("ansible-galaxy collection install --upgrade" in _doc,
        f"{_name} covers the Windows collections too")
+    ok("ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg" in _doc,
+       f"{_name} sets the config on that command, so it does not warn")
     ok("systemctl restart ansiweb" in _doc, f"{_name} says to restart afterwards")
+ok("part of the pip Ansible package" in _guide,
+   "the guide explains the warning that appears without it")
 ok("ansible-core==" in _guide and "rm -rf /opt/ansiweb/venv" in _guide,
    "the guide says how to go back if an upgrade breaks something")
 ok("/var/lib/ansiweb" in _guide.split("If an upgrade breaks")[1][:900],

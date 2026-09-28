@@ -229,7 +229,8 @@ Or by hand:
 ```bash
 sudo -u ansiweb /opt/ansiweb/venv/bin/pip list --outdated
 sudo -u ansiweb /opt/ansiweb/venv/bin/pip install --upgrade flask gunicorn pyyaml ansible-core pywinrm
-sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
+    /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
     ansible.windows community.windows -p /opt/ansiweb/ansible/collections
 sudo systemctl restart ansiweb
 ```

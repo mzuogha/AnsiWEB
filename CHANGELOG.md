@@ -5,6 +5,17 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.16.1 - 2026-09-28
+
+Stops ansible-galaxy warning about the collections path.
+
+
+### Fixed
+
+- Installing the Windows collections printed a warning that the path appeared to be part of the pip Ansible package. It never was - the package lives in the virtualenv - but ansible-galaxy was being run without AnsiWEB's own configuration, so it did not recognise /opt/ansiweb/ansible/collections as a configured collections path. The installer and the documented commands now set ANSIBLE_CONFIG, and use the full path rather than a relative one. Both are needed; either alone still warns.
+- The installation guide explains the warning, for anyone who meets it after running the command by hand.
+
+
 ## 2.16.0 - 2026-09-28
 
 How to upgrade Flask, gunicorn, PyYAML, ansible-core and pywinrm yourself.

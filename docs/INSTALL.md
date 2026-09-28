@@ -714,7 +714,8 @@ The Ansible Windows collections come from Ansible Galaxy and move independently:
 sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
     /opt/ansiweb/venv/bin/ansible-galaxy collection list
 
-sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
+    /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
     ansible.windows community.windows chocolatey.chocolatey \
     -p /opt/ansiweb/ansible/collections
 ```
@@ -734,6 +735,22 @@ backup costs seconds and an upgrade that goes wrong at 5pm does not.
 **Then prove it works**, in this order: sign in; run a connection test against one PC; deploy to that one PC.
 ansible-core is the one worth this care — it talks to every machine you manage, and a major version can change
 how modules behave.
+
+### "appears to be part of the pip Ansible package"
+
+If `ansible-galaxy` warns that the collections path *appears to be part of the pip Ansible package*, it means it
+was run without `ANSIBLE_CONFIG` pointing at AnsiWEB's own config, so it did not recognise
+`/opt/ansiweb/ansible/collections` as a configured path. Nothing is broken and the collections still install —
+the Ansible package lives in the virtualenv and is untouched — but the cure is to set it, as the commands above
+do:
+
+```bash
+sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
+    /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+    ansible.windows community.windows -p /opt/ansiweb/ansible/collections
+```
+
+Both parts matter: the config, so the path is known, and the full path rather than a relative one.
 
 ### If an upgrade breaks something
 

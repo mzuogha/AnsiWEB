@@ -141,13 +141,19 @@ else
   "$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
 fi
 
+# ANSIBLE_CONFIG has to be set here: without it ansible-galaxy does not know
+# this path is a configured collections path and warns that installing into it
+# could break the pip Ansible package. It cannot - the package lives in the
+# virtualenv - but the warning is alarming and avoidable.
 echo "==> Ansible collections"
 if [[ "${ANSIWEB_UPGRADE:-}" == "1" ]]; then
-  "$APP_DIR/venv/bin/ansible-galaxy" collection install --upgrade \
+  ANSIBLE_CONFIG="$APP_DIR/ansible/ansible.cfg" \
+    "$APP_DIR/venv/bin/ansible-galaxy" collection install --upgrade \
         -r "$APP_DIR/ansible/requirements.yml" \
         -p "$APP_DIR/ansible/collections" >/dev/null
 else
-  "$APP_DIR/venv/bin/ansible-galaxy" collection install -r "$APP_DIR/ansible/requirements.yml" \
+  ANSIBLE_CONFIG="$APP_DIR/ansible/ansible.cfg" \
+    "$APP_DIR/venv/bin/ansible-galaxy" collection install -r "$APP_DIR/ansible/requirements.yml" \
         -p "$APP_DIR/ansible/collections" --force >/dev/null
 fi
 
