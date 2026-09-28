@@ -5,6 +5,23 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
+## 2.16.0 - 2026-09-28
+
+How to upgrade Flask, gunicorn, PyYAML, ansible-core and pywinrm yourself.
+
+
+### New
+
+- sudo ANSIWEB_UPGRADE=1 ./install.sh upgrades the Python packages and the Ansible Windows collections to the newest versions allowed, then restarts as usual. Without it, a reinstall leaves working versions exactly as they are.
+- The README and the installation guide cover doing it by hand: seeing what is behind, upgrading all of them or one, the collections from Galaxy, restarting, and what to check afterwards - sign in, test one PC, deploy to one PC.
+- How to go back: pin the version that worked, or delete the environment and rebuild it, which leaves the configuration, cache and reports in /var/lib/ansiweb untouched.
+
+
+### Fixed
+
+- An earlier note claimed a reinstall picked up current versions. It does not: the requirements file states minimums, and an installed version that already meets one is left alone. That is deliberate, and now said plainly.
+
+
 ## 2.15.1 - 2026-09-28
 
 Dependency check, and tests that no longer rot with time.

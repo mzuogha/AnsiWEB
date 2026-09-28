@@ -1759,6 +1759,26 @@ ok(not (store.pcs_for_target(_cfgc, "list:PC-HQ-001")
    "and two disjoint targets do not collide")
 wait_for_jobs(30)
 
+# ---------------------------------------------- upgrading is documented and possible
+_inst = open(os.path.join(os.path.dirname(__file__), "..", "install.sh")).read()
+ok("ANSIWEB_UPGRADE" in _inst, "the installer has a deliberate upgrade mode")
+ok("--upgrade -r" in _inst, "which upgrades the Python packages")
+ok("collection install --upgrade" in _inst, "and the Ansible collections")
+ok(_inst.count("install -q -r") == 1,
+   "while an ordinary reinstall still leaves working versions alone")
+_readme = open(os.path.join(os.path.dirname(__file__), "..", "README.md")).read()
+_guide = open(os.path.join(os.path.dirname(__file__), "..", "docs/INSTALL.md")).read()
+for _doc, _name in ((_readme, "README"), (_guide, "the installation guide")):
+    ok("ANSIWEB_UPGRADE=1" in _doc, f"{_name} gives the one-command upgrade")
+    ok("pip list --outdated" in _doc, f"{_name} shows how to see what is behind")
+    ok("ansible-galaxy collection install --upgrade" in _doc,
+       f"{_name} covers the Windows collections too")
+    ok("systemctl restart ansiweb" in _doc, f"{_name} says to restart afterwards")
+ok("ansible-core==" in _guide and "rm -rf /opt/ansiweb/venv" in _guide,
+   "the guide says how to go back if an upgrade breaks something")
+ok("/var/lib/ansiweb" in _guide.split("If an upgrade breaks")[1][:900],
+   "and that rebuilding the environment leaves the data alone")
+
 # ---------------------------------------- every page survives long content
 _long = "Z" * 120
 json.dump({"host": "PC-HQ-001", "time": days_ago(1), "facts": {}, "results": [], "apps": [],

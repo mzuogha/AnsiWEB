@@ -674,23 +674,87 @@ unpacked files are removed afterwards. Exit code 3010 counts as success and flag
 retail copy tied to one PC is not.
 
 
-## Keeping dependencies current
+## Updating the software AnsiWEB runs on
 
-AnsiWEB pins nothing above a floor, so `sudo ./install.sh` picks up current versions each time. To see where you
-stand:
+AnsiWEB itself updates with `git pull && sudo ./install.sh`. That does **not** upgrade Flask, gunicorn, PyYAML,
+ansible-core or pywinrm: the requirements file states minimums, and an installed version that already meets the
+minimum is left alone. Upgrades are deliberate, so a routine reinstall cannot change what is underneath you.
+
+### The easy way
+
+```bash
+cd ~/AnsiWEB          # wherever you cloned it
+git pull
+sudo ANSIWEB_UPGRADE=1 ./install.sh
+```
+
+That upgrades the Python packages and the Ansible Windows collections to the newest versions allowed, then
+restarts the service as usual.
+
+### Doing it by hand
+
+To see what is behind first:
 
 ```bash
 sudo -u ansiweb /opt/ansiweb/venv/bin/pip list --outdated
-sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
-    /opt/ansiweb/venv/bin/ansible-galaxy collection list
 ```
 
-The Windows collections (`ansible.windows`, `community.windows`, `chocolatey.chocolatey`) come from Ansible
-Galaxy and update independently of AnsiWEB:
+Then all of them, or one at a time:
 
 ```bash
-sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
-    ansible.windows community.windows
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip install --upgrade \
+    flask gunicorn pyyaml ansible-core pywinrm
+
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip install --upgrade ansible-core
 ```
 
-After any upgrade, run a connection test and a deployment against one PC before trusting it across the estate.
+The Ansible Windows collections come from Ansible Galaxy and move independently:
+
+```bash
+sudo -u ansiweb ANSIBLE_CONFIG=/opt/ansiweb/ansible/ansible.cfg \
+    /opt/ansiweb/venv/bin/ansible-galaxy collection list
+
+sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+    ansible.windows community.windows chocolatey.chocolatey \
+    -p /opt/ansiweb/ansible/collections
+```
+
+Restart afterwards, and check it came back:
+
+```bash
+sudo systemctl restart ansiweb
+systemctl status ansiweb --no-pager
+```
+
+### Before and after
+
+**Back up first** — Settings → Backup, or `sudo ansiweb backup`. Nothing here touches `/var/lib/ansiweb`, but a
+backup costs seconds and an upgrade that goes wrong at 5pm does not.
+
+**Then prove it works**, in this order: sign in; run a connection test against one PC; deploy to that one PC.
+ansible-core is the one worth this care — it talks to every machine you manage, and a major version can change
+how modules behave.
+
+### If an upgrade breaks something
+
+Go back to the version that worked:
+
+```bash
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip install 'ansible-core==2.21.4'
+sudo systemctl restart ansiweb
+```
+
+`pip list` shows what you had. If the environment is in a worse state than that, delete it and rebuild:
+
+```bash
+sudo rm -rf /opt/ansiweb/venv
+cd ~/AnsiWEB && sudo ./install.sh
+```
+
+That rebuilds from the requirements file and leaves your configuration, cache and reports untouched, since they
+live in `/var/lib/ansiweb`.
+
+### What is known to work
+
+The versions in `requirements.txt` are minimums; the comment beside each says what that floor was last tested
+against. Anything newer is likely fine and untested by us — the check above is how you find out cheaply.

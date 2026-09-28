@@ -131,11 +131,25 @@ rsync -a --delete --exclude .git --exclude venv --exclude data --exclude ansible
 echo "==> Python environment"
 [[ -d "$APP_DIR/venv" ]] || python3 -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install -q --upgrade pip
-"$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
+# Ordinarily this only installs what is missing: an existing Flask 3.0 already
+# satisfies "flask>=3.0", so an upgrade has to be asked for deliberately rather
+# than arriving unannounced with a routine reinstall.
+if [[ "${ANSIWEB_UPGRADE:-}" == "1" ]]; then
+  echo "    upgrading Python packages to the newest allowed versions"
+  "$APP_DIR/venv/bin/pip" install -q --upgrade -r "$APP_DIR/requirements.txt"
+else
+  "$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
+fi
 
 echo "==> Ansible collections"
-"$APP_DIR/venv/bin/ansible-galaxy" collection install -r "$APP_DIR/ansible/requirements.yml" \
-      -p "$APP_DIR/ansible/collections" --force >/dev/null
+if [[ "${ANSIWEB_UPGRADE:-}" == "1" ]]; then
+  "$APP_DIR/venv/bin/ansible-galaxy" collection install --upgrade \
+        -r "$APP_DIR/ansible/requirements.yml" \
+        -p "$APP_DIR/ansible/collections" >/dev/null
+else
+  "$APP_DIR/venv/bin/ansible-galaxy" collection install -r "$APP_DIR/ansible/requirements.yml" \
+        -p "$APP_DIR/ansible/collections" --force >/dev/null
+fi
 
 echo "==> Command-line helper /usr/local/bin/ansiweb"
 cat > /usr/local/bin/ansiweb <<WRAP

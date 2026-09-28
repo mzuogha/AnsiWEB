@@ -211,6 +211,33 @@ A PC writes a report at the end of every deployment. If one stops reporting it i
 
 Now the dashboard counts PCs that have not reported within **Treat a PC as not reporting after** days (14 by default, set in Settings) plus any that never have, and links straight to them. The Reports page shows each PC's freshness, filters to just the problem ones, and the CSV export carries both the state and the days since the last report.
 
+## Updating
+
+AnsiWEB updates with `git pull && sudo ./install.sh`. That deliberately leaves Flask, gunicorn, PyYAML,
+ansible-core and pywinrm as they are — the requirements file sets minimums, so a reinstall does not change what is
+underneath you.
+
+To upgrade those too:
+
+```bash
+git pull
+sudo ANSIWEB_UPGRADE=1 ./install.sh
+```
+
+Or by hand:
+
+```bash
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip list --outdated
+sudo -u ansiweb /opt/ansiweb/venv/bin/pip install --upgrade flask gunicorn pyyaml ansible-core pywinrm
+sudo -u ansiweb /opt/ansiweb/venv/bin/ansible-galaxy collection install --upgrade \
+    ansible.windows community.windows -p /opt/ansiweb/ansible/collections
+sudo systemctl restart ansiweb
+```
+
+Back up first, then prove it: sign in, run a connection test, deploy to one PC. ansible-core is the one to be
+careful with — it talks to every machine you manage. To go back, `pip install 'ansible-core==2.21.4'` and restart;
+the full notes, including rebuilding the environment from scratch, are in [docs/INSTALL.md](docs/INSTALL.md).
+
 ## Security notes
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
