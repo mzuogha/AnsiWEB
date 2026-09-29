@@ -5,18 +5,14 @@ All notable changes to AnsiWEB. This file is generated from
 interface also renders - edit that file, then run `python3 tools/make_changelog.py`.
 
 
-## 2.17.0 - 2026-09-28
+## 2.17.1 - 2026-09-28
 
-A reworked interface, built around status rather than decoration.
+Puts the interface back the way it was.
 
 
 ### Changed
 
-- New look throughout. The chrome is deliberately quiet - hairline rules, one radius, no gradients or drop shadows on content - so that status is the loud thing on every page: coloured pills with a square signal dot, and a coloured rule down the left of every message.
-- Figures line up down a column, and machine values - versions, addresses, exit codes, logs - are set in a monospaced face so they can be compared at a glance. Anything a person wrote stays in the reading face.
-- Tables have a sticky header, so the column names stay put while you scroll a long inventory, and rows light up under the pointer.
-- The sidebar marks the page you are on with a coloured edge rather than a block of colour, and collapses to a row on a narrow window.
-- Both themes come from one set of tokens, so light and dark stay in step. Keyboard focus is visible everywhere, and motion is dropped entirely for anyone whose system asks for that.
+- The 2.17.0 restyling is reverted. The stylesheet is byte for byte what it was in 2.16.1; no page markup was touched by either change, so everything looks and behaves as it did before.
 
 
 ## 2.16.1 - 2026-09-28

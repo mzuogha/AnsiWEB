@@ -1805,24 +1805,6 @@ for _page in ("/", "/pcs", "/apps", "/apps/new", "/files", "/printers", "/invent
        f"every table on {_page} can scroll")
 _css = open(os.path.join(os.path.dirname(__file__), "..", "ansiweb/static/style.css")).read()
 ok("overflow-wrap: anywhere" in _css, "long unbroken text wraps rather than widening a table")
-# the look: one set of tokens, both themes, and the accessibility floor
-for _token in ("--bg:", "--panel:", "--text:", "--muted:", "--line:", "--brand:",
-               "--ok:", "--warn:", "--bad:", "--radius:"):
-    ok(_token in _css, f"the palette defines {_token.strip(':')}")
-ok(_css.count('[data-theme="dark"]') >= 1 and "prefers-color-scheme: dark" in _css,
-   "dark mode still follows the system and the switch")
-ok("prefers-reduced-motion" in _css, "motion is dropped for anyone who asks for that")
-ok("outline: 2px solid var(--brand)" in _css, "keyboard focus is visible")
-ok("@media (max-width: 860px)" in _css, "and it works on a narrow window")
-ok("font-variant-numeric: tabular-nums" in _css, "figures line up down a column")
-ok("ui-monospace" in _css, "machine values are set in mono")
-for _class in (".pill.running", ".pill.failed", ".card.bad", ".grid2", ".form.tight",
-               ".chip", ".checks", ".sched", ".login-box", ".tip", "#tipbox", ".log"):
-    ok(_class in _css, f"{_class} is still styled")
-ok("max-width: 100%" in _css.split("input, select, textarea")[1][:200],
-   "and a field cannot exceed its column")
-ok("pre { overflow-x: auto" in _css, "command blocks scroll on their own")
-
 # ---------------------------------------------- stopping a job that is stuck
 import threading as _th
 _out = []
